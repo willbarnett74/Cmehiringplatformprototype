@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { LayoutDashboard, Users, Settings, Building2, Search, BarChart3 } from 'lucide-react';
 import { DashboardPage } from './employer-pages/DashboardPage';
 import { SearchPage } from './employer-pages/SearchPage';
@@ -8,8 +8,15 @@ import { SettingsPage } from './employer-pages/SettingsPage';
 import { CandidateModal } from './employer-pages/CandidateModal';
 import { ApplicantProfileView } from './employer-pages/ApplicantProfileView';
 import { Candidate, Section } from './types/employer';
+import { useUserProfile } from '../contexts/UserProfileContext';
+
+
+
+const APPLICANT_CANDIDATE_ID = 999;
 
 export function EmployerScreen() {
+  const { profileData } = useUserProfile();
+
   // Navigation state
   const [currentSection, setCurrentSection] = useState<Section>('dashboard');
 
@@ -20,10 +27,12 @@ export function EmployerScreen() {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [showLevelDropdown, setShowLevelDropdown] = useState(false);
   const [showTraitsDropdown, setShowTraitsDropdown] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Modal state
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showFullProfile, setShowFullProfile] = useState(false);
+  const [syncedApplicantStage, setSyncedApplicantStage] = useState<Candidate['stage']>('newSignals');
 
   // Candidate data with stage management
   const [candidates, setCandidates] = useState<Candidate[]>([
@@ -157,6 +166,66 @@ export function EmployerScreen() {
     },
   ]);
 
+
+  const syncedApplicantCandidate = useMemo<Candidate | null>(() => {
+    if (!profileData.profile_complete) {
+      return null;
+    }
+
+    const roleFromFocus = profileData.career_focus ? `${profileData.career_focus} Specialist` : 'Product Designer';
+    const cognitiveScore = profileData.cognitive_score ?? 78;
+    const selectedTraits = [
+      profileData.work_style_selection,
+      profileData.adaptability_tag,
+      profileData.decision_style,
+      profileData.communication_style,
+      ...profileData.motivation_tags,
+    ].filter((item): item is string => Boolean(item));
+
+    return {
+      id: APPLICANT_CANDIDATE_ID,
+      name: 'Alex Rivera (Live Applicant)',
+      role: roleFromFocus,
+      location: 'Remote',
+      level: (profileData.experience_level ?? 'Mid-level') as string,
+      traits: selectedTraits.slice(0, 3).length > 0 ? selectedTraits.slice(0, 3) : ['Adaptability', 'Collaboration', 'Ownership'],
+      score: Math.min(99, Math.max(70, cognitiveScore)),
+      stage: syncedApplicantStage,
+      aiMatchPercent: Math.min(98, Math.max(72, cognitiveScore - 2)),
+      totalExperience: profileData.total_experience ?? undefined,
+      transitioning: profileData.is_transitioning,
+      openToChange: profileData.open_to_change,
+      readyToStepUp: profileData.ready_to_step_up,
+      retrained: profileData.recently_retrained,
+    };
+  }, [profileData, syncedApplicantStage]);
+
+  const candidatesForDisplay = useMemo(() => {
+    const withoutSyncedApplicant = candidates.filter((candidate) => candidate.id !== APPLICANT_CANDIDATE_ID);
+
+    if (!syncedApplicantCandidate) {
+      return withoutSyncedApplicant;
+    }
+
+    return [syncedApplicantCandidate, ...withoutSyncedApplicant];
+  }, [candidates, syncedApplicantCandidate]);
+
+
+
+  const filteredCandidates = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return candidatesForDisplay;
+    }
+
+    const normalizedSearch = searchTerm.toLowerCase();
+    return candidatesForDisplay.filter((candidate) =>
+      [candidate.name, candidate.role, candidate.location]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [candidatesForDisplay, searchTerm]);
+
   const toggleTrait = (trait: string) => {
     if (selectedTraits.includes(trait)) {
       setSelectedTraits(selectedTraits.filter((t) => t !== trait));
@@ -194,6 +263,16 @@ export function EmployerScreen() {
   };
 
   const handleMoveToNextStage = (candidateId: number) => {
+    if (candidateId === APPLICANT_CANDIDATE_ID) {
+      setSyncedApplicantStage((currentStage) => {
+        if (currentStage === 'newSignals') return 'assessmentSent';
+        if (currentStage === 'assessmentSent') return 'finalRound';
+        if (currentStage === 'finalRound') return 'hired';
+        return currentStage;
+      });
+      return;
+    }
+
     setCandidates((prevCandidates) =>
       prevCandidates.map((candidate) => {
         if (candidate.id === candidateId) {
@@ -209,6 +288,11 @@ export function EmployerScreen() {
   };
 
   const handleMoveToStage = (candidateId: number, newStage: string) => {
+    if (candidateId === APPLICANT_CANDIDATE_ID) {
+      setSyncedApplicantStage(newStage as Candidate['stage']);
+      return;
+    }
+
     setCandidates((prevCandidates) =>
       prevCandidates.map((candidate) => {
         if (candidate.id === candidateId) {
@@ -327,7 +411,9 @@ export function EmployerScreen() {
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Search candidates"
+                    placeholder="Search candidates by name, role, or location"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full px-4 py-2 pl-10 bg-[#fafafa] border border-black/[0.08] text-sm text-[#111827] placeholder:text-[#6B7280] focus:outline-none focus:border-[#7dbbff]"
                     style={{ borderRadius: '10px' }}
                   />
@@ -362,16 +448,24 @@ export function EmployerScreen() {
 
           {/* Content Area */}
           <div className="p-8">
+            {syncedApplicantCandidate && (
+              <div className="mb-6 border border-[#7DBBFF]/30 bg-gradient-to-r from-[#7DBBFF]/10 to-[#8B5CF6]/10 px-4 py-3" style={{ borderRadius: '12px' }}>
+                <p className="text-sm text-[#1F2937]">
+                  Live signal: applicant profile updates are now synced to your employer pipeline as
+                  <span className="font-semibold"> Alex Rivera (Live Applicant)</span>.
+                </p>
+              </div>
+            )}
             {currentSection === 'dashboard' && (
               <DashboardPage
                 hasActiveFilters={hasActiveFilters}
-                candidateCount={candidates.length}
+                candidateCount={filteredCandidates.length}
                 onNavigateToSearch={() => setCurrentSection('search')}
               />
             )}
             {currentSection === 'search' && (
               <SearchPage
-                candidates={candidates}
+                candidates={filteredCandidates}
                 selectedLocation={selectedLocation}
                 selectedLevel={selectedLevel}
                 selectedTraits={selectedTraits}
@@ -390,7 +484,7 @@ export function EmployerScreen() {
             )}
             {currentSection === 'candidates' && (
               <CandidatesPage
-                candidates={candidates}
+                candidates={filteredCandidates}
                 onCandidateClick={handleCandidateClick}
                 onMoveToNextStage={handleMoveToNextStage}
                 onMoveToStage={handleMoveToStage}

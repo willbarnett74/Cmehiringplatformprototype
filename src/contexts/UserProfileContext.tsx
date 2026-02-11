@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 interface UserProfileData {
   // Foundation Overview
@@ -56,9 +56,25 @@ const defaultProfileData: UserProfileData = {
 };
 
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
+const USER_PROFILE_STORAGE_KEY = 'cme-user-profile';
 
 export function UserProfileProvider({ children }: { children: ReactNode }) {
-  const [profileData, setProfileData] = useState<UserProfileData>(defaultProfileData);
+  const [profileData, setProfileData] = useState<UserProfileData>(() => {
+    if (typeof window === 'undefined') {
+      return defaultProfileData;
+    }
+
+    const storedProfile = window.localStorage.getItem(USER_PROFILE_STORAGE_KEY);
+    if (!storedProfile) {
+      return defaultProfileData;
+    }
+
+    try {
+      return { ...defaultProfileData, ...JSON.parse(storedProfile) };
+    } catch {
+      return defaultProfileData;
+    }
+  });
 
   const updateProfileData = (updates: Partial<UserProfileData>) => {
     setProfileData((prev) => ({ ...prev, ...updates }));
@@ -67,6 +83,12 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   const resetProfile = () => {
     setProfileData(defaultProfileData);
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(profileData));
+    }
+  }, [profileData]);
 
   return (
     <UserProfileContext.Provider value={{ profileData, updateProfileData, resetProfile }}>
