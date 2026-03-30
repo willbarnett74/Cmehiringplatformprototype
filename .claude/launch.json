@@ -1,0 +1,13 @@
+{
+  "version": "0.1",
+  "configurations": [
+    {
+      "name": "CMe Hiring Platform",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    }
+  ]
+}
