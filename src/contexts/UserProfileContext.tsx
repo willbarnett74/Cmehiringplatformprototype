@@ -1,58 +1,81 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
+import { DimensionScores } from '../utils/intakeScoring';
 
+// Intake response structure for all 8 sections
+export interface IntakeData {
+  section1?: any;
+  section2?: any;
+  section3?: any;
+  section4?: any;
+  section5?: any;
+  section6?: any;
+  section7?: any;
+  section8?: any;
+  completedSections: number[];
+  isComplete: boolean;
+}
+
+// User profile data mapped to candidate_profiles table
 interface UserProfileData {
-  // Foundation Overview
-  motivation_tags: string[];
-  work_style_selection: 'Analytical' | 'Collaborative' | 'Creative' | 'Balanced' | null;
+  // Intake Flow Completion Status
+  intakeData: IntakeData;
   
-  // Experience & Work History
-  experience_level: string | null;
-  industries: string[];
-  total_experience: number | null; // Total years of work experience
+  // 9-Dimension Trait Scores (from Sections 2-6)
+  trait_scores: DimensionScores | null;
   
-  // Career Readiness & Growth
-  is_transitioning: boolean; // Career transition or returner
-  open_to_change: boolean; // Open to career change
-  ready_to_step_up: boolean; // Ready to step up to next level
-  recently_retrained: boolean; // Recently retrained or reskilled
+  // Section 7 - Career Direction Preferences
+  career_preferences: {
+    what_looking_for?: string;
+    growth_direction?: string;
+    industry_openness?: string[];
+    role_type_preference?: string[];
+    employment_preferences?: {
+      location?: string[];
+      work_arrangement?: string[];
+      company_size?: string[];
+      salary_range?: string;
+    };
+  };
   
-  // Career Direction
-  career_focus: string | null;
-  
-  // Deeper Insights
-  adaptability_tag: 'High' | 'Moderate' | 'Structured' | null;
-  decision_style: 'Data-Driven' | 'Intuitive' | 'Collaborative' | 'Balanced' | null;
-  communication_style: 'Direct' | 'Thoughtful' | 'Visual' | 'Facilitative' | null;
-  
-  // Skills & Testing
-  cognitive_score: number | null;
+  // Section 8 - Profile Information
+  profile_info: {
+    strengths?: string[];
+    working_context?: string;
+    testimonial?: {
+      name: string;
+      relationship: string;
+      quote: string;
+    };
+    anything_else?: string;
+    optional_fields_completed?: boolean;
+  };
   
   // Meta
   profile_complete: boolean;
+  last_updated: Date | null;
 }
 
 interface UserProfileContextType {
   profileData: UserProfileData;
   updateProfileData: (updates: Partial<UserProfileData>) => void;
+  updateIntakeSection: (section: number, data: any) => void;
+  updateTraitScores: (scores: DimensionScores) => void;
+  markIntakeComplete: () => void;
   resetProfile: () => void;
 }
 
+const defaultIntakeData: IntakeData = {
+  completedSections: [],
+  isComplete: false,
+};
+
 const defaultProfileData: UserProfileData = {
-  motivation_tags: [],
-  work_style_selection: null,
-  experience_level: null,
-  industries: [],
-  total_experience: null,
-  is_transitioning: false,
-  open_to_change: false,
-  ready_to_step_up: false,
-  recently_retrained: false,
-  career_focus: null,
-  adaptability_tag: null,
-  decision_style: null,
-  communication_style: null,
-  cognitive_score: null,
+  intakeData: defaultIntakeData,
+  trait_scores: null,
+  career_preferences: {},
+  profile_info: {},
   profile_complete: false,
+  last_updated: null,
 };
 
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
@@ -61,7 +84,49 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [profileData, setProfileData] = useState<UserProfileData>(defaultProfileData);
 
   const updateProfileData = (updates: Partial<UserProfileData>) => {
-    setProfileData((prev) => ({ ...prev, ...updates }));
+    setProfileData((prev) => ({ 
+      ...prev, 
+      ...updates,
+      last_updated: new Date(),
+    }));
+  };
+
+  const updateIntakeSection = (section: number, data: any) => {
+    setProfileData((prev) => {
+      const updatedIntakeData = {
+        ...prev.intakeData,
+        [`section${section}`]: data,
+        completedSections: prev.intakeData.completedSections.includes(section)
+          ? prev.intakeData.completedSections
+          : [...prev.intakeData.completedSections, section].sort(),
+      };
+
+      return {
+        ...prev,
+        intakeData: updatedIntakeData,
+        last_updated: new Date(),
+      };
+    });
+  };
+
+  const updateTraitScores = (scores: DimensionScores) => {
+    setProfileData((prev) => ({
+      ...prev,
+      trait_scores: scores,
+      last_updated: new Date(),
+    }));
+  };
+
+  const markIntakeComplete = () => {
+    setProfileData((prev) => ({
+      ...prev,
+      intakeData: {
+        ...prev.intakeData,
+        isComplete: true,
+      },
+      profile_complete: true,
+      last_updated: new Date(),
+    }));
   };
 
   const resetProfile = () => {
@@ -69,7 +134,16 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <UserProfileContext.Provider value={{ profileData, updateProfileData, resetProfile }}>
+    <UserProfileContext.Provider 
+      value={{ 
+        profileData, 
+        updateProfileData, 
+        updateIntakeSection,
+        updateTraitScores,
+        markIntakeComplete,
+        resetProfile 
+      }}
+    >
       {children}
     </UserProfileContext.Provider>
   );

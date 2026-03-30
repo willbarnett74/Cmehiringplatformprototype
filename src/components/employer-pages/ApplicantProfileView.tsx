@@ -2,14 +2,14 @@ import { X, MapPin, Briefcase, Mail, Phone, Linkedin, Star, MessageSquare, FileT
 import { Candidate } from '../types/employer';
 import { useState } from 'react';
 
-interface ApplicantProfileViewProps {
+interface CandidateProfileViewProps {
   candidate: Candidate;
   onClose: () => void;
   onMoveToNextStage: (candidateId: number) => void;
   onAddNote: (candidateId: number) => void;
 }
 
-export function ApplicantProfileView({ candidate, onClose, onMoveToNextStage, onAddNote }: ApplicantProfileViewProps) {
+export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, onAddNote }: CandidateProfileViewProps) {
   const [activeSection, setActiveSection] = useState('overview');
   const [isShortlisted, setIsShortlisted] = useState(false);
 
@@ -296,7 +296,7 @@ export function ApplicantProfileView({ candidate, onClose, onMoveToNextStage, on
                       return (
                         <div className="p-4 bg-[#F9F9FA] border border-black/[0.08] text-center" style={{ borderRadius: '12px' }}>
                           <p className="text-sm text-[#9CA3AF] italic">
-                            No readiness information shared by this applicant.
+                            No readiness information shared by this candidate.
                           </p>
                         </div>
                       );

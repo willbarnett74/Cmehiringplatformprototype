@@ -1,10 +1,10 @@
-import { UserCheck, Lightbulb, Target, Zap, TrendingUp, Facebook, Twitter, Instagram, Youtube, ChevronRight, Users, User, Briefcase, X } from 'lucide-react';
+import { UserCheck, Lightbulb, Target, Zap, TrendingUp, Facebook, Twitter, Instagram, Youtube, ChevronRight, Users, User, Briefcase, X, Link2 } from 'lucide-react';
 import { DSBadge, DSElevatedCard, DSIconContainer, DSListItem, DSFeatureChip } from './ds/DSComponents';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState } from 'react';
 
 interface OverviewScreenProps {
-  onNavigate: (tab: 'applicant' | 'employer') => void;
+  onNavigate: (tab: 'applicant' | 'employer' | 'assessment') => void;
 }
 
 export function OverviewScreen({ onNavigate }: OverviewScreenProps) {
@@ -14,7 +14,7 @@ export function OverviewScreen({ onNavigate }: OverviewScreenProps) {
     setShowPathModal(true);
   };
 
-  const handlePathSelect = (path: 'applicant' | 'employer') => {
+  const handlePathSelect = (path: 'applicant' | 'employer' | 'assessment') => {
     setShowPathModal(false);
     // Small delay for smooth transition
     setTimeout(() => {
@@ -42,7 +42,7 @@ export function OverviewScreen({ onNavigate }: OverviewScreenProps) {
           
           {/* Description */}
           <p className="text-[#374151] max-w-xl mx-auto leading-relaxed mb-10 text-lg">
-            Move beyond résumés. CMe uses deep trait analysis and behavioral insights to create 
+            Move beyond résumé. CMe uses deep trait analysis and behavioral insights to create 
             meaningful matches between talent and opportunity.
           </p>
 
@@ -255,6 +255,13 @@ export function OverviewScreen({ onNavigate }: OverviewScreenProps) {
                       className="text-sm text-[#7DBBFF] hover:text-[#6aabef] font-medium transition-colors"
                     >
                       Preview Employer View
+                    </button>
+                    <span className="text-[#D1D5DB]">•</span>
+                    <button
+                      onClick={() => handlePathSelect('assessment')}
+                      className="text-sm text-[#10B981] hover:text-[#0da574] font-medium transition-colors"
+                    >
+                      Assessment Link Demo
                     </button>
                   </div>
                 </div>

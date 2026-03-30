@@ -1,6 +1,10 @@
-import { Settings as SettingsIcon, Bell, User, Lock, CreditCard, Building2, Users, Upload } from 'lucide-react';
+import { Settings as SettingsIcon, Bell, User, Lock, CreditCard, Building2, Users, Upload, Sliders } from 'lucide-react';
+import { TraitWeightingUI } from './TraitWeightingUI';
+import { useState } from 'react';
 
 export function SettingsPage() {
+  const [showTraitWeighting, setShowTraitWeighting] = useState(false);
+  
   const teamMembers = [
     { id: 1, name: 'Sarah Johnson', email: 'sarah@techcorp.com', role: 'Admin', avatar: 'SJ' },
     { id: 2, name: 'Michael Chen', email: 'michael@techcorp.com', role: 'Recruiter', avatar: 'MC' },
@@ -227,6 +231,35 @@ export function SettingsPage() {
             Edit Profile
           </button>
         </div>
+
+        <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-[#7DBBFF]/10 flex items-center justify-center">
+              <Sliders className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
+            </div>
+            <h3 className="text-base text-[#111827] font-semibold">Trait Weighting</h3>
+          </div>
+          <p className="text-sm text-[#6B7280] mb-4">Adjust the importance of different traits in the hiring process</p>
+          <button className="text-sm text-[#7DBBFF] hover:text-[#6aabef] transition-colors font-medium" onClick={() => setShowTraitWeighting(true)}>
+            Configure Trait Weighting
+          </button>
+        </div>
+      </div>
+
+      {/* Developer Tools - Reset Onboarding */}
+      <div className="mt-6 p-4 bg-[#F59E0B]/5 border border-[#F59E0B]/20" style={{ borderRadius: '12px' }}>
+        <p className="text-xs text-[#6B7280] mb-3">
+          <span className="font-semibold text-[#111827]">Developer Tools:</span> Testing & Demo
+        </p>
+        <button
+          onClick={() => {
+            localStorage.removeItem('cme_employer_onboarding_complete');
+            window.location.reload();
+          }}
+          className="text-xs text-[#F59E0B] hover:text-[#D97706] transition-colors font-medium"
+        >
+          Reset Onboarding (will reload page)
+        </button>
       </div>
     </div>
   );

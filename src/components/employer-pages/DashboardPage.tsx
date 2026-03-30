@@ -1,320 +1,304 @@
-import { TrendingUp, Award, Target, Zap, Users, ChevronRight, Clock, MapPin, Briefcase, Info, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { useState } from 'react';
+import {
+  TrendingUp, Award, Zap, Users, ChevronRight, Clock,
+  ArrowUp, ArrowDown, Send, CheckCircle2,
+  Sparkles, Star, Info, Eye, CalendarDays, Activity,
+  Briefcase, ArrowRight
+} from 'lucide-react';
+import { Candidate } from '../types/employer';
 
 interface DashboardPageProps {
   hasActiveFilters: boolean;
   candidateCount: number;
+  candidates: Candidate[];
   onNavigateToSearch: () => void;
+  onNavigateToCandidates: () => void;
+  onNavigateToInsights: () => void;
+  onCandidateClick: (candidate: Candidate) => void;
 }
 
-export function DashboardPage({ hasActiveFilters, candidateCount, onNavigateToSearch }: DashboardPageProps) {
-  const insights = hasActiveFilters ? [
-    'Filtered candidates show 15% higher collaboration scores',
-    'Your current filters match 3 high-priority candidates',
-    'Narrow your location filter to see more local talent',
-  ] : [
-    'Top performers score high on ownership and learning speed',
-    'Collaborative candidates convert 2.3x better',
-    'Remote preference correlates with autonomy trait',
+const stageConfig = {
+  newSignals: { label: 'New Signals', color: '#7DBBFF' },
+  assessmentSent: { label: 'In Review', color: '#F59E0B' },
+  finalRound: { label: 'Final Round', color: '#8B5CF6' },
+  hired: { label: 'Hired', color: '#10B981' },
+  rejected: { label: 'Rejected', color: '#EF4444' },
+};
+
+export function DashboardPage({
+  candidateCount,
+  candidates,
+  onNavigateToSearch,
+  onNavigateToCandidates,
+  onNavigateToInsights,
+  onCandidateClick,
+}: DashboardPageProps) {
+
+  const pipeline = {
+    newSignals: candidates.filter(c => c.stage === 'newSignals').length,
+    assessmentSent: candidates.filter(c => c.stage === 'assessmentSent').length,
+    finalRound: candidates.filter(c => c.stage === 'finalRound').length,
+    hired: candidates.filter(c => c.stage === 'hired').length,
+  };
+  const pipelineTotal = pipeline.newSignals + pipeline.assessmentSent + pipeline.finalRound;
+
+  const avgScore = candidates.length > 0
+    ? Math.round(candidates.reduce((sum, c) => sum + c.score, 0) / candidates.length)
+    : 0;
+
+  const needsAttention = [...candidates]
+    .filter(c => c.stage !== 'rejected' && c.stage !== 'hired')
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+
+  const recentItems = [
+    { id: 1, initials: 'JC', name: 'Jordan Chen', text: 'completed assessment — 94% match', time: '2h ago', icon: <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" strokeWidth={2} /> },
+    { id: 2, initials: 'CW', name: 'Casey Wong', text: 'advanced to final round', time: '5h ago', icon: <ArrowUp className="w-3.5 h-3.5 text-[#8B5CF6]" strokeWidth={2} /> },
+    { id: 3, initials: 'ML', name: 'Morgan Lee', text: 'assessment link sent', time: '1d ago', icon: <Send className="w-3.5 h-3.5 text-[#7DBBFF]" strokeWidth={2} /> },
   ];
-
-  const stats = {
-    newSignals: 12,
-    inReview: 8,
-    finalRound: 3,
-    avgMatchScore: 87,
-  };
-
-  const topSignals = [
-    { rank: 1, signal: 'Learning Speed', successRate: 92, change: 8, trend: 'up' },
-    { rank: 2, signal: 'Ownership', successRate: 88, change: 5, trend: 'up' },
-    { rank: 3, signal: 'Collaboration', successRate: 85, change: 0, trend: 'stable' },
-    { rank: 4, signal: 'Adaptability', successRate: 82, change: 12, trend: 'up' },
-    { rank: 5, signal: 'Communication', successRate: 78, change: -3, trend: 'down' },
-    { rank: 6, signal: 'Problem Solving', successRate: 76, change: 4, trend: 'up' },
-  ];
-
-  const getTrendIcon = (trend: string) => {
-    if (trend === 'up') return <ArrowUp className="w-3 h-3 text-[#10B981]" strokeWidth={2} />;
-    if (trend === 'down') return <ArrowDown className="w-3 h-3 text-[#EF4444]" strokeWidth={2} />;
-    return <Minus className="w-3 h-3 text-[#9CA3AF]" strokeWidth={2} />;
-  };
-
-  const getTrendColor = (trend: string) => {
-    if (trend === 'up') return 'text-[#10B981]';
-    if (trend === 'down') return 'text-[#EF4444]';
-    return 'text-[#9CA3AF]';
-  };
 
   return (
     <div>
-      {/* Page Title */}
-      <div className="mb-6">
-        <h1 className="text-2xl text-[#111827] font-semibold mb-1">Dashboard</h1>
-        <p className="text-sm text-[#6B7280]">Overview of your hiring pipeline</p>
+      {/* ─── Header ─── */}
+      <div className="mb-8">
+        <h1 className="text-2xl text-[#111827] font-semibold mb-1">Good morning</h1>
+        <p className="text-sm text-[#6B7280]">Here's where things stand at TechCorp Inc.</p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-4 gap-6 mb-6">
-        <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-[#7DBBFF]/10 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
+      {/* ─── Stats Row ─── */}
+      <div className="grid grid-cols-4 gap-5 mb-8">
+        {[
+          { label: 'Active Pipeline', value: pipelineTotal, sub: '+3 this week', subColor: '#10B981', icon: <Users className="w-[18px] h-[18px] text-[#7DBBFF]" strokeWidth={1.5} /> },
+          { label: 'Avg Match Score', value: `${avgScore}%`, sub: '+5 vs last month', subColor: '#10B981', icon: <Sparkles className="w-[18px] h-[18px] text-[#7DBBFF]" strokeWidth={1.5} /> },
+          { label: 'Final Round', value: pipeline.finalRound, sub: 'Decision pending', subColor: '#8B5CF6', icon: <Star className="w-[18px] h-[18px] text-[#8B5CF6]" strokeWidth={1.5} /> },
+          { label: 'Time to Hire', value: '18d', sub: '-3d vs last month', subColor: '#10B981', icon: <Clock className="w-[18px] h-[18px] text-[#7DBBFF]" strokeWidth={1.5} /> },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs text-[#9CA3AF]">{stat.label}</span>
+              {stat.icon}
             </div>
-            <span className="text-xs text-[#6B7280]">New Signals</span>
+            <p className="text-[28px] text-[#111827] font-semibold tracking-tight leading-none mb-1">{stat.value}</p>
+            <p className="text-xs mt-2" style={{ color: stat.subColor }}>{stat.sub}</p>
           </div>
-          <p className="text-2xl text-[#111827] font-semibold">{stats.newSignals}</p>
-          <p className="text-xs text-[#10B981] mt-1">+3 this week</p>
-        </div>
-
-        <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-[#7DBBFF]/10 flex items-center justify-center">
-              <Target className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-            </div>
-            <span className="text-xs text-[#6B7280]">In Review</span>
-          </div>
-          <p className="text-2xl text-[#111827] font-semibold">{stats.inReview}</p>
-          <p className="text-xs text-[#6B7280] mt-1">Active assessments</p>
-        </div>
-
-        <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-[#7DBBFF]/10 flex items-center justify-center">
-              <Award className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-            </div>
-            <span className="text-xs text-[#6B7280]">Final Round</span>
-          </div>
-          <p className="text-2xl text-[#111827] font-semibold">{stats.finalRound}</p>
-          <p className="text-xs text-[#F59E0B] mt-1">Decision pending</p>
-        </div>
-
-        <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-[#7DBBFF]/10 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-            </div>
-            <span className="text-xs text-[#6B7280]">Avg Match Score</span>
-          </div>
-          <p className="text-2xl text-[#111827] font-semibold">{stats.avgMatchScore}</p>
-          <p className="text-xs text-[#10B981] mt-1">+5 vs last month</p>
-        </div>
+        ))}
       </div>
 
-      {/* Top Signals by Success Rate */}
-      <div className="bg-white p-6 border border-black/[0.08] shadow-sm mb-6" style={{ borderRadius: '20px' }}>
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#8B5CF6]/10 to-[#14B8A6]/10 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-[#8B5CF6]" strokeWidth={1.5} />
-            </div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base text-[#111827] font-semibold">Top Signals by Success Rate</h3>
-              <div className="group relative">
-                <Info className="w-4 h-4 text-[#9CA3AF] cursor-help" strokeWidth={1.5} />
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[#111827] text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-64" style={{ borderRadius: '8px' }}>
-                  Shows which candidate traits have highest conversion rates from shortlist to hire over the past 30 days.
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-[#111827] transform rotate-45" />
-                </div>
-              </div>
-            </div>
-          </div>
-          <button className="text-xs text-[#7DBBFF] hover:text-[#6aabef] font-medium flex items-center gap-1">
-            <span>View full signal insights</span>
-            <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+      {/* ─── Pipeline Bar ─── */}
+      <div className="bg-white p-5 border border-black/[0.06] mb-8" style={{ borderRadius: '16px' }}>
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-sm text-[#111827] font-semibold">Pipeline</span>
+          <button onClick={onNavigateToCandidates} className="text-xs text-[#7DBBFF] hover:text-[#5BA3E8] font-medium flex items-center gap-1 transition-colors">
+            View all <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
           </button>
         </div>
 
-        {/* Data Grid */}
-        <div className="space-y-3">
-          {topSignals.map((signal, idx) => (
-            <div key={signal.rank} className={`flex items-center gap-4 p-4 bg-[#F9F9FA] hover:bg-[#F3F3F5] transition-colors ${idx === 0 ? 'border-l-2 border-[#8B5CF6]' : ''}`} style={{ borderRadius: '12px' }}>
-              {/* Rank */}
-              <div className="flex items-center justify-center w-8 h-8 shrink-0">
-                {idx === 0 ? (
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-[#8B5CF6] to-[#14B8A6] flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">{signal.rank}</span>
-                  </div>
-                ) : (
-                  <span className="text-sm text-[#9CA3AF] font-semibold">{signal.rank}</span>
-                )}
-              </div>
+        {/* Visual bar */}
+        <div className="flex h-3 overflow-hidden mb-4" style={{ borderRadius: '6px' }}>
+          {pipelineTotal > 0 && (
+            <>
+              <div style={{ width: `${(pipeline.newSignals / pipelineTotal) * 100}%`, backgroundColor: '#7DBBFF' }} />
+              <div style={{ width: `${(pipeline.assessmentSent / pipelineTotal) * 100}%`, backgroundColor: '#F59E0B' }} />
+              <div style={{ width: `${(pipeline.finalRound / pipelineTotal) * 100}%`, backgroundColor: '#8B5CF6' }} />
+            </>
+          )}
+        </div>
 
-              {/* Signal Name */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-[#111827] font-semibold">{signal.signal}</p>
-              </div>
-
-              {/* Success Rate with Progress Bar */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs text-[#6B7280]">Success Rate</span>
-                  <span className="text-sm text-[#111827] font-semibold">{signal.successRate}%</span>
-                </div>
-                <div className="w-full h-1.5 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
-                  <div
-                    className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#14B8A6] transition-all duration-500"
-                    style={{ width: `${signal.successRate}%`, borderRadius: '4px' }}
-                  />
-                </div>
-              </div>
-
-              {/* Change / Trend */}
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="flex items-center gap-1">
-                  {getTrendIcon(signal.trend)}
-                  <span className={`text-xs font-semibold ${getTrendColor(signal.trend)}`}>
-                    {signal.change > 0 ? '+' : ''}{signal.change}%
-                  </span>
-                </div>
-              </div>
+        {/* Stage counts */}
+        <div className="flex items-center gap-6">
+          {([
+            { key: 'newSignals', label: 'New Signals', color: '#7DBBFF', count: pipeline.newSignals },
+            { key: 'assessmentSent', label: 'In Review', color: '#F59E0B', count: pipeline.assessmentSent },
+            { key: 'finalRound', label: 'Final Round', color: '#8B5CF6', count: pipeline.finalRound },
+            { key: 'hired', label: 'Hired', color: '#10B981', count: pipeline.hired },
+          ]).map(s => (
+            <div key={s.key} className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+              <span className="text-xs text-[#6B7280]">{s.label}</span>
+              <span className="text-xs text-[#111827] font-semibold">{s.count}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Main Content Row */}
-      <div className="grid grid-cols-3 gap-6 mb-6">
-        {/* Recent Activity */}
-        <div className="col-span-2 bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-base text-[#111827] font-semibold">Recent Activity</h3>
-            <button
-              onClick={onNavigateToSearch}
-              className="text-sm text-[#7DBBFF] hover:text-[#6aabef] transition-colors"
-            >
-              View all
+      {/* ─── Two-Column: Candidates Needing Attention + Insights ─── */}
+      <div className="grid grid-cols-5 gap-6 mb-8">
+
+        {/* Candidates */}
+        <div className="col-span-3 bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-[#111827] font-semibold">Top Candidates</span>
+            <button onClick={onNavigateToSearch} className="text-xs text-[#7DBBFF] hover:text-[#5BA3E8] font-medium flex items-center gap-1 transition-colors">
+              Search <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
             </button>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-start gap-4 p-4 bg-[#F9F9FA] hover:bg-[#F3F3F5] transition-colors cursor-pointer" style={{ borderRadius: '12px' }}>
-              <div className="w-10 h-10 rounded-full bg-[#7DBBFF] flex items-center justify-center shrink-0 text-white text-sm font-semibold">
-                JC
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-[#111827] font-medium mb-1">Jordan Chen completed assessment</p>
-                <p className="text-xs text-[#6B7280]">Senior Product Designer • Score: 94/100</p>
-                <p className="text-xs text-[#9CA3AF] mt-1">2 hours ago</p>
-              </div>
-              <div className="flex gap-1.5">
-                <span className="px-2.5 py-1 bg-[#7DBBFF]/10 text-[#7DBBFF] text-xs font-medium" style={{ borderRadius: '6px' }}>
-                  Ownership
-                </span>
-                <span className="px-2.5 py-1 bg-[#7DBBFF]/10 text-[#7DBBFF] text-xs font-medium" style={{ borderRadius: '6px' }}>
-                  Learning
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4 p-4 bg-[#F9F9FA] hover:bg-[#F3F3F5] transition-colors cursor-pointer" style={{ borderRadius: '12px' }}>
-              <div className="w-10 h-10 rounded-full bg-[#7DBBFF] flex items-center justify-center shrink-0 text-white text-sm font-semibold">
-                RM
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-[#111827] font-medium mb-1">Riley Martinez moved to final round</p>
-                <p className="text-xs text-[#6B7280]">Lead UX Designer • Score: 91/100</p>
-                <p className="text-xs text-[#9CA3AF] mt-1">5 hours ago</p>
-              </div>
-              <div className="flex gap-1.5">
-                <span className="px-2.5 py-1 bg-[#7DBBFF]/10 text-[#7DBBFF] text-xs font-medium" style={{ borderRadius: '6px' }}>
-                  Communication
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4 p-4 bg-[#F9F9FA] hover:bg-[#F3F3F5] transition-colors cursor-pointer" style={{ borderRadius: '12px' }}>
-              <div className="w-10 h-10 rounded-full bg-[#7DBBFF] flex items-center justify-center shrink-0 text-white text-sm font-semibold">
-                TK
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-[#111827] font-medium mb-1">Taylor Kim added new signal</p>
-                <p className="text-xs text-[#6B7280]">Product Designer • Score: 88/100</p>
-                <p className="text-xs text-[#9CA3AF] mt-1">1 day ago</p>
-              </div>
-              <div className="flex gap-1.5">
-                <span className="px-2.5 py-1 bg-[#7DBBFF]/10 text-[#7DBBFF] text-xs font-medium" style={{ borderRadius: '6px' }}>
-                  Creativity
-                </span>
-              </div>
-            </div>
+          <div className="space-y-2">
+            {needsAttention.map(c => {
+              const cfg = stageConfig[c.stage];
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => onCandidateClick(c)}
+                  className="w-full flex items-center gap-4 px-4 py-3 bg-[#FAFAFA] hover:bg-[#F3F4F6] transition-colors text-left"
+                  style={{ borderRadius: '12px' }}
+                >
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#E0E7FF] flex items-center justify-center shrink-0">
+                    <span className="text-xs text-[#374151] font-semibold">
+                      {c.name.split(' ').map(n => n[0]).join('')}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#111827] font-medium truncate">{c.name}</p>
+                    <p className="text-xs text-[#9CA3AF] truncate">{c.role}</p>
+                  </div>
+                  <span className="text-xs font-medium px-2 py-0.5" style={{ color: cfg.color, backgroundColor: cfg.color + '12', borderRadius: '6px' }}>
+                    {cfg.label}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-sm text-[#111827] font-semibold">{c.score}%</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#D1D5DB] shrink-0" strokeWidth={2} />
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Insights Panel */}
-        <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-2 mb-6">
-            <TrendingUp className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-            <h3 className="text-base text-[#111827] font-semibold">Insights</h3>
+        {/* Key Insights */}
+        <div className="col-span-2 bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-[#111827] font-semibold">Key Insights</span>
+            <button onClick={onNavigateToInsights} className="text-xs text-[#7DBBFF] hover:text-[#5BA3E8] font-medium flex items-center gap-1 transition-colors">
+              All insights <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+            </button>
           </div>
-          <div className="space-y-3 mb-6">
-            {insights.map((insight, index) => (
-              <div
-                key={index}
-                className="flex gap-3 p-3 bg-[#F9F9FA]"
-                style={{ borderRadius: '12px' }}
-              >
-                <div className="w-1 h-1 rounded-full bg-[#7DBBFF] mt-2 shrink-0" />
-                <p className="text-sm text-[#6B7280]">{insight}</p>
+
+          <div className="space-y-3">
+            {/* Good insight */}
+            <div className="p-3.5 border border-[#BBF7D0] bg-[#F0FDF4]" style={{ borderRadius: '10px' }}>
+              <p className="text-[10px] text-[#166534] font-semibold uppercase tracking-wider mb-1.5">Strongest Predictor</p>
+              <p className="text-xs text-[#111827] leading-relaxed">
+                Candidates with high <span className="font-semibold text-[#166534]">Ownership</span> scores progress to final round 2.3x faster.
+              </p>
+            </div>
+
+            {/* Watch insight */}
+            <div className="p-3.5 border border-[#FDE68A] bg-[#FFFBEB]" style={{ borderRadius: '10px' }}>
+              <p className="text-[10px] text-[#92400E] font-semibold uppercase tracking-wider mb-1.5">Watch</p>
+              <p className="text-xs text-[#111827] leading-relaxed">
+                <span className="font-semibold text-[#92400E]">Recognition</span> gap trending at 26pts between intake and 90-day pulse for recent hires.
+              </p>
+            </div>
+
+            {/* Info insight */}
+            <div className="p-3.5 border border-[#BFDBFE] bg-[#EFF6FF]" style={{ borderRadius: '10px' }}>
+              <p className="text-[10px] text-[#1E40AF] font-semibold uppercase tracking-wider mb-1.5">Early Signal</p>
+              <p className="text-xs text-[#111827] leading-relaxed">
+                Remote candidates show <span className="font-semibold text-[#1E40AF]">89% retention</span> at 90 days — 12pts above on-site.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-[#9CA3AF] mt-3">Based on 8 performance snapshots · State 2</p>
+        </div>
+      </div>
+
+      {/* ─── Two-Column: Hiring Funnel + Open Roles ─── */}
+      <div className="grid grid-cols-2 gap-6 mb-8">
+
+        {/* Hiring Funnel */}
+        <div className="bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
+          <div className="flex items-center justify-between mb-5">
+            <span className="text-sm text-[#111827] font-semibold">Hiring Funnel</span>
+            <span className="text-[10px] text-[#9CA3AF]">Last 30 days</span>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              { from: 'New Signals', to: 'In Review', rate: 67, color: '#7DBBFF' },
+              { from: 'In Review', to: 'Final Round', rate: 38, color: '#F59E0B' },
+              { from: 'Final Round', to: 'Hired', rate: 50, color: '#8B5CF6' },
+            ].map((step, idx) => (
+              <div key={idx}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5 text-xs text-[#6B7280]">
+                    <span>{step.from}</span>
+                    <ArrowRight className="w-3 h-3 text-[#D1D5DB]" strokeWidth={2} />
+                    <span>{step.to}</span>
+                  </div>
+                  <span className="text-xs text-[#111827] font-semibold">{step.rate}%</span>
+                </div>
+                <div className="h-2 bg-[#F3F4F6] overflow-hidden" style={{ borderRadius: '4px' }}>
+                  <div className="h-full transition-all duration-700" style={{ width: `${step.rate}%`, backgroundColor: step.color, borderRadius: '4px' }} />
+                </div>
               </div>
             ))}
           </div>
 
-          <div className="pt-6 border-t border-black/[0.08]">
-            <div className="flex items-center gap-2 mb-4">
-              <Award className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-              <span className="text-sm text-[#6B7280]">Top Traits</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <span className="px-3 py-1.5 bg-[#7DBBFF]/10 text-[#7DBBFF] text-xs font-medium" style={{ borderRadius: '10px' }}>
-                Ownership
-              </span>
-              <span className="px-3 py-1.5 bg-[#7DBBFF]/10 text-[#7DBBFF] text-xs font-medium" style={{ borderRadius: '10px' }}>
-                Learning
-              </span>
-              <span className="px-3 py-1.5 bg-[#7DBBFF]/10 text-[#7DBBFF] text-xs font-medium" style={{ borderRadius: '10px' }}>
-                Collaboration
-              </span>
-            </div>
+          <div className="mt-5 pt-4 border-t border-black/[0.05] flex items-center justify-between">
+            <span className="text-xs text-[#6B7280]">Overall conversion</span>
+            <span className="text-sm text-[#111827] font-semibold">12.7%</span>
+          </div>
+        </div>
+
+        {/* Open Roles */}
+        <div className="bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
+          <div className="flex items-center justify-between mb-5">
+            <span className="text-sm text-[#111827] font-semibold">Open Roles</span>
+            <span className="text-[10px] text-[#9CA3AF]">{4} active</span>
+          </div>
+
+          <div className="space-y-2">
+            {[
+              { title: 'Senior Product Designer', candidates: 4, avgMatch: 91, days: 14, priority: 'high' as const },
+              { title: 'Lead UX Designer', candidates: 2, avgMatch: 89, days: 21, priority: 'high' as const },
+              { title: 'Product Designer', candidates: 3, avgMatch: 84, days: 8, priority: 'medium' as const },
+              { title: 'Design Engineer', candidates: 0, avgMatch: 0, days: 3, priority: 'low' as const },
+            ].map((role, idx) => (
+              <div key={idx} className="flex items-center gap-3 px-4 py-3 bg-[#FAFAFA]" style={{ borderRadius: '10px' }}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{
+                  backgroundColor: role.priority === 'high' ? 'rgba(239,68,68,0.08)' : role.priority === 'medium' ? 'rgba(245,158,11,0.08)' : 'rgba(156,163,175,0.08)',
+                }}>
+                  <Briefcase className="w-3.5 h-3.5" style={{
+                    color: role.priority === 'high' ? '#EF4444' : role.priority === 'medium' ? '#F59E0B' : '#9CA3AF',
+                  }} strokeWidth={2} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-[#111827] font-medium truncate">{role.title}</p>
+                  <p className="text-[10px] text-[#9CA3AF]">{role.days}d open · {role.candidates} candidates</p>
+                </div>
+                {role.avgMatch > 0 && (
+                  <span className="text-xs text-[#10B981] font-medium">{role.avgMatch}%</span>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Insights Snapshot Row */}
-      <div className="grid grid-cols-4 gap-6">
-        <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <Clock className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-            <span className="text-xs text-[#6B7280]">Avg. Time to Hire</span>
-          </div>
-          <p className="text-2xl text-[#111827] font-semibold">18 days</p>
-          <p className="text-xs text-[#10B981] mt-1">-3 days vs last month</p>
+      {/* ─── Recent Activity ─── */}
+      <div className="bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-sm text-[#111827] font-semibold">Recent Activity</span>
         </div>
 
-        <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <Award className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-            <span className="text-xs text-[#6B7280]">Top Converting Trait</span>
-          </div>
-          <p className="text-lg text-[#111827] font-semibold">Ownership</p>
-          <p className="text-xs text-[#6B7280] mt-1">76% conversion rate</p>
-        </div>
-
-        <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <MapPin className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-            <span className="text-xs text-[#6B7280]">Remote Role Success</span>
-          </div>
-          <p className="text-2xl text-[#111827] font-semibold">89%</p>
-          <p className="text-xs text-[#10B981] mt-1">+12% this quarter</p>
-        </div>
-
-        <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <Briefcase className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-            <span className="text-xs text-[#6B7280]">Current Openings</span>
-          </div>
-          <p className="text-2xl text-[#111827] font-semibold">7</p>
-          <p className="text-xs text-[#6B7280] mt-1">3 high priority</p>
+        <div className="flex items-center gap-4">
+          {recentItems.map((item, idx) => (
+            <div key={item.id} className={`flex-1 flex items-center gap-3 px-4 py-3 bg-[#FAFAFA] ${idx < recentItems.length - 1 ? '' : ''}`} style={{ borderRadius: '10px' }}>
+              <div className="w-8 h-8 rounded-full bg-[#7DBBFF] flex items-center justify-center shrink-0 text-white text-[10px] font-semibold">
+                {item.initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-[#111827] truncate">
+                  <span className="font-medium">{item.name}</span>{' '}
+                  <span className="text-[#6B7280]">{item.text}</span>
+                </p>
+                <p className="text-[10px] text-[#9CA3AF] mt-0.5">{item.time}</p>
+              </div>
+              {item.icon}
+            </div>
+          ))}
         </div>
       </div>
     </div>

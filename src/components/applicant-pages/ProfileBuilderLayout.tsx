@@ -10,12 +10,14 @@ interface ProfileBuilderLayoutProps {
 }
 
 const steps = [
-  { id: 1, label: 'Foundation Overview' },
-  { id: 2, label: 'Experience & Work History' },
-  { id: 3, label: 'Career Direction' },
-  { id: 4, label: 'Deeper Insights' },
-  { id: 5, label: 'Skills & Testing' },
-  { id: 6, label: 'Signature Traits' },
+  { id: 1, label: 'Background Narrative', time: '5–7 min' },
+  { id: 2, label: 'How You Work', time: '7–9 min' },
+  { id: 3, label: 'How You Think', time: '10–12 min' },
+  { id: 4, label: 'How You Handle Difficulty', time: '8–10 min' },
+  { id: 5, label: 'How You Relate to Others', time: '8–10 min' },
+  { id: 6, label: 'What Drives You', time: '8–10 min' },
+  { id: 7, label: 'Career Direction', time: '4–5 min' },
+  { id: 8, label: 'Your Profile', time: '3–5 min' },
 ];
 
 const statusConfig = {

@@ -3,13 +3,14 @@ import { OverviewScreen } from './components/OverviewScreen';
 import { ApplicantScreen } from './components/ApplicantScreen';
 import { EmployerScreen } from './components/EmployerScreen';
 import { DesignSystem } from './components/DesignSystem';
+import { AssessmentLink } from './src/pages/AssessmentLink';
 import { Sparkles, Palette } from 'lucide-react';
 import { UserProfileProvider } from './contexts/UserProfileContext';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'applicant' | 'employer' | 'design'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'applicant' | 'employer' | 'design' | 'assessment'>('overview');
 
-  const handleNavigateToPath = (tab: 'applicant' | 'employer') => {
+  const handleNavigateToPath = (tab: 'applicant' | 'employer' | 'assessment') => {
     setActiveTab(tab);
   };
 
@@ -69,6 +70,19 @@ export default function App() {
                     )}
                     <span className="relative">Employer View</span>
                   </button>
+                  <button
+                    onClick={() => handleNavigateToPath('assessment')}
+                    className={`px-5 py-2 transition-all relative ${
+                      activeTab === 'assessment'
+                        ? 'text-white'
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {activeTab === 'assessment' && (
+                      <div className="absolute inset-0 bg-white/5 rounded-lg border border-white/10" />
+                    )}
+                    <span className="relative">Assessment Link</span>
+                  </button>
                 </div>
               </div>
               <div>
@@ -97,6 +111,7 @@ export default function App() {
           {activeTab === 'applicant' && <ApplicantScreen />}
           {activeTab === 'employer' && <EmployerScreen />}
           {activeTab === 'design' && <DesignSystem />}
+          {activeTab === 'assessment' && <AssessmentLink />}
         </main>
       </div>
     </UserProfileProvider>

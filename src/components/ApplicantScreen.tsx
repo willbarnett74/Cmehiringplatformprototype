@@ -1,13 +1,19 @@
 import { useState } from 'react';
-import { ProfileOverviewPage } from './applicant-pages/ProfileOverviewPage';
-import { SignatureTraitsPageDynamic } from './applicant-pages/SignatureTraitsPageDynamic';
-import { SkillsTestingPage } from './applicant-pages/SkillsTestingPage';
-import { DeeperInsightsPage } from './applicant-pages/DeeperInsightsPage';
-import { WorkHistoryPage } from './applicant-pages/WorkHistoryPage';
-import { DirectionsPage } from './applicant-pages/DirectionsPage';
+import { IntakeSection1 } from './applicant-pages/intake/IntakeSection1';
+import { IntakeSection2 } from './applicant-pages/intake/IntakeSection2';
+import { IntakeSection3 } from './applicant-pages/intake/IntakeSection3';
+import { IntakeSection4 } from './applicant-pages/intake/IntakeSection4';
+import { IntakeSection5 } from './applicant-pages/intake/IntakeSection5';
+import { IntakeSection6 } from './applicant-pages/intake/IntakeSection6';
+import { IntakeSection7 } from './applicant-pages/intake/IntakeSection7';
+import { IntakeSection8 } from './applicant-pages/intake/IntakeSection8';
 import { ProfileBuilderLayout } from './applicant-pages/ProfileBuilderLayout';
-import { CompaniesPage } from './applicant-pages/CompaniesPage';
-import { LayoutDashboard, User, Settings, Compass, ArrowRight, Sparkles, Target, Brain, Zap, TrendingUp, Building2 } from 'lucide-react';
+import { OpportunitiesPage } from './applicant-pages/OpportunitiesPage';
+import { TraitScoresDisplay } from './applicant-pages/TraitScoresDisplay';
+import { LayoutDashboard, User, Settings, Compass, ArrowRight, Layers } from 'lucide-react';
+import { DashboardContent } from './applicant-pages/DashboardContent';
+import { useUserProfile } from '../contexts/UserProfileContext';
+import { computeIntakeScores } from '../utils/intakeScoring';
 
 /**
  * Frame Structure:
@@ -25,28 +31,49 @@ import { LayoutDashboard, User, Settings, Compass, ArrowRight, Sparkles, Target,
  */
 
 export function ApplicantScreen() {
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'profileBuilder' | 'companies' | 'settings'>('dashboard');
+  const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete } = useUserProfile();
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'profileBuilder' | 'companies' | 'settings' | 'intake'>('dashboard');
   const [activeStep, setActiveStep] = useState<number>(1);
   const [cognitiveScore, setCognitiveScore] = useState<number | null>(null);
   
-  // Step statuses: active | needsReview | upToDate
-  const [stepStatuses] = useState<{ [key: number]: 'active' | 'needsReview' | 'upToDate' }>({
-    1: 'upToDate',      // Foundation Overview
-    2: 'upToDate',      // Experience & Work History
-    3: 'needsReview',   // Career Direction
-    4: 'needsReview',   // Deeper Insights
-    5: 'needsReview',   // Skills & Testing
-    6: 'upToDate',      // Signature Traits
-  });
+  // Safety check - ensure profileData is available
+  if (!profileData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fafafa]">
+        <p className="text-[#6B7280]">Loading...</p>
+      </div>
+    );
+  }
+  
+  // Calculate step statuses dynamically based on completed sections
+  const getStepStatus = (stepId: number): 'active' | 'needsReview' | 'upToDate' => {
+    if (profileData?.intakeData?.completedSections?.includes(stepId)) {
+      return 'upToDate';
+    }
+    return 'needsReview';
+  };
+
+  const stepStatuses = {
+    1: getStepStatus(1),
+    2: getStepStatus(2),
+    3: getStepStatus(3),
+    4: getStepStatus(4),
+    5: getStepStatus(5),
+    6: getStepStatus(6),
+    7: getStepStatus(7),
+    8: getStepStatus(8),
+  };
 
   // Profile Builder Steps
   const profileBuilderSteps = [
-    { id: 1, label: 'Step 1 – Foundation Overview', component: ProfileOverviewPage },
-    { id: 2, label: 'Step 2 – Experience & Work History', component: WorkHistoryPage },
-    { id: 3, label: 'Step 3 – Career Direction', component: DirectionsPage },
-    { id: 4, label: 'Step 4 – Deeper Insights', component: DeeperInsightsPage },
-    { id: 5, label: 'Step 5 – Skills & Testing', component: SkillsTestingPage },
-    { id: 6, label: 'Step 6 – Signature Traits', component: SignatureTraitsPageDynamic },
+    { id: 1, label: 'Section 1 – Background Narrative', component: 'IntakeSection1', time: '5–7 min' },
+    { id: 2, label: 'Section 2 – How You Work', component: 'IntakeSection2', time: '7–9 min' },
+    { id: 3, label: 'Section 3 – How You Think', component: 'IntakeSection3', time: '10–12 min' },
+    { id: 4, label: 'Section 4 – How You Handle Difficulty', component: 'IntakeSection4', time: '8–10 min' },
+    { id: 5, label: 'Section 5 – How You Relate to Others', component: 'IntakeSection5', time: '8–10 min' },
+    { id: 6, label: 'Section 6 – What Drives You', component: 'IntakeSection6', time: '8–10 min' },
+    { id: 7, label: 'Section 7 – Career Direction', component: 'IntakeSection7', time: '4–5 min' },
+    { id: 8, label: 'Section 8 – Your Profile', component: 'IntakeSection8', time: '3–5 min' },
   ];
 
   // Handle navigation to Profile Builder
@@ -57,9 +84,6 @@ export function ApplicantScreen() {
 
   // FRAME 2: Profile Builder
   if (activeSection === 'profileBuilder') {
-    const currentStepData = profileBuilderSteps.find(step => step.id === activeStep);
-    const StepComponent = currentStepData?.component || ProfileOverviewPage;
-
     const handleBack = () => {
       if (activeStep === 1) {
         setActiveSection('dashboard');
@@ -68,12 +92,61 @@ export function ApplicantScreen() {
       }
     };
 
-    const handleNext = () => {
-      if (activeStep < 6) {
+    const handleNext = (data?: any) => {
+      console.log('Section data:', data); // For development
+      
+      // Save section data to context
+      if (data && data.section) {
+        updateIntakeSection(data.section, data.responses);
+        
+        // Check if we've completed section 8 (final section)
+        if (data.section === 8) {
+          // Calculate trait scores from sections 2-6
+          const intakeResponses = {
+            section2: profileData.intakeData.section2,
+            section3: profileData.intakeData.section3,
+            section4: profileData.intakeData.section4,
+            section5: profileData.intakeData.section5,
+            section6: profileData.intakeData.section6,
+          };
+          
+          const scores = computeIntakeScores(intakeResponses);
+          updateTraitScores(scores);
+          markIntakeComplete();
+          
+          console.log('Intake complete! Trait scores:', scores);
+        }
+      }
+      
+      if (activeStep < 8) {
         setActiveStep(activeStep + 1);
       } else {
         // Complete and go back to dashboard
         setActiveSection('dashboard');
+      }
+    };
+
+    // Render the appropriate intake section
+    const renderSection = () => {
+      switch (activeStep) {
+        case 1:
+          return <IntakeSection1 onComplete={(data) => handleNext(data)} />;
+        case 2:
+          return <IntakeSection2 onComplete={(data) => handleNext(data)} />;
+        case 3:
+          return <IntakeSection3 onComplete={(data) => handleNext(data)} />;
+        case 4:
+          return <IntakeSection4 onComplete={(data) => handleNext(data)} />;
+        case 5:
+          return <IntakeSection5 onComplete={(data) => handleNext(data)} />;
+        case 6:
+          return <IntakeSection6 onComplete={(data) => handleNext(data)} />;
+        case 7:
+          return <IntakeSection7 onComplete={(data) => handleNext(data)} />;
+        case 8:
+          return <IntakeSection8 onComplete={() => handleNext()} />;
+        default:
+          return <IntakeSection1 onComplete={(data) => handleNext(data)} />;
       }
     };
 
@@ -83,15 +156,9 @@ export function ApplicantScreen() {
         stepStatuses={stepStatuses}
         onStepChange={(stepId) => setActiveStep(stepId)}
         onBack={handleBack}
-        onNext={handleNext}
+        onNext={() => handleNext()}
       >
-        {activeStep === 5 ? (
-          <SkillsTestingPage cognitiveScore={cognitiveScore} onCognitiveScoreChange={setCognitiveScore} />
-        ) : activeStep === 6 ? (
-          <SignatureTraitsPageDynamic cognitiveScore={cognitiveScore} />
-        ) : (
-          <StepComponent />
-        )}
+        {renderSection()}
       </ProfileBuilderLayout>
     );
   }
@@ -142,8 +209,8 @@ export function ApplicantScreen() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#7dbbff]/10 text-[#7dbbff] transition-all" 
                   style={{ borderRadius: '10px' }}
                 >
-                  <Building2 className="w-5 h-5" strokeWidth={2} />
-                  <span className="text-sm font-medium">Companies</span>
+                  <Layers className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Opportunities</span>
                 </button>
 
                 <button
@@ -199,7 +266,7 @@ export function ApplicantScreen() {
 
             {/* Companies Page Content */}
             <div className="p-8">
-              <CompaniesPage />
+              <OpportunitiesPage />
             </div>
           </main>
         </div>
@@ -252,8 +319,8 @@ export function ApplicantScreen() {
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" 
                 style={{ borderRadius: '10px' }}
               >
-                <Building2 className="w-5 h-5" strokeWidth={2} />
-                <span className="text-sm font-medium">Companies</span>
+                <Layers className="w-5 h-5" strokeWidth={2} />
+                <span className="text-sm font-medium">Opportunities</span>
               </button>
 
               <button
@@ -314,425 +381,7 @@ export function ApplicantScreen() {
               <h1 className="text-2xl text-[#111827] font-semibold">Dashboard</h1>
             </div>
 
-            {/* Main CTA Card */}
-            <div className="bg-white p-6 border border-black/[0.08] shadow-sm mb-6" style={{ borderRadius: '20px' }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base text-[#111827] font-semibold mb-2">Continue Building Your Profile</h3>
-                  <p className="text-sm text-[#6B7280]">Complete your foundation overview to improve your readiness score</p>
-                </div>
-                <button
-                  onClick={() => handleProfileBuilderClick(1)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#7dbbff] text-white hover:bg-[#6aabef] transition-colors"
-                  style={{ borderRadius: '10px' }}
-                >
-                  <span className="text-sm font-medium">Foundation Overview</span>
-                  <ArrowRight className="w-4 h-4" strokeWidth={2} />
-                </button>
-              </div>
-            </div>
-
-            {/* Top Row - Key Metrics */}
-            <div className="grid grid-cols-2 gap-6 mb-6">
-              {/* Profile Completion Card */}
-              <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-                <div className="mb-4">
-                  <h3 className="text-base text-[#111827] font-semibold">Profile Completion</h3>
-                </div>
-
-                {/* User Info */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-[#7dbbff] flex items-center justify-center">
-                    <User className="w-6 h-6 text-white" strokeWidth={2} />
-                  </div>
-                  <div>
-                    <p className="text-base text-[#111827] font-semibold">Alex Rivera</p>
-                    <p className="text-xs text-[#6B7280]">Product Designer</p>
-                  </div>
-                </div>
-
-                {/* Completion Progress */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-[#6B7280]">Overall Progress</span>
-                    <span className="text-xs text-[#111827] font-semibold">78%</span>
-                  </div>
-                  <div className="w-full h-2 bg-[#f5f5f5] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#7dbbff] rounded-full" style={{ width: '78%' }} />
-                  </div>
-                </div>
-
-                {/* Profile Sections */}
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#6B7280]">Foundation Overview</span>
-                    <span className="text-[#10B981] font-semibold">Complete</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#6B7280]">Work History</span>
-                    <span className="text-[#10B981] font-semibold">Complete</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#6B7280]">Career Direction</span>
-                    <span className="text-[#F59E0B] font-semibold">In Progress</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#6B7280]">Deeper Insights</span>
-                    <span className="text-[#6B7280] font-semibold">Not Started</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#6B7280]">Skills & Testing</span>
-                    <span className="text-[#F59E0B] font-semibold">In Progress</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#6B7280]">Signature Traits</span>
-                    <span className="text-[#10B981] font-semibold">Complete</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Readiness Score */}
-              <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-                <div className="mb-3">
-                  <p className="text-sm text-[#6B7280] mb-1">Readiness Score</p>
-                </div>
-
-                {/* Central Score */}
-                <div className="flex flex-col items-center justify-center mb-3">
-                  <p className="text-4xl text-[#111827] font-semibold mb-1">72<span className="text-xl text-[#6B7280]">/100</span></p>
-                  <p className="text-xs text-[#6B7280]">Updated today</p>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="w-full h-2 bg-[#f5f5f5] rounded-full overflow-hidden mb-4">
-                  <div className="h-full bg-[#7dbbff] rounded-full transition-all" style={{ width: '72%' }} />
-                </div>
-
-                {/* Breakdown List */}
-                <div className="space-y-2 mb-4 pb-4 border-b border-black/[0.08]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-[#6B7280]">Profile depth</span>
-                    <span className="text-xs text-[#111827] font-semibold">78%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-[#6B7280]">Trait clarity</span>
-                    <span className="text-xs text-[#111827] font-semibold">66%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-[#6B7280]">Evidence signals</span>
-                    <span className="text-xs text-[#111827] font-semibold">24 signals</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-[#6B7280]">Skills validated</span>
-                    <span className="text-xs text-[#111827] font-semibold">6 assessed</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-[#6B7280]">Direction clarity</span>
-                    <span className="text-xs text-[#111827] font-semibold">Clear</span>
-                  </div>
-                </div>
-
-                {/* Improve Score Section */}
-                <div>
-                  <p className="text-xs text-[#6B7280] mb-2">Improve Score</p>
-                  <div className="space-y-1.5">
-                    <div className="flex items-start gap-2">
-                      <div className="w-1 h-1 rounded-full bg-[#7dbbff] mt-1.5 shrink-0" />
-                      <p className="text-xs text-[#111827]">Add 1 deeper insight</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-1 h-1 rounded-full bg-[#7dbbff] mt-1.5 shrink-0" />
-                      <p className="text-xs text-[#111827]">Validate 3 more skills</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Second Row */}
-            <div className="grid grid-cols-3 gap-6 mb-6">
-              {/* Your Profile Snapshot */}
-              <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-                <h3 className="text-base text-[#111827] font-semibold mb-4">Your Profile Snapshot</h3>
-                <p className="text-sm text-[#6B7280] mb-6">Who you are at a glance</p>
-
-                {/* Avatar */}
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-16 h-16 rounded-full bg-[#7dbbff] flex items-center justify-center">
-                    <User className="w-8 h-8 text-white" strokeWidth={2} />
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#111827] font-semibold">Alex Rivera</p>
-                    <p className="text-xs text-[#6B7280]">Product Designer</p>
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-[#6B7280]">Signals Added</span>
-                      <span className="text-xs text-[#111827] font-semibold">24</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-black/[0.08]">
-                    <p className="text-xs text-[#6B7280] mb-3">Top Strengths</p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1.5 bg-[#7dbbff]/10 text-[#7dbbff] text-xs font-medium" style={{ borderRadius: '10px' }}>Ownership</span>
-                      <span className="px-3 py-1.5 bg-[#50d5ff]/10 text-[#50d5ff] text-xs font-medium" style={{ borderRadius: '10px' }}>Clear Thinking</span>
-                      <span className="px-3 py-1.5 bg-[#a8e6ff]/10 text-[#111827] text-xs font-medium" style={{ borderRadius: '10px' }}>Fast Learning</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Top Skills */}
-              <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-                <h3 className="text-base text-[#111827] font-semibold mb-4">Top Skills</h3>
-                <p className="text-sm text-[#6B7280] mb-6">Your strongest abilities</p>
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#E6F1FD] flex items-center justify-center shrink-0">
-                      <Sparkles className="w-5 h-5 text-[#7dbbff]" strokeWidth={2} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#111827] font-medium">UX Design</p>
-                      <p className="text-xs text-[#6B7280]">Advanced Level</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#E6F1FD] flex items-center justify-center shrink-0">
-                      <Target className="w-5 h-5 text-[#7dbbff]" strokeWidth={2} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#111827] font-medium">Strategy</p>
-                      <p className="text-xs text-[#6B7280]">Intermediate Level</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#E6F1FD] flex items-center justify-center shrink-0">
-                      <Brain className="w-5 h-5 text-[#7dbbff]" strokeWidth={2} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#111827] font-medium">Research</p>
-                      <p className="text-xs text-[#6B7280]">Advanced Level</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#E6F1FD] flex items-center justify-center shrink-0">
-                      <Zap className="w-5 h-5 text-[#7dbbff]" strokeWidth={2} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#111827] font-medium">User Testing</p>
-                      <p className="text-xs text-[#6B7280]">Intermediate Level</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Activity */}
-              <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-                <div className="mb-6">
-                  <h3 className="text-base text-[#111827] font-semibold mb-1">Activity</h3>
-                  <p className="text-2xl text-[#111827] font-semibold">156</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm text-red-500 flex items-center gap-1">
-                      <TrendingUp className="w-4 h-4 rotate-180" strokeWidth={2} />
-                      2.1%
-                    </span>
-                    <span className="text-xs text-[#6B7280]">vs last week</span>
-                  </div>
-                </div>
-
-                <p className="text-xs text-[#6B7280] mb-4">Last 7 days</p>
-
-                {/* Simple Line Chart */}
-                <div className="h-32">
-                  <svg className="w-full h-full" viewBox="0 0 300 100" preserveAspectRatio="none">
-                    <polyline
-                      points="0,80 50,60 100,70 150,50 200,55 250,40 300,30"
-                      fill="none"
-                      stroke="#7dbbff"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Third Row */}
-            <div className="grid grid-cols-3 gap-6">
-              {/* Career Direction */}
-              <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-                <h3 className="text-base text-[#111827] font-semibold mb-4">Career Direction</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-[#6B7280] mb-2">Broad Direction</p>
-                    <p className="text-sm text-[#111827] font-semibold">Product Design & Strategy</p>
-                  </div>
-
-                  <div className="pt-4 border-t border-black/[0.08]">
-                    <p className="text-xs text-[#6B7280] mb-3">Problem Types</p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1.5 bg-[#F9F9FA] text-[#111827] text-xs" style={{ borderRadius: '10px' }}>Design Systems</span>
-                      <span className="px-3 py-1.5 bg-[#F9F9FA] text-[#111827] text-xs" style={{ borderRadius: '10px' }}>User Research</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-black/[0.08]">
-                    <p className="text-xs text-[#6B7280] mb-3">Interests</p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1.5 bg-[#F9F9FA] text-[#111827] text-xs" style={{ borderRadius: '10px' }}>SaaS Products</span>
-                      <span className="px-3 py-1.5 bg-[#F9F9FA] text-[#111827] text-xs" style={{ borderRadius: '10px' }}>Innovation</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Experience */}
-              <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-                <h3 className="text-base text-[#111827] font-semibold mb-4">Experience</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-[#6B7280] mb-2">Current Role</p>
-                    <p className="text-sm text-[#111827] font-semibold mb-1">Senior Product Designer</p>
-                    <p className="text-xs text-[#6B7280]">TechCorp Inc. • 2022–2024</p>
-                  </div>
-
-                  <div className="pt-4 border-t border-black/[0.08]">
-                    <p className="text-xs text-[#6B7280] mb-2">Experience</p>
-                    <p className="text-2xl text-[#111827] font-semibold">6 years</p>
-                    <p className="text-xs text-[#6B7280] mt-1">Design & Strategy</p>
-                  </div>
-
-                  <div className="pt-4 border-t border-black/[0.08]">
-                    <p className="text-xs text-[#6B7280] mb-2">Education</p>
-                    <p className="text-sm text-[#111827] font-semibold mb-1">B.A. Interaction Design</p>
-                    <p className="text-xs text-[#6B7280]">University of Design • 2018</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Deeper Insights */}
-              <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-                <h3 className="text-base text-[#111827] font-semibold mb-4">Deeper Insights</h3>
-                
-                <div className="space-y-3">
-                  <div className="p-4 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="w-4 h-4 text-[#7dbbff]" strokeWidth={2} />
-                      <span className="text-sm text-[#111827] font-semibold">Motivation</span>
-                    </div>
-                    <p className="text-xs text-[#6B7280]">Impact and mastery driven</p>
-                  </div>
-
-                  <div className="p-4 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Brain className="w-4 h-4 text-[#7dbbff]" strokeWidth={2} />
-                      <span className="text-sm text-[#111827] font-semibold">Decision-Making</span>
-                    </div>
-                    <p className="text-xs text-[#6B7280]">Analytical yet intuitive</p>
-                  </div>
-
-                  <div className="p-4 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Zap className="w-4 h-4 text-[#7dbbff]" strokeWidth={2} />
-                      <span className="text-sm text-[#111827] font-semibold">Under Pressure</span>
-                    </div>
-                    <p className="text-xs text-[#6B7280]">Focused and systematic</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Fourth Row */}
-            <div className="grid grid-cols-3 gap-6">
-              {/* Companies Interested */}
-              <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <h3 className="text-base text-[#111827] font-semibold mb-1">Companies Interested</h3>
-                    <p className="text-xs text-[#6B7280]">Engagement from employers</p>
-                  </div>
-                  <div className="px-3 py-1.5 bg-[#7DBBFF]/10 text-[#7DBBFF] text-sm font-semibold" style={{ borderRadius: '8px' }}>
-                    5
-                  </div>
-                </div>
-
-                {/* Company Cards */}
-                <div className="space-y-3 mb-4">
-                  {/* Company 1 */}
-                  <div className="p-3 bg-[#F9F9FA] border border-black/[0.06] hover:bg-white hover:shadow-sm transition-all" style={{ borderRadius: '12px' }}>
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#7DBBFF]/20 to-[#8B5CF6]/20 flex items-center justify-center shrink-0 border border-black/[0.06]">
-                        <Building2 className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[#111827] font-semibold">TechFlow Inc.</p>
-                        <p className="text-xs text-[#6B7280]">Senior Product Designer</p>
-                      </div>
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20" style={{ borderRadius: '6px' }}>
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
-                      <span>Interview Scheduled</span>
-                    </div>
-                  </div>
-
-                  {/* Company 2 */}
-                  <div className="p-3 bg-[#F9F9FA] border border-black/[0.06] hover:bg-white hover:shadow-sm transition-all" style={{ borderRadius: '12px' }}>
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#7DBBFF]/20 to-[#8B5CF6]/20 flex items-center justify-center shrink-0 border border-black/[0.06]">
-                        <Building2 className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[#111827] font-semibold">DesignHub</p>
-                        <p className="text-xs text-[#6B7280]">Lead UX Designer</p>
-                      </div>
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium bg-[#7DBBFF]/10 text-[#7DBBFF] border border-[#7DBBFF]/20" style={{ borderRadius: '6px' }}>
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#7DBBFF]" />
-                      <span>Contacted</span>
-                    </div>
-                  </div>
-
-                  {/* Company 3 */}
-                  <div className="p-3 bg-[#F9F9FA] border border-black/[0.06] hover:bg-white hover:shadow-sm transition-all" style={{ borderRadius: '12px' }}>
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#7DBBFF]/20 to-[#8B5CF6]/20 flex items-center justify-center shrink-0 border border-black/[0.06]">
-                        <Building2 className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[#111827] font-semibold">InnovateCo</p>
-                        <p className="text-xs text-[#6B7280]">Product Designer</p>
-                      </div>
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20" style={{ borderRadius: '6px' }}>
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
-                      <span>Shortlisted</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* View All Button */}
-                <button
-                  onClick={() => setActiveSection('companies')}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-black/[0.08] text-[#7dbbff] hover:bg-[#7dbbff]/5 transition-all text-sm font-medium"
-                  style={{ borderRadius: '10px' }}
-                >
-                  <span>View All Companies</span>
-                  <ArrowRight className="w-4 h-4" strokeWidth={2} />
-                </button>
-              </div>
-            </div>
+            <DashboardContent onProfileBuilderClick={handleProfileBuilderClick} />
           </div>
         </main>
       </div>

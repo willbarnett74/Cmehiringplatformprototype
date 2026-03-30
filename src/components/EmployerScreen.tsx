@@ -6,10 +6,20 @@ import { CandidatesPage } from './employer-pages/CandidatesPage';
 import { InsightsAnalyticsPage } from './employer-pages/InsightsAnalyticsPage';
 import { SettingsPage } from './employer-pages/SettingsPage';
 import { CandidateModal } from './employer-pages/CandidateModal';
-import { ApplicantProfileView } from './employer-pages/ApplicantProfileView';
+import { CandidateProfileView } from './employer-pages/ApplicantProfileView';
 import { Candidate, Section } from './types/employer';
+import { EmployerOnboarding } from './employer-pages/onboarding/EmployerOnboarding';
 
 export function EmployerScreen() {
+  // Onboarding state - check if employer has completed onboarding
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
+    try {
+      return localStorage.getItem('cme_employer_onboarding_complete') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   // Navigation state
   const [currentSection, setCurrentSection] = useState<Section>('dashboard');
 
@@ -28,6 +38,7 @@ export function EmployerScreen() {
   // Candidate data with stage management
   const [candidates, setCandidates] = useState<Candidate[]>([
     {
+      candidate_id: 1,
       id: 1,
       name: 'Jordan Chen',
       role: 'Senior Product Designer',
@@ -35,15 +46,17 @@ export function EmployerScreen() {
       level: 'Senior',
       traits: ['Ownership', 'Learning Speed', 'Adaptability'],
       score: 94,
-      stage: 'newSignals',
+      stage: 'newSignals' as const,
       aiMatchPercent: 92,
       totalExperience: 8,
       transitioning: false,
       openToChange: false,
       readyToStepUp: true,
       retrained: false,
+      traitScores: { adaptability: 85, decisionMaking: 90, communication: 88, cognitiveAgility: 92, collaboration: 87, ownership: 94 },
     },
     {
+      candidate_id: 2,
       id: 2,
       name: 'Riley Martinez',
       role: 'Lead UX Designer',
@@ -51,15 +64,17 @@ export function EmployerScreen() {
       level: 'Lead',
       traits: ['Communication', 'Collaboration', 'Innovation'],
       score: 91,
-      stage: 'newSignals',
+      stage: 'newSignals' as const,
       aiMatchPercent: 88,
       totalExperience: 12,
       transitioning: false,
       openToChange: false,
       readyToStepUp: false,
       retrained: false,
+      traitScores: { adaptability: 80, decisionMaking: 85, communication: 92, cognitiveAgility: 86, collaboration: 91, ownership: 83 },
     },
     {
+      candidate_id: 3,
       id: 3,
       name: 'Taylor Kim',
       role: 'Product Designer',
@@ -67,15 +82,17 @@ export function EmployerScreen() {
       level: 'Mid-level',
       traits: ['Problem Solving', 'Creativity', 'Ownership'],
       score: 88,
-      stage: 'assessmentSent',
+      stage: 'assessmentSent' as const,
       aiMatchPercent: 85,
       totalExperience: 4,
       transitioning: false,
       openToChange: true,
       readyToStepUp: true,
       retrained: false,
+      traitScores: { adaptability: 82, decisionMaking: 88, communication: 80, cognitiveAgility: 89, collaboration: 84, ownership: 90 },
     },
     {
+      candidate_id: 4,
       id: 4,
       name: 'Morgan Lee',
       role: 'Senior Designer',
@@ -83,15 +100,17 @@ export function EmployerScreen() {
       level: 'Senior',
       traits: ['Learning Speed', 'Detail-oriented', 'Leadership'],
       score: 92,
-      stage: 'assessmentSent',
+      stage: 'assessmentSent' as const,
       aiMatchPercent: 90,
       totalExperience: 7,
       transitioning: false,
       openToChange: false,
       readyToStepUp: false,
       retrained: false,
+      traitScores: { adaptability: 78, decisionMaking: 92, communication: 85, cognitiveAgility: 91, collaboration: 80, ownership: 88 },
     },
     {
+      candidate_id: 5,
       id: 5,
       name: 'Casey Wong',
       role: 'Lead Product Designer',
@@ -99,15 +118,17 @@ export function EmployerScreen() {
       level: 'Lead',
       traits: ['Leadership', 'Strategic Thinking', 'Communication'],
       score: 96,
-      stage: 'finalRound',
+      stage: 'finalRound' as const,
       aiMatchPercent: 95,
       totalExperience: 15,
       transitioning: false,
       openToChange: false,
       readyToStepUp: false,
       retrained: false,
+      traitScores: { adaptability: 88, decisionMaking: 94, communication: 93, cognitiveAgility: 90, collaboration: 92, ownership: 96 },
     },
     {
+      candidate_id: 6,
       id: 6,
       name: 'Alex Rivera',
       role: 'Senior UX Designer',
@@ -115,15 +136,17 @@ export function EmployerScreen() {
       level: 'Senior',
       traits: ['Adaptability', 'Innovation', 'Collaboration'],
       score: 89,
-      stage: 'newSignals',
+      stage: 'newSignals' as const,
       aiMatchPercent: 87,
       totalExperience: 2,
       transitioning: true,
       openToChange: true,
       readyToStepUp: false,
       retrained: true,
+      traitScores: { adaptability: 91, decisionMaking: 82, communication: 86, cognitiveAgility: 84, collaboration: 89, ownership: 80 },
     },
     {
+      candidate_id: 7,
       id: 7,
       name: 'Sam Patel',
       role: 'Product Designer',
@@ -131,15 +154,17 @@ export function EmployerScreen() {
       level: 'Mid-level',
       traits: ['Creativity', 'Learning Speed', 'Problem Solving'],
       score: 85,
-      stage: 'assessmentSent',
+      stage: 'assessmentSent' as const,
       aiMatchPercent: 82,
       totalExperience: 3,
       transitioning: false,
       openToChange: false,
       readyToStepUp: true,
       retrained: false,
+      traitScores: { adaptability: 79, decisionMaking: 83, communication: 81, cognitiveAgility: 87, collaboration: 82, ownership: 85 },
     },
     {
+      candidate_id: 8,
       id: 8,
       name: 'Jamie Foster',
       role: 'Lead Designer',
@@ -147,13 +172,32 @@ export function EmployerScreen() {
       level: 'Lead',
       traits: ['Strategic Thinking', 'Leadership', 'Ownership'],
       score: 93,
-      stage: 'finalRound',
+      stage: 'finalRound' as const,
       aiMatchPercent: 91,
       totalExperience: 11,
       transitioning: false,
       openToChange: true,
       readyToStepUp: false,
       retrained: false,
+      traitScores: { adaptability: 84, decisionMaking: 91, communication: 90, cognitiveAgility: 88, collaboration: 86, ownership: 93 },
+    },
+    {
+      candidate_id: 9,
+      id: 9,
+      name: 'Drew Anderson',
+      role: 'Junior Designer',
+      location: 'Chicago, IL',
+      level: 'Entry',
+      traits: ['Growing', 'Eager', 'Creative'],
+      score: 68,
+      stage: 'newSignals' as const,
+      aiMatchPercent: 65,
+      totalExperience: 1,
+      transitioning: false,
+      openToChange: true,
+      readyToStepUp: false,
+      retrained: true,
+      traitScores: { adaptability: 72, decisionMaking: 55, communication: 78, cognitiveAgility: 48, collaboration: 82, ownership: 52 },
     },
   ]);
 
@@ -197,7 +241,7 @@ export function EmployerScreen() {
     setCandidates((prevCandidates) =>
       prevCandidates.map((candidate) => {
         if (candidate.id === candidateId) {
-          let newStage: 'newSignals' | 'assessmentSent' | 'finalRound' | 'hired' | 'declined' = candidate.stage;
+          let newStage: 'newSignals' | 'assessmentSent' | 'finalRound' | 'hired' | 'rejected' = candidate.stage;
           if (candidate.stage === 'newSignals') newStage = 'assessmentSent';
           else if (candidate.stage === 'assessmentSent') newStage = 'finalRound';
           else if (candidate.stage === 'finalRound') newStage = 'hired';
@@ -212,7 +256,7 @@ export function EmployerScreen() {
     setCandidates((prevCandidates) =>
       prevCandidates.map((candidate) => {
         if (candidate.id === candidateId) {
-          return { ...candidate, stage: newStage as 'newSignals' | 'assessmentSent' | 'finalRound' | 'hired' | 'declined' };
+          return { ...candidate, stage: newStage as 'newSignals' | 'assessmentSent' | 'finalRound' | 'hired' | 'rejected' };
         }
         return candidate;
       })
@@ -366,7 +410,11 @@ export function EmployerScreen() {
               <DashboardPage
                 hasActiveFilters={hasActiveFilters}
                 candidateCount={candidates.length}
+                candidates={candidates}
                 onNavigateToSearch={() => setCurrentSection('search')}
+                onNavigateToCandidates={() => setCurrentSection('candidates')}
+                onNavigateToInsights={() => setCurrentSection('insights')}
+                onCandidateClick={handleCandidateClick}
               />
             )}
             {currentSection === 'search' && (
@@ -415,7 +463,7 @@ export function EmployerScreen() {
 
       {/* Full Profile View */}
       {showFullProfile && selectedCandidate && (
-        <ApplicantProfileView
+        <CandidateProfileView
           candidate={selectedCandidate}
           onClose={() => {
             setShowFullProfile(false);
@@ -423,6 +471,16 @@ export function EmployerScreen() {
           }}
           onMoveToNextStage={handleMoveToNextStage}
           onAddNote={handleAddNote}
+        />
+      )}
+
+      {/* Onboarding Modal */}
+      {!hasCompletedOnboarding && (
+        <EmployerOnboarding
+          onComplete={() => {
+            setHasCompletedOnboarding(true);
+            localStorage.setItem('cme_employer_onboarding_complete', 'true');
+          }}
         />
       )}
     </div>
