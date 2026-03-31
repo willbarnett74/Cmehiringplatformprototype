@@ -10,6 +10,7 @@ export interface CandidateProfile {
   score: number;
   // Engagement stage — outcomes (hired/rejected) live on the engagement, not a separate hiring_decisions table
   stage: 'newSignals' | 'assessmentSent' | 'finalRound' | 'hired' | 'rejected';
+  hired_date?: string; // ISO date string — set when stage moves to 'hired'
   aiMatchPercent?: number;
   totalExperience?: number; // Total years of work experience
   transitioning?: boolean; // Career transition or returner status
@@ -83,13 +84,39 @@ export interface EmployerTraitWeightings {
   updated_at?: string;
 }
 
-// ─── performance_snapshots (re-linked from hiring_decisions → engagements) ───
+// ─── performance_snapshots ───
 export interface PerformanceSnapshot {
   id: number;
-  engagement_id: number; // FK → engagements.engagement_id (was hiring_decisions)
-  metric_label: string;
-  metric_value: number;
-  recorded_at: string;
+  engagement_id: number;
+  snapshot_day: 30 | 90;
+  learning_velocity_rating: number;
+  ownership_rating: number;
+  resilience_rating: number;
+  communication_confidence_rating: number;
+  relational_intelligence_rating: number;
+  motivational_fit_rating: number;
+  performance_band: 'Top' | 'Mid' | 'Low';
+  would_rehire: boolean;
+  notes?: string;
+  submitted_at: string;
+}
+
+// ─── motivational_pulse_checks ───
+export interface MotivationalPulseCheck {
+  id: number;
+  engagement_id: number;
+  snapshot_day: 30 | 90;
+  mastery_rating?: number;
+  impact_rating?: number;
+  recognition_rating?: number;
+  autonomy_rating?: number;
+  candidate_submitted: boolean;
+  mastery_behaviour_rating?: number;
+  impact_behaviour_rating?: number;
+  recognition_behaviour_rating?: number;
+  autonomy_behaviour_rating?: number;
+  manager_submitted: boolean;
+  submitted_at?: string;
 }
 
 // ─── intake_responses (FK updated: applicant_id → candidate_id) ───

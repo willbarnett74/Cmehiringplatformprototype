@@ -2,24 +2,34 @@ import { GripVertical, X } from 'lucide-react';
 import { Candidate } from '../types/employer';
 import { useState } from 'react';
 import { getTraitHealthColor } from '../../src/lib/matchScoring';
+import { ReviewDueBanner } from './ReviewDueBanner';
 
 interface CandidatesPageProps {
   candidates: Candidate[];
   onCandidateClick: (candidate: Candidate) => void;
   onMoveToNextStage: (candidateId: number) => void;
   onMoveToStage?: (candidateId: number, newStage: string) => void;
+  daysSinceHire?: (candidate: Candidate) => number;
+  completedSnapshotDays?: (candidate: Candidate) => number[];
+  onOpenReview?: (candidate: Candidate, snapshotDay: 30 | 90) => void;
 }
 
-function CandidateCard({ 
-  candidate, 
-  onCandidateClick, 
+function CandidateCard({
+  candidate,
+  onCandidateClick,
   stage,
-  onDragStart
-}: { 
-  candidate: Candidate; 
+  onDragStart,
+  daysSinceHire,
+  completedSnapshotDays,
+  onOpenReview,
+}: {
+  candidate: Candidate;
   onCandidateClick: (candidate: Candidate) => void;
   stage: any;
   onDragStart: (candidateId: number) => void;
+  daysSinceHire?: number;
+  completedSnapshotDays?: number[];
+  onOpenReview?: (day: 30 | 90) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -138,9 +148,22 @@ function CandidateCard({
 
       {/* Status Badge */}
       {stage.id === 'hired' && (
-        <div className="w-full flex items-center justify-center px-3 py-2 bg-[#10B981]/10 text-[#10B981] text-xs font-medium mt-3" style={{ borderRadius: '8px' }}>
-          ✓ Hired
-        </div>
+        <>
+          {daysSinceHire !== undefined && onOpenReview ? (
+            <div className="mt-3">
+              <ReviewDueBanner
+                daysSinceHire={daysSinceHire}
+                completedSnapshotDays={completedSnapshotDays ?? []}
+                onOpenReview={onOpenReview}
+                compact
+              />
+            </div>
+          ) : (
+            <div className="w-full flex items-center justify-center px-3 py-2 bg-[#10B981]/10 text-[#10B981] text-xs font-medium mt-3" style={{ borderRadius: '8px' }}>
+              ✓ Hired
+            </div>
+          )}
+        </>
       )}
       {stage.id === 'rejected' && (
         <div className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-[#EF4444]/10 text-[#EF4444] text-xs font-medium mt-3" style={{ borderRadius: '8px' }}>
@@ -152,25 +175,31 @@ function CandidateCard({
   );
 }
 
-function DropZone({ 
-  stage, 
-  candidates, 
+function DropZone({
+  stage,
+  candidates,
   onCandidateClick,
   onDragStart,
   onDragOver,
   onDrop,
-  isOver
-}: { 
-  stage: any; 
-  candidates: Candidate[]; 
+  isOver,
+  daysSinceHire,
+  completedSnapshotDays,
+  onOpenReview,
+}: {
+  stage: any;
+  candidates: Candidate[];
   onCandidateClick: (candidate: Candidate) => void;
   onDragStart: (candidateId: number) => void;
   onDragOver: (e: React.DragEvent, stageId: string) => void;
   onDrop: (e: React.DragEvent, stageId: string) => void;
   isOver: boolean;
+  daysSinceHire?: (candidate: Candidate) => number;
+  completedSnapshotDays?: (candidate: Candidate) => number[];
+  onOpenReview?: (candidate: Candidate, snapshotDay: 30 | 90) => void;
 }) {
   return (
-    <div 
+    <div
       onDragOver={(e) => onDragOver(e, stage.id)}
       onDrop={(e) => onDrop(e, stage.id)}
       className={`space-y-3 flex-1 min-h-[200px] p-3 transition-all ${
@@ -185,6 +214,9 @@ function DropZone({
           onCandidateClick={onCandidateClick}
           stage={stage}
           onDragStart={onDragStart}
+          daysSinceHire={daysSinceHire ? daysSinceHire(candidate) : undefined}
+          completedSnapshotDays={completedSnapshotDays ? completedSnapshotDays(candidate) : undefined}
+          onOpenReview={onOpenReview ? (day) => onOpenReview(candidate, day) : undefined}
         />
       ))}
 
@@ -199,7 +231,7 @@ function DropZone({
   );
 }
 
-export function CandidatesPage({ candidates, onCandidateClick, onMoveToNextStage, onMoveToStage }: CandidatesPageProps) {
+export function CandidatesPage({ candidates, onCandidateClick, onMoveToNextStage, onMoveToStage, daysSinceHire, completedSnapshotDays, onOpenReview }: CandidatesPageProps) {
   const [draggedCandidateId, setDraggedCandidateId] = useState<number | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
@@ -273,6 +305,9 @@ export function CandidatesPage({ candidates, onCandidateClick, onMoveToNextStage
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
                 isOver={dragOverStage === stage.id}
+                daysSinceHire={daysSinceHire}
+                completedSnapshotDays={completedSnapshotDays}
+                onOpenReview={onOpenReview}
               />
             </div>
           );

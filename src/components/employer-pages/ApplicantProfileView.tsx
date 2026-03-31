@@ -7,16 +7,17 @@ interface CandidateProfileViewProps {
   onClose: () => void;
   onMoveToNextStage: (candidateId: number) => void;
   onAddNote: (candidateId: number) => void;
+  onMoveToStage?: (candidateId: number, stage: string) => void;
 }
 
-export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, onAddNote }: CandidateProfileViewProps) {
+export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, onAddNote, onMoveToStage }: CandidateProfileViewProps) {
   const [activeSection, setActiveSection] = useState('overview');
   const [isShortlisted, setIsShortlisted] = useState(false);
 
-  const getFitLevel = (score: number): { label: string; color: string; bgColor: string } => {
-    if (score >= 90) return { label: 'Strong Fit', color: 'text-[#34D399]', bgColor: 'bg-[#34D399]/10' };
-    if (score >= 85) return { label: 'Moderate Fit', color: 'text-[#3B82F6]', bgColor: 'bg-[#3B82F6]/10' };
-    return { label: 'Limited Fit', color: 'text-[#9CA3AF]', bgColor: 'bg-[#9CA3AF]/10' };
+  const getFitLevel = (score: number): { label: string; color: string; bgColor: string; hex: string } => {
+    if (score >= 75) return { label: 'Strong Match', color: 'text-[#10B981]', bgColor: 'bg-[#10B981]/10', hex: '#10B981' };
+    if (score >= 50) return { label: 'Moderate Match', color: 'text-[#F59E0B]', bgColor: 'bg-[#F59E0B]/10', hex: '#F59E0B' };
+    return { label: 'Low Match', color: 'text-[#9CA3AF]', bgColor: 'bg-[#9CA3AF]/10', hex: '#9CA3AF' };
   };
 
   const fitLevel = getFitLevel(candidate.score);
@@ -185,7 +186,9 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
                       
                       {/* Tags and Fit Level */}
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`px-3 py-1.5 ${fitLevel.bgColor} ${fitLevel.color} font-semibold text-xs`} style={{ borderRadius: '8px' }}>
+                        <span className={`px-3 py-1.5 ${fitLevel.bgColor} ${fitLevel.color} font-semibold text-xs flex items-center gap-1.5`} style={{ borderRadius: '8px' }}>
+                          <span className="text-sm font-bold">{candidate.score}%</span>
+                          <span className="opacity-70">·</span>
                           {fitLevel.label}
                         </span>
                         <span className="px-3 py-1.5 bg-[#34D399]/10 text-[#34D399] font-medium text-xs" style={{ borderRadius: '8px' }}>
@@ -402,6 +405,108 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {/* Dimension Breakdown (Spec 7 §3.3) */}
+                {candidate.traitScores && Object.keys(candidate.traitScores).length > 0 && (() => {
+                  // Mock employer weights (replace with real role template data when available)
+                  const employerWeights: Record<string, number> = {
+                    adaptability: 70,
+                    decisionMaking: 65,
+                    communication: 80,
+                    cognitiveAgility: 72,
+                    collaboration: 75,
+                    ownership: 68,
+                  };
+                  const dimensionLabels: Record<string, string> = {
+                    adaptability: 'Adaptability',
+                    decisionMaking: 'Decision Making',
+                    communication: 'Communication',
+                    cognitiveAgility: 'Cognitive Agility',
+                    collaboration: 'Collaboration',
+                    ownership: 'Ownership',
+                  };
+                  const rows = Object.entries(candidate.traitScores!)
+                    .filter(([, v]) => v !== undefined && v !== null)
+                    .map(([key, score]) => {
+                      const weight = employerWeights[key] ?? 60;
+                      const gap = (score as number) - weight;
+                      return { key, label: dimensionLabels[key] ?? key, score: score as number, weight, gap };
+                    });
+
+                  return (
+                    <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                      <div className="flex items-center gap-2 mb-5">
+                        <Zap className="w-5 h-5 text-[#8B5CF6]" strokeWidth={2} />
+                        <h2 className="text-base text-[#111827] font-semibold">Dimension Breakdown</h2>
+                        <span className="ml-auto text-xs text-[#9CA3AF]">vs. role weighting</span>
+                      </div>
+                      <div className="space-y-3">
+                        {rows.map(({ key, label, score, weight, gap }) => {
+                          const hasDivergence = Math.abs(gap) > 15;
+                          const scoreColor = score >= 75 ? '#10B981' : score >= 50 ? '#F59E0B' : '#9CA3AF';
+                          return (
+                            <div key={key}>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-sm text-[#111827]">{label}</span>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-[#9CA3AF]">Weight: {weight}</span>
+                                  <span className="text-sm font-semibold" style={{ color: scoreColor }}>{score}</span>
+                                  {hasDivergence && (
+                                    <span className={`text-xs font-medium px-1.5 py-0.5 ${gap > 0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#EF4444]/10 text-[#EF4444]'}`} style={{ borderRadius: '4px' }}>
+                                      {gap > 0 ? '+' : ''}{gap}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="relative w-full h-2 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
+                                {/* Employer weight marker */}
+                                <div className="absolute top-0 h-full w-0.5 bg-[#111827]/20 z-10" style={{ left: `${weight}%` }} />
+                                {/* Candidate score bar */}
+                                <div className="h-full transition-all duration-500" style={{ width: `${score}%`, backgroundColor: scoreColor, borderRadius: '4px' }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-[#9CA3AF] mt-4">Divergence flag (±) shown when gap exceeds 15 points from role weighting.</p>
+                    </div>
+                  );
+                })()}
+
+                {/* Motivational Fit (Spec 7 §3.3) */}
+                <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                  <div className="flex items-center gap-2 mb-5">
+                    <Heart className="w-5 h-5 text-[#F59E0B]" strokeWidth={2} />
+                    <h2 className="text-base text-[#111827] font-semibold">Motivational Fit</h2>
+                  </div>
+                  {(() => {
+                    // Candidate's motivational rankings (mock — will be from intake section 6)
+                    const motivations = [
+                      { label: 'Mastery', rank: 1, score: 88, roleExpected: true },
+                      { label: 'Impact', rank: 2, score: 82, roleExpected: true },
+                      { label: 'Autonomy', rank: 3, score: 74, roleExpected: false },
+                      { label: 'Recognition', rank: 4, score: 61, roleExpected: false },
+                    ];
+                    return (
+                      <div className="space-y-3">
+                        {motivations.map((m) => (
+                          <div key={m.label} className="flex items-center gap-3 p-3 bg-[#F9F9FA]" style={{ borderRadius: '10px' }}>
+                            <span className="w-5 h-5 rounded-full bg-white border border-black/[0.08] text-xs text-[#6B7280] flex items-center justify-center font-medium shrink-0">{m.rank}</span>
+                            <span className="text-sm text-[#111827] font-medium flex-1">{m.label}</span>
+                            <div className="w-24 h-1.5 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
+                              <div className="h-full bg-[#F59E0B]" style={{ width: `${m.score}%`, borderRadius: '4px' }} />
+                            </div>
+                            <span className="text-xs text-[#9CA3AF] w-6 text-right">{m.score}</span>
+                            {m.roleExpected && (
+                              <span className="text-xs px-1.5 py-0.5 bg-[#10B981]/10 text-[#10B981] font-medium" style={{ borderRadius: '4px' }}>Role fit</span>
+                            )}
+                          </div>
+                        ))}
+                        <p className="text-xs text-[#9CA3AF] pt-1">Role fit badges indicate alignment with this role's expected motivation signals.</p>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Strengths and Growth Areas */}
@@ -694,17 +799,30 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
                 <span>Download Summary</span>
               </button>
             </div>
-            <button
-              onClick={() => {
-                onMoveToNextStage(candidate.id);
-                onClose();
-              }}
-              className="px-6 py-2.5 bg-[#7DBBFF] text-white hover:bg-[#6aabef] hover:shadow-lg transition-all text-sm font-medium flex items-center gap-2"
-              style={{ borderRadius: '10px' }}
-            >
-              <span>Invite to Interview</span>
-              <ArrowRight className="w-4 h-4" strokeWidth={2} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (onMoveToStage) onMoveToStage(candidate.id, 'rejected');
+                  onClose();
+                }}
+                className="px-5 py-2.5 border border-[#EF4444]/30 text-[#EF4444] hover:bg-[#EF4444]/5 transition-all text-sm font-medium flex items-center gap-2"
+                style={{ borderRadius: '10px' }}
+              >
+                <X className="w-4 h-4" strokeWidth={2} />
+                <span>Reject</span>
+              </button>
+              <button
+                onClick={() => {
+                  onMoveToNextStage(candidate.id);
+                  onClose();
+                }}
+                className="px-6 py-2.5 bg-[#7DBBFF] text-white hover:bg-[#6aabef] hover:shadow-lg transition-all text-sm font-medium flex items-center gap-2"
+                style={{ borderRadius: '10px' }}
+              >
+                <span>Move to Interview</span>
+                <ArrowRight className="w-4 h-4" strokeWidth={2} />
+              </button>
+            </div>
           </div>
         </div>
       </div>

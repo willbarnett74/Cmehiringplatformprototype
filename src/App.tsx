@@ -128,6 +128,7 @@ export default function App() {
           {activeTab === 'employer' && <EmployerScreen />}
           {activeTab === 'design' && <DesignSystem />}
           {activeTab === 'assessment' && <AssessmentLink />}
+          {activeTab === 'pulsecheck' && <PulseCheckForm />}
         </main>
       </div>
     </UserProfileProvider>
