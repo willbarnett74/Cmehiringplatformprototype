@@ -10,7 +10,8 @@ import { IntakeSection8 } from './applicant-pages/intake/IntakeSection8';
 import { ProfileBuilderLayout } from './applicant-pages/ProfileBuilderLayout';
 import { OpportunitiesPage } from './applicant-pages/OpportunitiesPage';
 import { TraitScoresDisplay } from './applicant-pages/TraitScoresDisplay';
-import { LayoutDashboard, User, Settings, Compass, ArrowRight, Layers } from 'lucide-react';
+import { TraitProfilePage } from './applicant-pages/TraitProfilePage';
+import { LayoutDashboard, User, Settings, Compass, ArrowRight, Layers, BarChart2 } from 'lucide-react';
 import { DashboardContent } from './applicant-pages/DashboardContent';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { computeIntakeScores } from '../utils/intakeScoring';
@@ -32,7 +33,7 @@ import { computeIntakeScores } from '../utils/intakeScoring';
 
 export function ApplicantScreen() {
   const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete } = useUserProfile();
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'profileBuilder' | 'companies' | 'settings' | 'intake'>('dashboard');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'profileBuilder' | 'profile' | 'companies' | 'settings' | 'intake'>('dashboard');
   const [activeStep, setActiveStep] = useState<number>(1);
   const [cognitiveScore, setCognitiveScore] = useState<number | null>(null);
   
@@ -163,6 +164,54 @@ export function ApplicantScreen() {
     );
   }
 
+  // FRAME: Trait Profile Page (Spec 7 §3.2)
+  if (activeSection === 'profile') {
+    return (
+      <div className="relative bg-[#fafafa] min-h-screen">
+        <div className="relative flex min-h-screen">
+          <aside className="w-[240px] bg-white border-r border-black/[0.08] sticky top-0 h-screen overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-[#7dbbff] flex items-center justify-center shrink-0" style={{ borderRadius: '12px' }}>
+                  <Compass className="w-5 h-5 text-white" strokeWidth={2} />
+                </div>
+                <span className="text-lg text-[#111827] font-semibold">CMe</span>
+              </div>
+              <div className="mb-4">
+                <p className="text-xs text-[#6B7280] uppercase tracking-wider px-3">Menu</p>
+              </div>
+              <nav className="space-y-1 mb-8">
+                <button onClick={() => setActiveSection('dashboard')} className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" style={{ borderRadius: '10px' }}>
+                  <LayoutDashboard className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Dashboard</span>
+                </button>
+                <button onClick={() => setActiveSection('profile')} className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#7dbbff]/10 text-[#7dbbff] transition-all" style={{ borderRadius: '10px' }}>
+                  <BarChart2 className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Profile</span>
+                </button>
+                <button onClick={() => handleProfileBuilderClick()} className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" style={{ borderRadius: '10px' }}>
+                  <User className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Profile Builder</span>
+                </button>
+                <button onClick={() => setActiveSection('companies')} className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" style={{ borderRadius: '10px' }}>
+                  <Layers className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Opportunities</span>
+                </button>
+                <button onClick={() => setActiveSection('settings')} className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" style={{ borderRadius: '10px' }}>
+                  <Settings className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Settings</span>
+                </button>
+              </nav>
+            </div>
+          </aside>
+          <main className="flex-1 overflow-y-auto p-8">
+            <TraitProfilePage />
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   // FRAME 3: Companies Page
   if (activeSection === 'companies') {
     return (
@@ -188,7 +237,7 @@ export function ApplicantScreen() {
               <nav className="space-y-1 mb-8">
                 <button
                   onClick={() => setActiveSection('dashboard')}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" 
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
                   style={{ borderRadius: '10px' }}
                 >
                   <LayoutDashboard className="w-5 h-5" strokeWidth={2} />
@@ -196,8 +245,17 @@ export function ApplicantScreen() {
                 </button>
 
                 <button
+                  onClick={() => setActiveSection('profile')}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
+                  style={{ borderRadius: '10px' }}
+                >
+                  <BarChart2 className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Profile</span>
+                </button>
+
+                <button
                   onClick={() => handleProfileBuilderClick()}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" 
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
                   style={{ borderRadius: '10px' }}
                 >
                   <User className="w-5 h-5" strokeWidth={2} />
@@ -206,7 +264,7 @@ export function ApplicantScreen() {
 
                 <button
                   onClick={() => setActiveSection('companies')}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#7dbbff]/10 text-[#7dbbff] transition-all" 
+                  className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#7dbbff]/10 text-[#7dbbff] transition-all"
                   style={{ borderRadius: '10px' }}
                 >
                   <Layers className="w-5 h-5" strokeWidth={2} />
@@ -215,7 +273,7 @@ export function ApplicantScreen() {
 
                 <button
                   onClick={() => setActiveSection('settings')}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" 
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
                   style={{ borderRadius: '10px' }}
                 >
                   <Settings className="w-5 h-5" strokeWidth={2} />
@@ -298,7 +356,7 @@ export function ApplicantScreen() {
             <nav className="space-y-1 mb-8">
               <button
                 onClick={() => setActiveSection('dashboard')}
-                className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#7dbbff]/10 text-[#7dbbff] transition-all" 
+                className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#7dbbff]/10 text-[#7dbbff] transition-all"
                 style={{ borderRadius: '10px' }}
               >
                 <LayoutDashboard className="w-5 h-5" strokeWidth={2} />
@@ -306,8 +364,17 @@ export function ApplicantScreen() {
               </button>
 
               <button
+                onClick={() => setActiveSection('profile')}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
+                style={{ borderRadius: '10px' }}
+              >
+                <BarChart2 className="w-5 h-5" strokeWidth={2} />
+                <span className="text-sm font-medium">Profile</span>
+              </button>
+
+              <button
                 onClick={() => handleProfileBuilderClick()}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" 
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
                 style={{ borderRadius: '10px' }}
               >
                 <User className="w-5 h-5" strokeWidth={2} />
@@ -316,7 +383,7 @@ export function ApplicantScreen() {
 
               <button
                 onClick={() => setActiveSection('companies')}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" 
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
                 style={{ borderRadius: '10px' }}
               >
                 <Layers className="w-5 h-5" strokeWidth={2} />
@@ -325,7 +392,7 @@ export function ApplicantScreen() {
 
               <button
                 onClick={() => setActiveSection('settings')}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all" 
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
                 style={{ borderRadius: '10px' }}
               >
                 <Settings className="w-5 h-5" strokeWidth={2} />
@@ -345,7 +412,7 @@ export function ApplicantScreen() {
                   <input
                     type="text"
                     placeholder="Search"
-                    className="w-full px-4 py-2 pl-10 bg-[#fafafa] border border-black/[0.08] text-sm text-[#111827] placeholder:text-[#6B7280] focus:outline-none focus:border-[#7dbbff]" 
+                    className="w-full px-4 py-2 pl-10 bg-[#fafafa] border border-black/[0.08] text-sm text-[#111827] placeholder:text-[#6B7280] focus:outline-none focus:border-[#7dbbff]"
                     style={{ borderRadius: '10px' }}
                   />
                   <div className="absolute left-3 top-1/2 -translate-y-1/2">
@@ -355,7 +422,7 @@ export function ApplicantScreen() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-3 px-4 py-2 bg-[#fafafa]" style={{ borderRadius: '10px' }}>
                   <div className="w-8 h-8 rounded-full bg-[#7dbbff] flex items-center justify-center">

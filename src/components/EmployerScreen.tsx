@@ -7,7 +7,9 @@ import { InsightsAnalyticsPage } from './employer-pages/InsightsAnalyticsPage';
 import { SettingsPage } from './employer-pages/SettingsPage';
 import { CandidateModal } from './employer-pages/CandidateModal';
 import { CandidateProfileView } from './employer-pages/ApplicantProfileView';
-import { Candidate, Section } from './types/employer';
+import { PerformanceSnapshotForm, type PerformanceSnapshotData } from './employer-pages/PerformanceSnapshotForm';
+import type { ManagerObservationData } from './employer-pages/ManagerObservationForm';
+import { Candidate, Section, PerformanceSnapshot, MotivationalPulseCheck } from './types/employer';
 import { EmployerOnboarding } from './employer-pages/onboarding/EmployerOnboarding';
 
 export function EmployerScreen() {
@@ -199,7 +201,83 @@ export function EmployerScreen() {
       retrained: true,
       traitScores: { adaptability: 72, decisionMaking: 55, communication: 78, cognitiveAgility: 48, collaboration: 82, ownership: 52 },
     },
+    {
+      candidate_id: 10, id: 10,
+      name: 'Priya Nair',
+      role: 'Product Designer',
+      location: 'Austin, TX',
+      level: 'Mid-level',
+      traits: ['Ownership', 'Communication', 'Learning Speed'],
+      score: 87,
+      stage: 'hired' as const,
+      hired_date: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+      aiMatchPercent: 85, totalExperience: 5,
+      transitioning: false, openToChange: false, readyToStepUp: true, retrained: false,
+      traitScores: { adaptability: 83, decisionMaking: 87, communication: 90, cognitiveAgility: 85, collaboration: 80, ownership: 88 },
+    },
+    {
+      candidate_id: 11, id: 11,
+      name: 'Marcus Webb',
+      role: 'Senior Designer',
+      location: 'Remote',
+      level: 'Senior',
+      traits: ['Leadership', 'Resilience', 'Strategic Thinking'],
+      score: 91,
+      stage: 'hired' as const,
+      hired_date: new Date(Date.now() - 95 * 24 * 60 * 60 * 1000).toISOString(),
+      aiMatchPercent: 89, totalExperience: 9,
+      transitioning: false, openToChange: false, readyToStepUp: false, retrained: false,
+      traitScores: { adaptability: 86, decisionMaking: 91, communication: 88, cognitiveAgility: 89, collaboration: 85, ownership: 92 },
+    },
   ]);
+
+  // ── Post-hire data state ───────────────────────────────────────────────────
+  const [performanceSnapshots, setPerformanceSnapshots] = useState<PerformanceSnapshot[]>([]);
+  const [pulseChecks, setPulseChecks] = useState<MotivationalPulseCheck[]>([]);
+  const [reviewCandidate, setReviewCandidate] = useState<Candidate | null>(null);
+  const [reviewSnapshotDay, setReviewSnapshotDay] = useState<30 | 90>(30);
+
+  const handleOpenReview = (candidate: Candidate, snapshotDay: 30 | 90) => {
+    setReviewCandidate(candidate);
+    setReviewSnapshotDay(snapshotDay);
+  };
+
+  const handleSubmitReview = (snapshotData: PerformanceSnapshotData, managerObs: ManagerObservationData) => {
+    const engagementId = reviewCandidate?.id ?? 0;
+    const now = new Date().toISOString();
+    setPerformanceSnapshots(prev => [...prev, {
+      id: prev.length + 1,
+      engagement_id: engagementId,
+      snapshot_day: reviewSnapshotDay,
+      ...snapshotData,
+      would_rehire: snapshotData.would_rehire ?? false,
+      submitted_at: now,
+    }]);
+    setPulseChecks(prev => {
+      const existingIdx = prev.findIndex(p => p.engagement_id === engagementId && p.snapshot_day === reviewSnapshotDay);
+      const managerFields = {
+        mastery_behaviour_rating: managerObs.mastery_behaviour_rating ?? undefined,
+        impact_behaviour_rating: managerObs.impact_behaviour_rating ?? undefined,
+        recognition_behaviour_rating: managerObs.recognition_behaviour_rating ?? undefined,
+        autonomy_behaviour_rating: managerObs.autonomy_behaviour_rating ?? undefined,
+        manager_submitted: true,
+      };
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        updated[existingIdx] = { ...updated[existingIdx], ...managerFields };
+        return updated;
+      }
+      return [...prev, { id: prev.length + 1, engagement_id: engagementId, snapshot_day: reviewSnapshotDay, candidate_submitted: false, submitted_at: now, ...managerFields }];
+    });
+  };
+
+  const daysSinceHire = (candidate: Candidate): number => {
+    if (!candidate.hired_date) return 0;
+    return Math.floor((Date.now() - new Date(candidate.hired_date).getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const completedSnapshotDays = (candidate: Candidate): number[] =>
+    performanceSnapshots.filter(s => s.engagement_id === candidate.id).map(s => s.snapshot_day);
 
   const toggleTrait = (trait: string) => {
     if (selectedTraits.includes(trait)) {
@@ -245,7 +323,8 @@ export function EmployerScreen() {
           if (candidate.stage === 'newSignals') newStage = 'assessmentSent';
           else if (candidate.stage === 'assessmentSent') newStage = 'finalRound';
           else if (candidate.stage === 'finalRound') newStage = 'hired';
-          return { ...candidate, stage: newStage };
+          const hiredDate = newStage === 'hired' && !candidate.hired_date ? new Date().toISOString() : candidate.hired_date;
+          return { ...candidate, stage: newStage, hired_date: hiredDate };
         }
         return candidate;
       })
@@ -442,6 +521,9 @@ export function EmployerScreen() {
                 onCandidateClick={handleCandidateClick}
                 onMoveToNextStage={handleMoveToNextStage}
                 onMoveToStage={handleMoveToStage}
+                daysSinceHire={daysSinceHire}
+                completedSnapshotDays={completedSnapshotDays}
+                onOpenReview={handleOpenReview}
               />
             )}
             {currentSection === 'insights' && <InsightsAnalyticsPage />}
@@ -471,6 +553,24 @@ export function EmployerScreen() {
           }}
           onMoveToNextStage={handleMoveToNextStage}
           onAddNote={handleAddNote}
+        />
+      )}
+
+      {/* Performance Review Form */}
+      {reviewCandidate && (
+        <PerformanceSnapshotForm
+          candidateName={reviewCandidate.name}
+          engagementId={reviewCandidate.id}
+          snapshotDay={reviewSnapshotDay}
+          existingSnapshot={performanceSnapshots.find(s => s.engagement_id === reviewCandidate.id && s.snapshot_day === reviewSnapshotDay)}
+          existingPulseCheck={pulseChecks.find(p => p.engagement_id === reviewCandidate.id && p.snapshot_day === reviewSnapshotDay)}
+          topPerformerPercent={
+            performanceSnapshots.length > 0
+              ? Math.round((performanceSnapshots.filter(s => s.performance_band === 'Top').length / performanceSnapshots.length) * 100)
+              : 0
+          }
+          onSubmit={handleSubmitReview}
+          onClose={() => setReviewCandidate(null)}
         />
       )}
 

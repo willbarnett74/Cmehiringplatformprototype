@@ -4,11 +4,14 @@ import { ApplicantScreen } from './components/ApplicantScreen';
 import { EmployerScreen } from './components/EmployerScreen';
 import { DesignSystem } from './components/DesignSystem';
 import { AssessmentLink } from './src/pages/AssessmentLink';
+import { PulseCheckForm } from './src/pages/PulseCheckForm';
 import { Sparkles, Palette } from 'lucide-react';
 import { UserProfileProvider } from './contexts/UserProfileContext';
 
+type Tab = 'overview' | 'applicant' | 'employer' | 'design' | 'assessment' | 'pulsecheck';
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'applicant' | 'employer' | 'design' | 'assessment'>('overview');
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
 
   const handleNavigateToPath = (tab: 'applicant' | 'employer' | 'assessment') => {
     setActiveTab(tab);
@@ -83,6 +86,19 @@ export default function App() {
                     )}
                     <span className="relative">Assessment Link</span>
                   </button>
+                  <button
+                    onClick={() => setActiveTab('pulsecheck')}
+                    className={`px-5 py-2 transition-all relative ${
+                      activeTab === 'pulsecheck'
+                        ? 'text-white'
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {activeTab === 'pulsecheck' && (
+                      <div className="absolute inset-0 bg-white/5 rounded-lg border border-white/10" />
+                    )}
+                    <span className="relative">Pulse Check</span>
+                  </button>
                 </div>
               </div>
               <div>
@@ -112,6 +128,7 @@ export default function App() {
           {activeTab === 'employer' && <EmployerScreen />}
           {activeTab === 'design' && <DesignSystem />}
           {activeTab === 'assessment' && <AssessmentLink />}
+          {activeTab === 'pulsecheck' && <PulseCheckForm />}
         </main>
       </div>
     </UserProfileProvider>
