@@ -9,7 +9,7 @@ export interface CandidateProfile {
   traits: string[];
   score: number;
   // Engagement stage — outcomes (hired/rejected) live on the engagement, not a separate hiring_decisions table
-  stage: 'newSignals' | 'assessmentSent' | 'finalRound' | 'hired' | 'rejected';
+  stage: 'discovered' | 'contacted' | 'interviewing' | 'decision' | 'hired' | 'rejected';
   hired_date?: string; // ISO date string — set when stage moves to 'hired'
   aiMatchPercent?: number;
   totalExperience?: number; // Total years of work experience
@@ -36,7 +36,7 @@ export interface Engagement {
   engagement_id: number;
   candidate_id: number; // FK → candidate_profiles.candidate_id
   role_template_id?: number; // FK → role_templates.id
-  stage: 'newSignals' | 'assessmentSent' | 'finalRound' | 'hired' | 'rejected';
+  stage: 'discovered' | 'contacted' | 'interviewing' | 'decision' | 'hired' | 'rejected';
   outcome?: 'hired' | 'rejected' | null;
   created_at?: string;
   updated_at?: string;

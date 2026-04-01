@@ -18,9 +18,10 @@ interface DashboardPageProps {
 }
 
 const stageConfig = {
-  newSignals: { label: 'New Signals', color: '#7DBBFF' },
-  assessmentSent: { label: 'In Review', color: '#F59E0B' },
-  finalRound: { label: 'Final Round', color: '#8B5CF6' },
+  discovered: { label: 'New Signals', color: '#7DBBFF' },
+  contacted: { label: 'In Review', color: '#F59E0B' },
+  interviewing: { label: 'Interviewing', color: '#8B5CF6' },
+  decision: { label: 'Final Round', color: '#8B5CF6' },
   hired: { label: 'Hired', color: '#10B981' },
   rejected: { label: 'Rejected', color: '#EF4444' },
 };
@@ -35,9 +36,9 @@ export function DashboardPage({
 }: DashboardPageProps) {
 
   const pipeline = {
-    newSignals: candidates.filter(c => c.stage === 'newSignals').length,
-    assessmentSent: candidates.filter(c => c.stage === 'assessmentSent').length,
-    finalRound: candidates.filter(c => c.stage === 'finalRound').length,
+    newSignals: candidates.filter(c => c.stage === 'discovered').length,
+    assessmentSent: candidates.filter(c => c.stage === 'contacted').length,
+    finalRound: candidates.filter(c => c.stage === 'interviewing' || c.stage === 'decision').length,
     hired: candidates.filter(c => c.stage === 'hired').length,
   };
   const pipelineTotal = pipeline.newSignals + pipeline.assessmentSent + pipeline.finalRound;
