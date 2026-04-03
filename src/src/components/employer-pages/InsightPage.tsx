@@ -1,20 +1,24 @@
 /**
  * Insight Page — Employer insight layer
  *
- * Four panels in a 2×2 grid (desktop), single column (mobile):
- *   1. Hiring Profile      — radar chart, employer weights vs hired avg vs top performers
- *   2. Performance Correlations — grouped bar chart by performance band
- *   3. Pipeline Snapshot   — full-width candidate table with match scores (lg:col-span-2)
- *   4. Motivational Fit    — quarterly time-series per hire
+ * Five tabs with browser-tab navigation:
+ *   01 · Hiring Profile         — radar chart, three layers
+ *   02 · Performance Correlations — grouped bar chart by performance band
+ *   03 · Pipeline               — full-width candidate table
+ *   04 · Motivational Fit Watch — quarterly time-series per hire
+ *   05 · Inference              — plain-English findings with confidence
  *
  * Data state system:
- *   State 1 (<5 snapshots)  — hiring profile + pipeline only; others show gate
+ *   State 1 (<5 snapshots)  — hiring profile + pipeline only; others gated
  *   State 2 (5-14)          — early-signal framing throughout
  *   State 3 (15+)           — full correlations + confidence display
+ *
+ * Layout: active tab connects visually to the content panel via matching
+ * white background and no bottom border — a browser-tab effect.
  */
 
 import { useState, useEffect } from 'react';
-import { AlertCircle, BarChart2, Download, Calendar } from 'lucide-react';
+import { AlertCircle, Download } from 'lucide-react';
 import { fetchInsightData, InsightData } from '../../lib/insightQueries';
 import { runInferenceEngine, InferenceResult } from '../../lib/inferenceEngine';
 import { getDataState, DataState } from './insights/shared';
@@ -22,118 +26,19 @@ import { HiringProfileSection } from './insights/HiringProfileSection';
 import { CorrelationsSection } from './insights/CorrelationsSection';
 import { PipelineSection } from './insights/PipelineSection';
 import { MotivationalFitSection } from './insights/MotivationalFitSection';
+import { InferenceSection } from './insights/InferenceSection';
 
-// ─── Date Range Filter ───────────────────────────────────────────────────────
+// ─── Tab Definitions ─────────────────────────────────────────────────────────
 
-const DATE_RANGE_OPTIONS = [
-  { label: 'Last 3 months', value: '3m' },
-  { label: 'Last 6 months', value: '6m' },
-  { label: 'Last 12 months', value: '12m' },
-  { label: 'All time', value: 'all' },
-] as const;
+type TabId = 'hiring-profile' | 'correlations' | 'pipeline' | 'motivational-fit' | 'inference';
 
-type DateRange = typeof DATE_RANGE_OPTIONS[number]['value'];
-
-function DateRangeFilter({
-  value,
-  onChange,
-}: {
-  value: DateRange;
-  onChange: (v: DateRange) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <Calendar className="w-3.5 h-3.5" style={{ color: '#9CA3AF' }} strokeWidth={2} />
-      <div className="flex" style={{ gap: '2px' }}>
-        {DATE_RANGE_OPTIONS.map(opt => {
-          const active = opt.value === value;
-          return (
-            <button
-              key={opt.value}
-              onClick={() => onChange(opt.value)}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: active ? 600 : 400,
-                color: active ? '#111827' : '#6B7280',
-                background: active ? '#fff' : 'transparent',
-                border: active ? '1px solid #E5E7EB' : '1px solid transparent',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                transition: 'all 0.12s ease',
-              }}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Panel Card Wrapper ──────────────────────────────────────────────────────
-
-function PanelCard({
-  children,
-  fullWidth = false,
-}: {
-  children: React.ReactNode;
-  fullWidth?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: '#fff',
-        border: '1px solid #E5E7EB',
-        borderRadius: '14px',
-        padding: '28px',
-        gridColumn: fullWidth ? 'span 2' : undefined,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// ─── State 1 Onboarding Message ──────────────────────────────────────────────
-
-function OnboardingCallout() {
-  return (
-    <div
-      style={{
-        background: 'rgba(125,187,255,0.05)',
-        border: '1px solid rgba(125,187,255,0.20)',
-        borderRadius: '14px',
-        padding: '24px',
-        marginBottom: '24px',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '16px',
-      }}
-    >
-      <BarChart2
-        className="flex-shrink-0"
-        style={{ color: '#7DBBFF', marginTop: '2px' }}
-        strokeWidth={1.5}
-        size={22}
-      />
-      <p
-        style={{
-          fontSize: '14px',
-          color: '#374151',
-          lineHeight: 1.65,
-          margin: 0,
-        }}
-      >
-        Your insight layer builds as you hire. Every candidate you assess, hire, and track generates
-        data that makes these panels sharper and more specific to your business. The employers who
-        get the most from CMe are the ones who complete performance snapshots consistently — that is
-        what turns hiring data into a genuine competitive advantage.
-      </p>
-    </div>
-  );
-}
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'hiring-profile',    label: 'Hiring Profile' },
+  { id: 'correlations',      label: 'Performance Correlations' },
+  { id: 'pipeline',          label: 'Pipeline' },
+  { id: 'motivational-fit',  label: 'Motivational Fit' },
+  { id: 'inference',         label: 'Inference' },
+];
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
@@ -142,7 +47,7 @@ export function InsightPage() {
   const [inference, setInference] = useState<InferenceResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>('12m');
+  const [activeTab, setActiveTab] = useState<TabId>('hiring-profile');
 
   // Suppress recharts duplicate-key warnings (internal recharts issue)
   useEffect(() => {
@@ -161,7 +66,6 @@ export function InsightPage() {
     };
   }, []);
 
-  // Fetch all data on mount
   useEffect(() => {
     async function loadData() {
       try {
@@ -213,19 +117,19 @@ export function InsightPage() {
   const dataState: DataState = getDataState(data.snapshotCount);
   const activeHires = data.hiredCandidates.filter(c => !c.departed).length;
   const businessName = 'Meridian Design Co.'; // MOCK — replace with real employer context
-  const hasNoEngagements = data.hiredCandidates.length === 0 && data.allCandidates.length === 0;
 
   return (
     <div>
-      {/* ── Topbar ── */}
+      {/* ── Topbar ─────────────────────────────────────────────────────────── */}
       <div
-        className="sticky top-0 z-10 flex items-center justify-between mb-6"
+        className="sticky top-0 z-10 flex items-center justify-between"
         style={{
           background: 'rgba(244,246,249,0.95)',
           backdropFilter: 'blur(8px)',
           borderBottom: '1px solid #E5E7EB',
           padding: '16px 32px',
-          margin: '-16px -32px 24px -32px',
+          margin: '-16px -32px 0 -32px',
+          marginBottom: '24px',
         }}
       >
         <div>
@@ -238,7 +142,7 @@ export function InsightPage() {
               marginBottom: '2px',
             }}
           >
-            Insights & Analytics
+            Insights &amp; Analytics
           </h1>
           <p style={{ fontSize: '12px', color: '#6B7280' }}>
             {data.snapshotCount} performance snapshots · {activeHires} active hires · {businessName}
@@ -255,34 +159,82 @@ export function InsightPage() {
             borderRadius: '8px',
             padding: '7px 14px',
             cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
           }}
         >
-          <span className="flex items-center gap-1.5">
-            <Download className="w-3.5 h-3.5" strokeWidth={2} />
-            Export
-          </span>
+          <Download style={{ width: '14px', height: '14px' }} strokeWidth={2} />
+          Export
         </button>
       </div>
 
-      {/* ── Date Range Filter ── */}
-      <div className="mb-6">
-        <DateRangeFilter value={dateRange} onChange={setDateRange} />
-      </div>
-
-      {/* ── State 1 Onboarding Message (shown when no engagements yet) ── */}
-      {dataState === 1 && hasNoEngagements && <OnboardingCallout />}
-
-      {/* ── 2×2 Panel Grid ── */}
+      {/* ── Section Tab Navigation ──────────────────────────────────────────── */}
+      {/*
+        Browser-tab effect:
+        - Active tab: white bg, 1px #E5E7EB border top/left/right, bottom matches panel bg (white)
+        - Tab row sits directly above the content panel with no gap so the active tab
+          visually merges into the panel below it.
+      */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: '20px',
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: '4px',
+          paddingBottom: '0',
         }}
-        className="insight-grid"
       >
-        {/* Panel 1 — Hiring Profile */}
-        <PanelCard>
+        {TABS.map(tab => {
+          const isActive = tab.id === activeTab;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: '8px 18px',
+                fontSize: '13px',
+                fontWeight: isActive ? 600 : 500,
+                color: isActive ? '#111827' : '#9CA3AF',
+                background: isActive ? '#ffffff' : 'transparent',
+                border: isActive ? '1px solid #E5E7EB' : '1px solid transparent',
+                borderBottom: isActive ? '1px solid #ffffff' : '1px solid transparent',
+                borderRadius: '8px 8px 0 0',
+                cursor: 'pointer',
+                transition: 'color 0.12s ease',
+                position: 'relative',
+                zIndex: isActive ? 1 : 0,
+                marginBottom: isActive ? '-1px' : '0',
+              }}
+              onMouseEnter={e => {
+                if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = '#6B7280';
+              }}
+              onMouseLeave={e => {
+                if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF';
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Content Panel ───────────────────────────────────────────────────── */}
+      {/*
+        border-radius 0 12px 12px 12px — flat top-left corner aligns with the first
+        active tab. When another tab is active the panel corners are all 12px but
+        the visual connection still works because of the border-bottom flush.
+      */}
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1px solid #E5E7EB',
+          borderRadius: activeTab === 'hiring-profile' ? '0 12px 12px 12px' : '12px',
+          padding: '28px',
+          position: 'relative',
+          zIndex: 0,
+        }}
+      >
+        {activeTab === 'hiring-profile' && (
           <HiringProfileSection
             employerWeights={data.employerWeights}
             topPerformers={data.topPerformers}
@@ -291,55 +243,48 @@ export function InsightPage() {
             dataState={dataState}
             snapshotCount={data.snapshotCount}
           />
-        </PanelCard>
+        )}
 
-        {/* Panel 2 — Performance Correlations */}
-        <PanelCard>
+        {activeTab === 'correlations' && (
           <CorrelationsSection
             correlationData={data.correlationData}
             dimensionSignals={inference.dimensionSignals}
             dataState={dataState}
             snapshotCount={data.snapshotCount}
           />
-        </PanelCard>
+        )}
 
-        {/* Panel 3 — Pipeline Snapshot (full width) */}
-        <PanelCard fullWidth>
+        {activeTab === 'pipeline' && (
           <PipelineSection
             candidates={data.allCandidates}
             employerWeights={data.employerWeights}
             dataState={dataState}
           />
-        </PanelCard>
+        )}
 
-        {/* Panel 4 — Motivational Fit Watch */}
-        <PanelCard>
+        {activeTab === 'motivational-fit' && (
           <MotivationalFitSection
             motivationalFitData={data.motivationalFitData}
             dataState={dataState}
             snapshotCount={data.snapshotCount}
           />
-        </PanelCard>
+        )}
+
+        {activeTab === 'inference' && (
+          <InferenceSection
+            inference={inference}
+            hiredCandidates={data.hiredCandidates}
+            dataState={dataState}
+            snapshotCount={data.snapshotCount}
+          />
+        )}
       </div>
 
-      {/* ── Print Stylesheet ── */}
+      {/* ── Print Stylesheet ─────────────────────────────────────────────────── */}
       <style>{`
         @media print {
-          .insight-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .insight-grid > * {
-            grid-column: span 1 !important;
-            break-inside: avoid;
-            page-break-inside: avoid;
-          }
-        }
-        @media (max-width: 1023px) {
-          .insight-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .insight-grid > * {
-            grid-column: span 1 !important;
+          .insight-content-panel {
+            border-radius: 12px !important;
           }
         }
       `}</style>
