@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { CheckCircle, Circle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { CompanyProfileStep, type CompanyProfile } from './steps/CompanyProfileStep';
 import { RoleTemplateStep } from './steps/RoleTemplateStep';
 import { TraitWeightingStep } from './steps/TraitWeightingStep';
 import { CalibrationStep } from './steps/CalibrationStep';
 import type { CalibrationCriteria } from '../../../lib/calibration';
+import type { RoleTemplate } from '../RoleTemplatePicker';
 
 interface TraitWeights {
   learning_velocity: number;
@@ -17,16 +18,17 @@ interface TraitWeights {
 
 interface OnboardingData {
   companyProfile?: CompanyProfile;
-  selectedTemplateId?: string | null;
+  selectedTemplate?: RoleTemplate | null;
   traitWeights?: TraitWeights;
   calibrationCriteria?: CalibrationCriteria;
 }
 
 interface EmployerOnboardingProps {
+  businessId: string;
   onComplete: (data: OnboardingData) => void;
 }
 
-export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
+export function EmployerOnboarding({ businessId, onComplete }: EmployerOnboardingProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({});
 
@@ -40,16 +42,13 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
   // Step 1: Company Profile
   const handleCompanyProfileNext = (data: CompanyProfile) => {
     setOnboardingData((prev) => ({ ...prev, companyProfile: data }));
-    
-    // Mock save to businesses table
     console.log('Saving to businesses table:', data);
-    
     setCurrentStep(2);
   };
 
   // Step 2: Role Template
-  const handleRoleTemplateNext = (templateId: string | null) => {
-    setOnboardingData((prev) => ({ ...prev, selectedTemplateId: templateId }));
+  const handleRoleTemplateNext = (template: RoleTemplate | null) => {
+    setOnboardingData((prev) => ({ ...prev, selectedTemplate: template }));
     setCurrentStep(3);
   };
 
@@ -60,10 +59,10 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
   // Step 3: Trait Weighting
   const handleTraitWeightingNext = (weights: TraitWeights) => {
     setOnboardingData((prev) => ({ ...prev, traitWeights: weights }));
-    
-    // Mock save to employer_trait_weightings table
-    console.log('Saving to employer_trait_weightings table:', weights);
-    
+    console.log('Saving to employer_trait_weightings table:', {
+      weights,
+      templateName: onboardingData.selectedTemplate?.name ?? null,
+    });
     setCurrentStep(4);
   };
 
@@ -75,10 +74,7 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
   const handleCalibrationNext = (criteria: CalibrationCriteria) => {
     const finalData = { ...onboardingData, calibrationCriteria: criteria };
     setOnboardingData(finalData);
-    
-    // Calibration is already saved via upsertCalibration in CalibrationStep
     console.log('Onboarding complete:', finalData);
-    
     onComplete(finalData);
   };
 
@@ -180,7 +176,7 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
 
           {currentStep === 2 && (
             <RoleTemplateStep
-              initialSelection={onboardingData.selectedTemplateId}
+              initialSelection={onboardingData.selectedTemplate?.id}
               onNext={handleRoleTemplateNext}
               onBack={handleRoleTemplateBack}
             />
@@ -188,7 +184,8 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
 
           {currentStep === 3 && (
             <TraitWeightingStep
-              selectedTemplateId={onboardingData.selectedTemplateId || null}
+              businessId={businessId}
+              selectedTemplate={onboardingData.selectedTemplate ?? null}
               initialWeights={onboardingData.traitWeights}
               onNext={handleTraitWeightingNext}
               onBack={handleTraitWeightingBack}
@@ -197,7 +194,7 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
 
           {currentStep === 4 && (
             <CalibrationStep
-              roleTemplateId={onboardingData.selectedTemplateId || null}
+              roleTemplateId={onboardingData.selectedTemplate?.id ?? null}
               initialCriteria={onboardingData.calibrationCriteria}
               onNext={handleCalibrationNext}
               onBack={handleCalibrationBack}

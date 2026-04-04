@@ -642,6 +642,7 @@ export function EmployerScreen() {
       {/* Onboarding Modal */}
       {!hasCompletedOnboarding && (
         <EmployerOnboarding
+          businessId="demo-employer"
           onComplete={() => {
             setHasCompletedOnboarding(true);
             localStorage.setItem('cme_employer_onboarding_complete', 'true');

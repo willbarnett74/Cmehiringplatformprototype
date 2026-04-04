@@ -1,7 +1,6 @@
-import { Sliders, AlertTriangle } from 'lucide-react';
-import { useState } from 'react';
+import { Sliders } from 'lucide-react';
 import { TraitWeightingUI } from '../../TraitWeightingUI';
-import { getRoleTemplateById } from '../../../../lib/roleTemplates';
+import { templateToWeights, type RoleTemplate } from '../../RoleTemplatePicker';
 
 interface TraitWeights {
   learning_velocity: number;
@@ -13,20 +12,23 @@ interface TraitWeights {
 }
 
 interface TraitWeightingStepProps {
-  selectedTemplateId: string | null;
+  businessId: string;
+  selectedTemplate: RoleTemplate | null;
   initialWeights?: Partial<TraitWeights>;
   onNext: (weights: TraitWeights) => void;
   onBack: () => void;
 }
 
 export function TraitWeightingStep({
-  selectedTemplateId,
+  businessId,
+  selectedTemplate,
   initialWeights,
   onNext,
   onBack,
 }: TraitWeightingStepProps) {
-  const template = selectedTemplateId ? getRoleTemplateById(selectedTemplateId) : null;
-  const prepopulatedWeights = template?.trait_weights || initialWeights;
+  const prepopulatedWeights = selectedTemplate
+    ? templateToWeights(selectedTemplate)
+    : initialWeights;
 
   const handleSave = (weights: TraitWeights) => {
     onNext(weights);
@@ -40,26 +42,26 @@ export function TraitWeightingStep({
         </div>
         <h2 className="text-2xl text-[#111827] font-semibold mb-2">Configure Trait Weighting</h2>
         <p className="text-sm text-[#6B7280]">
-          {template
-            ? `Pre-populated from "${template.name}" template`
+          {selectedTemplate
+            ? `Pre-populated from "${selectedTemplate.name}" template`
             : 'Allocate 100 points across six trait dimensions'}
         </p>
       </div>
 
-      {template && (
+      {selectedTemplate && (
         <div
           className="mb-6 p-4 bg-[#7DBBFF]/5 border border-[#7DBBFF]/20"
           style={{ borderRadius: '12px' }}
         >
           <p className="text-sm text-[#111827]">
-            <span className="font-semibold">Selected Template:</span> {template.name}
+            <span className="font-semibold">Selected Template:</span> {selectedTemplate.name}
           </p>
           <p className="text-xs text-[#6B7280] mt-1">
             Weights have been pre-configured based on this role. You can adjust them as needed.
           </p>
-          {template.motivation_signals && template.motivation_signals.length > 0 && (
+          {selectedTemplate.motivation_signal && (
             <p className="text-xs text-[#7DBBFF] mt-1">
-              Key motivation signals: {template.motivation_signals.join(', ')}
+              Key motivation signals: {selectedTemplate.motivation_signal}
             </p>
           )}
         </div>
@@ -67,6 +69,7 @@ export function TraitWeightingStep({
 
       <div className="max-w-3xl mx-auto">
         <TraitWeightingUI
+          businessId={businessId}
           initialWeights={prepopulatedWeights}
           onSave={handleSave}
         />
