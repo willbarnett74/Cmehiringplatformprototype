@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { CheckCircle, Circle } from 'lucide-react';
 import { IntakeSection1 } from './intake/IntakeSection1';
 import { IntakeSection2 } from './intake/IntakeSection2';
@@ -9,163 +9,144 @@ import { IntakeSection6 } from './intake/IntakeSection6';
 import { IntakeSection7 } from './intake/IntakeSection7';
 import { IntakeSection8 } from './intake/IntakeSection8';
 
-interface IntakeData {
-  section1?: { narrative: string };
-  section2?: { workStyle: string };
-  section3?: { scores: Record<string, number> };
-  section4?: { choices: Record<string, 'A' | 'B'> };
-  section5?: { rankings: string[] };
-  section6?: { motivation: string };
-  section7?: { careerDirection: string };
-}
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+const SECTION_LABELS = [
+  { number: 1, title: 'Background' },
+  { number: 2, title: 'How You Work' },
+  { number: 3, title: 'How You Think' },
+  { number: 4, title: 'Handling Difficulty' },
+  { number: 5, title: 'Relating to Others' },
+  { number: 6, title: 'What Drives You' },
+  { number: 7, title: 'Career Direction' },
+  { number: 8, title: 'References & Signoffs' },
+];
 
 interface IntakeFlowPageProps {
+  candidateId?: string;
+  userId?: string;
   onComplete: () => void;
   onBack?: () => void;
 }
 
-export function IntakeFlowPage({ onComplete, onBack }: IntakeFlowPageProps) {
+export function IntakeFlowPage({ candidateId, userId, onComplete, onBack }: IntakeFlowPageProps) {
   const [currentSection, setCurrentSection] = useState(1);
-  const [intakeData, setIntakeData] = useState<IntakeData>({});
   const [completedSections, setCompletedSections] = useState<number[]>([]);
+  const [sectionData, setSectionData] = useState<Record<number, Record<string, unknown>>>({});
 
-  const sections = [
-    { number: 1, title: 'Background', component: 'section1' },
-    { number: 2, title: 'Work Style', component: 'section2' },
-    { number: 3, title: 'Thinking', component: 'section3' },
-    { number: 4, title: 'Trade-offs', component: 'section4' },
-    { number: 5, title: 'Motivations', component: 'section5' },
-    { number: 6, title: 'Values', component: 'section6' },
-    { number: 7, title: 'Career Goals', component: 'section7' },
-    { number: 8, title: 'Review', component: 'section8' }
-  ];
+  const persistSectionResponses = async (sectionNumber: number, data: Record<string, unknown>) => {
+    if (!candidateId || !SUPABASE_URL) return;
 
-  const handleSectionComplete = (sectionNumber: number, data: any) => {
-    const sectionKey = `section${sectionNumber}` as keyof IntakeData;
-    setIntakeData(prev => ({ ...prev, [sectionKey]: data }));
-    
+    const responses = data.responses as Record<string, Record<string, unknown>> | undefined;
+    if (!responses) return;
+
+    const upserts = Object.entries(responses).map(([questionKey, responseData]) =>
+      fetch(`${SUPABASE_URL}/rest/v1/intake_responses`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          candidate_id: candidateId,
+          question_key: questionKey,
+          section_number: sectionNumber,
+          response_value: JSON.stringify(responseData),
+        }),
+      })
+    );
+
+    try {
+      await Promise.all(upserts);
+
+      // Update intake progress on candidate profile
+      await fetch(`${SUPABASE_URL}/rest/v1/candidate_profiles?user_id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({
+          intake_last_section_completed: sectionNumber,
+          intake_status: sectionNumber >= 8 ? 'complete' : 'in_progress',
+        }),
+      });
+    } catch {
+      // Non-blocking: continue even if persistence fails
+    }
+  };
+
+  const handleSectionComplete = async (data: Record<string, unknown>) => {
+    const sectionNumber = data.section as number;
+
+    setSectionData(prev => ({ ...prev, [sectionNumber]: data }));
     if (!completedSections.includes(sectionNumber)) {
       setCompletedSections(prev => [...prev, sectionNumber]);
     }
 
-    // Move to next section
-    if (sectionNumber < sections.length) {
+    await persistSectionResponses(sectionNumber, data);
+
+    if (sectionNumber < SECTION_LABELS.length) {
       setCurrentSection(sectionNumber + 1);
     }
   };
 
-  const handleFinalSubmit = () => {
-    // Mock: Calculate scores based on responses
-    const mockScores = {
-      thinkingStyle: calculateThinkingScore(),
-      difficultyScore: calculateDifficultyScore(),
-      motivationFit: calculateMotivationScore(),
-      careerAlignment: calculateCareerScore()
-    };
-
-    console.log('Intake Complete:', { ...intakeData, scores: mockScores });
+  const handleFinalSubmit = async () => {
+    if (candidateId && SUPABASE_URL) {
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/candidate_profiles?user_id=eq.${userId}`, {
+          method: 'PATCH',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({ intake_status: 'complete' }),
+        });
+      } catch {
+        // Non-blocking
+      }
+    }
     onComplete();
   };
 
-  // Mock scoring functions (would be Edge Functions in real implementation)
-  const calculateThinkingScore = (): number => {
-    if (!intakeData.section3?.scores) return 50;
-    const scores = Object.values(intakeData.section3.scores);
-    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-    return Math.round((avg / 5) * 100);
-  };
-
-  const calculateDifficultyScore = (): number => {
-    if (!intakeData.section4?.choices) return 50;
-    const choices = Object.values(intakeData.section4.choices);
-    // Mock: Count A choices vs B choices
-    const aCount = choices.filter(c => c === 'A').length;
-    return Math.round((aCount / choices.length) * 100);
-  };
-
-  const calculateMotivationScore = (): number => {
-    if (!intakeData.section5?.rankings) return 50;
-    // Mock: Use ranking positions
-    const rankings = intakeData.section5.rankings;
-    return Math.round((rankings.length / 5) * 100);
-  };
-
-  const calculateCareerScore = (): number => {
-    // Mock: Based on text length and keywords
-    const text = intakeData.section7?.careerDirection || '';
-    const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
-    return Math.min(Math.round((wordCount / 150) * 100), 100);
-  };
-
-  const getProfileSummary = () => {
+  const getSection8ProfileData = () => {
+    const s1 = sectionData[1] as { narrative?: string } | undefined;
+    const s2 = sectionData[2] as { responses?: { S2Q6?: { work_preferences?: string[] } } } | undefined;
     return {
-      narrative: intakeData.section1?.narrative || '',
-      workStyle: intakeData.section2?.workStyle || '',
-      thinkingStyle: calculateThinkingScore(),
-      difficultyScore: calculateDifficultyScore(),
-      motivationFit: calculateMotivationScore(),
-      careerAlignment: calculateCareerScore()
+      narrative: s1?.narrative ?? '',
+      workStyle: s2?.responses?.S2Q6?.work_preferences?.join(', ') ?? '',
+      thinkingStyle: 50,
+      difficultyScore: 50,
+      motivationFit: 50,
+      careerAlignment: 50,
     };
   };
 
   const renderSection = () => {
     switch (currentSection) {
       case 1:
-        return (
-          <IntakeSection1
-            onComplete={(data) => handleSectionComplete(1, data)}
-            initialData={intakeData.section1}
-          />
-        );
+        return <IntakeSection1 onComplete={handleSectionComplete} initialData={sectionData[1]} />;
       case 2:
-        return (
-          <IntakeSection2
-            onComplete={(data) => handleSectionComplete(2, data)}
-            initialData={intakeData.section2}
-          />
-        );
+        return <IntakeSection2 onComplete={handleSectionComplete} initialData={sectionData[2]} />;
       case 3:
-        return (
-          <IntakeSection3
-            onComplete={(data) => handleSectionComplete(3, data)}
-            initialData={intakeData.section3}
-          />
-        );
+        return <IntakeSection3 onComplete={handleSectionComplete} initialData={sectionData[3]} />;
       case 4:
-        return (
-          <IntakeSection4
-            onComplete={(data) => handleSectionComplete(4, data)}
-            initialData={intakeData.section4}
-          />
-        );
+        return <IntakeSection4 onComplete={handleSectionComplete} initialData={sectionData[4]} />;
       case 5:
-        return (
-          <IntakeSection5
-            onComplete={(data) => handleSectionComplete(5, data)}
-            initialData={intakeData.section5}
-          />
-        );
+        return <IntakeSection5 onComplete={handleSectionComplete} initialData={sectionData[5]} />;
       case 6:
-        return (
-          <IntakeSection6
-            onComplete={(data) => handleSectionComplete(6, data)}
-            initialData={intakeData.section6}
-          />
-        );
+        return <IntakeSection6 onComplete={handleSectionComplete} initialData={sectionData[6]} />;
       case 7:
-        return (
-          <IntakeSection7
-            onComplete={(data) => handleSectionComplete(7, data)}
-            initialData={intakeData.section7}
-          />
-        );
+        return <IntakeSection7 onComplete={handleSectionComplete} initialData={sectionData[7]} />;
       case 8:
-        return (
-          <IntakeSection8
-            onComplete={handleFinalSubmit}
-            profileData={getProfileSummary()}
-          />
-        );
+        return <IntakeSection8 onComplete={handleFinalSubmit} profileData={getSection8ProfileData()} />;
       default:
         return null;
     }
@@ -174,36 +155,30 @@ export function IntakeFlowPage({ onComplete, onBack }: IntakeFlowPageProps) {
   return (
     <div className="min-h-screen bg-[#FAFAFA] py-12">
       <div className="max-w-4xl mx-auto px-8">
-        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl text-[#111827] font-semibold mb-1">Complete Your Profile</h1>
               <p className="text-sm text-[#6B7280]">
-                Section {currentSection} of {sections.length}
+                Section {currentSection} of {SECTION_LABELS.length}
               </p>
             </div>
             {onBack && (
-              <button
-                onClick={onBack}
-                className="px-4 py-2 text-sm text-[#6B7280] hover:text-[#111827] transition-colors"
-              >
+              <button onClick={onBack} className="px-4 py-2 text-sm text-[#6B7280] hover:text-[#111827] transition-colors">
                 Exit
               </button>
             )}
           </div>
 
-          {/* Progress Bar */}
           <div className="w-full h-2 bg-[#E5E7EB] overflow-hidden" style={{ borderRadius: '4px' }}>
             <div
               className="h-full bg-[#7DBBFF] transition-all duration-300"
-              style={{ width: `${(currentSection / sections.length) * 100}%` }}
+              style={{ width: `${(currentSection / SECTION_LABELS.length) * 100}%` }}
             />
           </div>
 
-          {/* Section Navigation */}
           <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-2">
-            {sections.map((section) => {
+            {SECTION_LABELS.map(section => {
               const isCompleted = completedSections.includes(section.number);
               const isCurrent = currentSection === section.number;
               const isAccessible = section.number <= currentSection;
@@ -236,12 +211,10 @@ export function IntakeFlowPage({ onComplete, onBack }: IntakeFlowPageProps) {
           </div>
         </div>
 
-        {/* Section Content */}
         <div className="bg-[#FAFAFA]">
           {renderSection()}
         </div>
 
-        {/* Back Navigation */}
         {currentSection > 1 && currentSection < 8 && (
           <div className="mt-6 flex justify-start">
             <button
