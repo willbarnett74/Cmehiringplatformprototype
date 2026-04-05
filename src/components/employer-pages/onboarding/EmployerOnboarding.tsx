@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle, Circle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { CompanyProfileStep, type CompanyProfile } from './steps/CompanyProfileStep';
 import { RoleTemplateStep } from './steps/RoleTemplateStep';
 import { TraitWeightingStep } from './steps/TraitWeightingStep';
@@ -42,10 +42,7 @@ export function EmployerOnboarding({ businessId, onComplete }: EmployerOnboardin
   // Step 1: Company Profile
   const handleCompanyProfileNext = (data: CompanyProfile) => {
     setOnboardingData((prev) => ({ ...prev, companyProfile: data }));
-    
-    // Mock save to businesses table
     console.log('Saving to businesses table:', data);
-    
     setCurrentStep(2);
   };
 
@@ -62,10 +59,10 @@ export function EmployerOnboarding({ businessId, onComplete }: EmployerOnboardin
   // Step 3: Trait Weighting
   const handleTraitWeightingNext = (weights: TraitWeights) => {
     setOnboardingData((prev) => ({ ...prev, traitWeights: weights }));
-    
-    // Mock save to employer_trait_weightings table
-    console.log('Saving to employer_trait_weightings table:', weights);
-    
+    console.log('Saving to employer_trait_weightings table:', {
+      weights,
+      templateName: onboardingData.selectedTemplate?.name ?? null,
+    });
     setCurrentStep(4);
   };
 
@@ -77,10 +74,7 @@ export function EmployerOnboarding({ businessId, onComplete }: EmployerOnboardin
   const handleCalibrationNext = (criteria: CalibrationCriteria) => {
     const finalData = { ...onboardingData, calibrationCriteria: criteria };
     setOnboardingData(finalData);
-    
-    // Calibration is already saved via upsertCalibration in CalibrationStep
     console.log('Onboarding complete:', finalData);
-    
     onComplete(finalData);
   };
 
