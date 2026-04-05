@@ -1,298 +1,201 @@
 import { useState, useEffect } from 'react';
-import { Sliders } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import type { EmployerWeightings } from '../../types/supabase';
 
-// Six trait dimensions — correct 6-dimension framework (Big Five / OCEAN + SDT)
-const TRAIT_DIMENSIONS = [
-  { key: 'learning_velocity', label: 'Learning Velocity' },
-  { key: 'ownership_follow_through', label: 'Ownership & Follow-Through' },
-  { key: 'resilience', label: 'Resilience' },
-  { key: 'communication_confidence', label: 'Communication Confidence' },
-  { key: 'relational_intelligence', label: 'Relational Intelligence' },
-  { key: 'motivational_fit', label: 'Motivational Fit' },
-] as const;
+// ─── Constants ───────────────────────────────────────────────
+const FIXED_FLOOR = 5;   // pre-allocated per dimension (30 pts total)
+const FREE_POINTS = 70;  // employer's free allocation budget
 
-interface TraitWeights {
-  learning_velocity: number;
-  ownership_follow_through: number;
-  resilience: number;
-  communication_confidence: number;
-  relational_intelligence: number;
-  motivational_fit: number;
-}
+const DEFAULT_WEIGHTS: EmployerWeightings = {
+  learning_velocity: 17,
+  ownership_follow_through: 17,
+  resilience: 17,
+  communication_confidence: 17,
+  relational_intelligence: 16,
+  motivational_fit: 16,
+};
 
-interface TraitWeightingUIProps {
-  onSave?: (weights: TraitWeights) => void;
-  initialWeights?: Partial<TraitWeights>;
-  callback?: () => void;
-}
+// ─── Dimension Definitions ───────────────────────────────────
+const DIMENSIONS: { key: keyof EmployerWeightings; label: string; definition: string }[] = [
+  {
+    key: 'learning_velocity',
+    label: 'Learning Velocity',
+    definition: 'How quickly someone acquires skills and updates their thinking',
+  },
+  {
+    key: 'ownership_follow_through',
+    label: 'Ownership & Follow-Through',
+    definition: 'Whether someone takes genuine responsibility for outcomes, not just tasks',
+  },
+  {
+    key: 'resilience',
+    label: 'Resilience',
+    definition: 'How well someone maintains effectiveness under pressure and setbacks',
+  },
+  {
+    key: 'communication_confidence',
+    label: 'Communication Confidence',
+    definition: 'Whether someone communicates directly and raises difficult things when needed',
+  },
+  {
+    key: 'relational_intelligence',
+    label: 'Relational Intelligence',
+    definition: 'How accurately someone reads people and situations and builds genuine trust',
+  },
+  {
+    key: 'motivational_fit',
+    label: 'Motivational Fit',
+    definition: 'Whether what drives this person aligns with what this role actually offers',
+  },
+];
 
-// Spec rule: 5% minimum floor per dimension (30 points pre-allocated, 70 free)
-const MIN_WEIGHT = 5;
+// ─── Props ───────────────────────────────────────────────────
+type Props = {
+  businessId: string;
+  initialWeights?: EmployerWeightings;
+  onSave?: (weights: EmployerWeightings) => void;
+};
 
-export function TraitWeightingUI({ onSave, initialWeights, callback }: TraitWeightingUIProps) {
-  // Initialize weights - either from props or evenly distributed
-  const [weights, setWeights] = useState<TraitWeights>(() => {
-    if (initialWeights) {
-      return {
-        learning_velocity: initialWeights.learning_velocity ?? MIN_WEIGHT,
-        ownership_follow_through: initialWeights.ownership_follow_through ?? MIN_WEIGHT,
-        resilience: initialWeights.resilience ?? MIN_WEIGHT,
-        communication_confidence: initialWeights.communication_confidence ?? MIN_WEIGHT,
-        relational_intelligence: initialWeights.relational_intelligence ?? MIN_WEIGHT,
-        motivational_fit: initialWeights.motivational_fit ?? MIN_WEIGHT,
-      };
+// ─── Component ───────────────────────────────────────────────
+export function TraitWeightingUI({ businessId, initialWeights, onSave }: Props) {
+  const [weights, setWeights] = useState<EmployerWeightings>(initialWeights ?? DEFAULT_WEIGHTS);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Load existing weights from DB on mount (settings context).
+  // Skip when initialWeights are provided (onboarding / template context).
+  useEffect(() => {
+    if (initialWeights) return;
+    supabase
+      .from('employer_trait_weightings')
+      .select('*')
+      .eq('business_id', businessId)
+      .single()
+      .then(({ data }) => {
+        if (data) setWeights(data as EmployerWeightings);
+      });
+  }, [businessId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Running total (70 free points) ──────────────────────
+  const freeAllocated = Object.values(weights).reduce(
+    (sum, w) => sum + (w - FIXED_FLOOR),
+    0,
+  );
+  const remaining = FREE_POINTS - freeAllocated;
+
+  // ─── Handlers ─────────────────────────────────────────────
+  const handleChange = (key: keyof EmployerWeightings, value: number) => {
+    setWeights(prev => ({ ...prev, [key]: Math.max(FIXED_FLOOR, value) }));
+  };
+
+  const handleSave = async () => {
+    if (remaining !== 0) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('employer_trait_weightings')
+      .upsert({ business_id: businessId, ...weights, updated_at: new Date().toISOString() });
+    setSaving(false);
+    if (!error) {
+      setSaved(true);
+      onSave?.(weights);
+      setTimeout(() => setSaved(false), 3000);
     }
-    // Default: evenly distributed (~16-17 each)
-    return {
-      learning_velocity: 17,
-      ownership_follow_through: 17,
-      resilience: 17,
-      communication_confidence: 17,
-      relational_intelligence: 16,
-      motivational_fit: 16,
-    };
-  });
-
-  const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; show: boolean }>({ message: '', show: false });
-
-  const showToast = (message: string) => {
-    setToast({ message, show: true });
-    setTimeout(() => setToast({ message: '', show: false }), 2000);
   };
 
-  // Calculate running total
-  const total = Object.values(weights).reduce((sum, val) => sum + val, 0);
-  const isValid = total === 100;
-  const remaining = 100 - total;
+  // ─── Save button label & styling ──────────────────────────
+  const buttonDisabled = remaining !== 0 || saving || saved;
 
-  // Check 5% minimum floor
-  const belowFloor = TRAIT_DIMENSIONS.filter(t => weights[t.key] < MIN_WEIGHT);
+  const buttonLabel = saving
+    ? 'Saving...'
+    : saved
+    ? 'Saved'
+    : remaining > 0
+    ? `${remaining} points left to allocate`
+    : remaining < 0
+    ? `Over allocated by ${Math.abs(remaining)}`
+    : 'Save priorities';
 
-  // Handle weight change with snap to 5s, enforcing 5% floor
-  const handleWeightChange = (key: keyof TraitWeights, value: number) => {
-    const snappedValue = Math.max(MIN_WEIGHT, Math.round(value / 5) * 5);
-    setWeights((prev) => ({
-      ...prev,
-      [key]: snappedValue,
-    }));
-  };
+  const buttonClass = saved
+    ? 'bg-[#10B981] text-white cursor-default'
+    : saving
+    ? 'bg-[#D1D5DB] text-white cursor-not-allowed'
+    : remaining > 0
+    ? 'bg-[#D1D5DB] text-[#F59E0B] cursor-not-allowed'
+    : remaining < 0
+    ? 'bg-[#D1D5DB] text-[#EF4444] cursor-not-allowed'
+    : 'bg-[#7DBBFF] text-white hover:bg-[#6aabef] cursor-pointer';
 
-  const handleSave = () => {
-    if (!isValid || belowFloor.length > 0) return;
-
-    console.log('Saving trait weights:', weights);
-    onSave?.(weights);
-    showToast('Trait weights saved successfully!');
-  };
-
-  const handleReset = () => {
-    setWeights({
-      learning_velocity: 17,
-      ownership_follow_through: 17,
-      resilience: 17,
-      communication_confidence: 17,
-      relational_intelligence: 16,
-      motivational_fit: 16,
-    });
-  };
+  const remainingColor =
+    remaining === 0 ? 'text-[#10B981]' : remaining > 0 ? 'text-[#F59E0B]' : 'text-[#EF4444]';
 
   return (
     <div>
-      {/* Page Title */}
+      {/* ── Zone 1: Header ── */}
       <div className="mb-6">
-        <h1 className="text-2xl text-[#111827] font-semibold mb-1">Trait Weighting</h1>
-        <p className="text-sm text-[#6B7280]">Allocate 100 points across six trait dimensions</p>
+        <h2 className="text-lg font-semibold text-[#111827] mb-1">Set your hiring priorities</h2>
+        <p className="text-sm text-[#6B7280]">
+          Each trait has a 5-point minimum (30 pts fixed). Distribute your remaining 70 free points.
+        </p>
+        <p className={`mt-2 text-sm font-semibold ${remainingColor}`}>
+          {remaining === 0
+            ? '✓ All 70 points allocated'
+            : remaining > 0
+            ? `${remaining} free points remaining`
+            : `Over-allocated by ${Math.abs(remaining)} — reduce a dimension`}
+        </p>
       </div>
 
-      {/* Main Card */}
-      <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-        <div className="flex items-center gap-3 mb-6">
-          <Sliders className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-          <h3 className="text-base text-[#111827] font-semibold">Trait Allocation</h3>
-        </div>
-
-        {/* Constraint Feedback */}
-        <div
-          className={`mb-6 p-4 border transition-colors ${
-            isValid
-              ? 'bg-[#10B981]/5 border-[#10B981]/20'
-              : remaining > 0
-              ? 'bg-[#F59E0B]/5 border-[#F59E0B]/20'
-              : 'bg-[#EF4444]/5 border-[#EF4444]/20'
-          }`}
-          style={{ borderRadius: '12px' }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className={`text-sm font-semibold ${
-                isValid ? 'text-[#10B981]' :
-                remaining > 0 ? 'text-[#F59E0B]' : 'text-[#EF4444]'
-              }`}>
-                {isValid ? '✓ Perfect! All 100 points allocated' :
-                 remaining > 0 ? `${remaining} points remaining` :
-                 `${Math.abs(remaining)} points over limit`}
-              </p>
-              <p className="text-xs text-[#6B7280] mt-1">
-                Running Total: {total} / 100
-              </p>
+      {/* ── Zone 2: Dimension Cards (2-column grid) ── */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        {DIMENSIONS.map(dim => {
+          // Dynamic max prevents over-allocation
+          const dynamicMax = FIXED_FLOOR + remaining + (weights[dim.key] - FIXED_FLOOR);
+          return (
+            <div
+              key={dim.key}
+              className="border border-black/[0.08] rounded-xl p-4 bg-white hover:shadow-sm transition"
+            >
+              <div className="flex justify-between items-start mb-1">
+                <span className="font-semibold text-[#111827] text-sm">{dim.label}</span>
+                <span className="text-2xl font-bold text-[#7DBBFF]">{weights[dim.key]}%</span>
+              </div>
+              <p className="text-xs text-[#6B7280] mb-3">{dim.definition}</p>
+              <input
+                type="range"
+                min={FIXED_FLOOR}
+                max={dynamicMax}
+                step={1}
+                value={weights[dim.key]}
+                onChange={e => handleChange(dim.key, +e.target.value)}
+                className="w-full accent-[#7DBBFF]"
+              />
             </div>
-            {!isValid && (
-              <div className="text-right">
-                <p className="text-xs text-[#6B7280]">
-                  Adjust sliders to reach exactly 100
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Trait Sliders */}
-        <div className="space-y-6 mb-8">
-          {TRAIT_DIMENSIONS.map((trait) => {
-            const value = weights[trait.key];
-            const isBelowFloor = value < MIN_WEIGHT;
-            return (
-              <div key={trait.key}>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm text-[#111827] font-medium">
-                    {trait.label}
-                  </label>
-                  <span className={`text-sm font-semibold min-w-[3rem] text-right ${
-                    isBelowFloor ? 'text-[#EF4444]' : 'text-[#7DBBFF]'
-                  }`}>
-                    {value} pts
-                  </span>
-                </div>
-
-                <div className="relative">
-                  <input
-                    type="range"
-                    min={MIN_WEIGHT}
-                    max="100"
-                    step="5"
-                    value={value}
-                    onChange={(e) => handleWeightChange(trait.key, parseInt(e.target.value))}
-                    onMouseEnter={() => setTooltipVisible(trait.key)}
-                    onMouseLeave={() => setTooltipVisible(null)}
-                    className="w-full h-2 bg-[#F3F3F5] appearance-none cursor-pointer slider-thumb"
-                    style={{
-                      borderRadius: '4px',
-                      border: '1px solid #b5b7bb',
-                    }}
-                  />
-
-                  {/* Tooltip on hover */}
-                  {tooltipVisible === trait.key && (
-                    <div
-                      className="absolute -top-10 bg-[#111827] text-white text-xs px-3 py-1.5 pointer-events-none"
-                      style={{
-                        borderRadius: '8px',
-                        left: `${((value - MIN_WEIGHT) / (100 - MIN_WEIGHT)) * 100}%`,
-                        transform: 'translateX(-50%)',
-                      }}
-                    >
-                      {value} points
-                      <div
-                        className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-[#111827]"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Visual progress bar for current value */}
-                <div className="mt-2 h-1 bg-[#F3F3F5] overflow-hidden" style={{ borderRadius: '2px' }}>
-                  <div
-                    className="h-full bg-[#7DBBFF] transition-all duration-200"
-                    style={{ width: `${value}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Sliders Constraint Info */}
-        <div className="mb-6 p-4 bg-[#F9F9FA] border border-black/[0.08]" style={{ borderRadius: '12px' }}>
-          <p className="text-xs text-[#6B7280]">
-            <span className="font-semibold text-[#111827]">Allocation Rules:</span>
-            <br />
-            • Each dimension has a 5-point minimum floor (30 points pre-allocated)
-            <br />
-            • 70 free points to distribute across dimensions
-            <br />
-            • Values snap to increments of 5
-            <br />
-            • Total must equal exactly 100 to save
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-3 pt-6 border-t border-black/[0.08]">
-          <button
-            onClick={handleReset}
-            className="px-4 py-2 border border-black/[0.08] text-[#111827] hover:bg-[#F9F9FA] transition-colors text-sm font-medium"
-            style={{ borderRadius: '10px' }}
-          >
-            Reset to Default
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!isValid}
-            className={`px-4 py-2 text-white text-sm font-medium transition-colors ${
-              isValid
-                ? 'bg-[#7DBBFF] hover:bg-[#6aabef] cursor-pointer'
-                : 'bg-[#D1D5DB] cursor-not-allowed opacity-60'
-            }`}
-            style={{ borderRadius: '10px' }}
-          >
-            Save Weights
-          </button>
-        </div>
+          );
+        })}
       </div>
 
-      {/* Toast Notification */}
-      {toast.show && (
-        <div
-          className="fixed bottom-5 right-5 bg-[#10B981] text-white px-4 py-2 rounded shadow-md"
-          style={{ zIndex: 1000 }}
+      {/* ── Zone 3: Footer ── */}
+      <div className="flex items-center justify-between pt-4 border-t border-black/[0.08]">
+        <span className={`text-sm font-medium ${remainingColor}`}>
+          {remaining === 0
+            ? saved
+              ? 'Priorities saved'
+              : 'Ready to save'
+            : remaining > 0
+            ? `${remaining} points left to allocate`
+            : `Over allocated by ${Math.abs(remaining)}`}
+        </span>
+        <button
+          onClick={handleSave}
+          disabled={buttonDisabled}
+          className={`px-5 py-2 rounded-xl text-sm font-medium transition-colors ${buttonClass}`}
         >
-          {toast.message}
-        </div>
-      )}
-
-      <style>{`
-        .slider-thumb::-webkit-slider-thumb {
-          appearance: none;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: #7DBBFF;
-          cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        }
-
-        .slider-thumb::-moz-range-thumb {
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: #7DBBFF;
-          cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        }
-
-        .slider-thumb::-webkit-slider-thumb:hover {
-          background: #6aabef;
-          transform: scale(1.1);
-        }
-
-        .slider-thumb::-moz-range-thumb:hover {
-          background: #6aabef;
-          transform: scale(1.1);
-        }
-      `}</style>
+          {saving && (
+            <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 align-middle" />
+          )}
+          {buttonLabel}
+        </button>
+      </div>
     </div>
   );
 }
