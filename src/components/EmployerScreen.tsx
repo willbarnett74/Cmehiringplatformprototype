@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, Settings, Building2, Search, BarChart3 } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { DashboardPage } from './employer-pages/DashboardPage';
 import { SearchPage } from './employer-pages/SearchPage';
 import { CandidatesPage } from './employer-pages/CandidatesPage';
@@ -22,6 +23,23 @@ export function EmployerScreen() {
       return false;
     }
   });
+
+  // Check Supabase for existing business row on mount — skip onboarding if already done
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user?.id) return;
+      const { data } = await supabase
+        .from('businesses')
+        .select('id')
+        .eq('owner_id', session.user.id)
+        .maybeSingle();
+      if (data?.id) {
+        setHasCompletedOnboarding(true);
+        try { localStorage.setItem('cme_employer_onboarding_complete', 'true'); } catch { /* ignore */ }
+      }
+    });
+  }, []);
 
   // Navigation state
   const [currentSection, setCurrentSection] = useState<Section>('dashboard');
@@ -642,7 +660,6 @@ export function EmployerScreen() {
       {/* Onboarding Modal */}
       {!hasCompletedOnboarding && (
         <EmployerOnboarding
-          businessId="demo-employer"
           onComplete={() => {
             setHasCompletedOnboarding(true);
             localStorage.setItem('cme_employer_onboarding_complete', 'true');

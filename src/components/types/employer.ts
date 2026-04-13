@@ -1,6 +1,6 @@
-// ─── candidate_profiles (merged from applicant_profiles + applicant_trait_scores) ───
+// ─── candidate_profiles (trait score columns merged from former applicant_trait_scores) ───
 export interface CandidateProfile {
-  id: number; // maps to candidate_id in DB (reconciled from applicant_id)
+  id: number; // maps to candidate_profiles.id in DB
   candidate_id?: number; // alias kept for explicit DB references
   name: string;
   role: string;
@@ -8,7 +8,7 @@ export interface CandidateProfile {
   level: string;
   traits: string[];
   score: number;
-  // Engagement stage — outcomes (hired/rejected) live on the engagement, not a separate hiring_decisions table
+  // Engagement stage — outcomes (hired/rejected) live on engagements.stage
   stage: 'discovered' | 'contacted' | 'interviewing' | 'decision' | 'hired' | 'rejected';
   hired_date?: string; // ISO date string — set when stage moves to 'hired'
   aiMatchPercent?: number;
@@ -17,7 +17,7 @@ export interface CandidateProfile {
   openToChange?: boolean; // Open to career change
   readyToStepUp?: boolean; // Ready to step up to next level
   retrained?: boolean; // Recently retrained or reskilled
-  // Trait scores (merged from applicant_trait_scores into candidate_profiles)
+  // Trait scores (columns on candidate_profiles)
   traitScores?: {
     adaptability?: number;
     decisionMaking?: number;
@@ -31,7 +31,7 @@ export interface CandidateProfile {
 // Backward-compatible alias — existing components reference `Candidate`
 export type Candidate = CandidateProfile;
 
-// ─── engagements (replaces hiring_decisions; stage + outcome live here) ───
+// ─── engagements (stage + outcome; former hiring_decisions table removed) ───
 export interface Engagement {
   engagement_id: number;
   candidate_id: number; // FK → candidate_profiles.candidate_id
@@ -119,10 +119,10 @@ export interface MotivationalPulseCheck {
   submitted_at?: string;
 }
 
-// ─── intake_responses (FK updated: applicant_id → candidate_id) ───
+// ─── intake_responses (candidate_id → candidate_profiles.id) ───
 export interface IntakeResponse {
   id: number;
-  candidate_id: number; // FK → candidate_profiles.candidate_id (was applicant_id)
+  candidate_id: number; // FK → candidate_profiles.id
   question_key: string;
   response_value: string;
   submitted_at?: string;

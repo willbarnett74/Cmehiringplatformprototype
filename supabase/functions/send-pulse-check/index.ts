@@ -41,9 +41,9 @@ Deno.serve(async (req: Request) => {
   try {
     const { engagementId, candidateId, employerName, pulseDay } = await req.json();
 
-    // ── 1. Fetch candidate profile ──────────────────────────────────────────
-    const profileRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/candidate_profiles?id=eq.${candidateId}&select=full_name,email`,
+    // ── 1. Fetch applicant → profile (email / name live on profiles) ─────────
+    const applicantRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/applicant_profiles?id=eq.${candidateId}&select=user_id`,
       {
         headers: {
           apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -51,9 +51,22 @@ Deno.serve(async (req: Request) => {
         },
       },
     );
-    const profiles = await profileRes.json();
+    const applicants = await applicantRes.json() as Array<{ user_id: string }>;
+    const applicant = applicants[0];
+    if (!applicant) throw new Error(`Applicant profile ${candidateId} not found`);
+
+    const profileRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${applicant.user_id}&select=email,full_name`,
+      {
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      },
+    );
+    const profiles = await profileRes.json() as Array<{ email: string; full_name: string | null }>;
     const candidate = profiles[0];
-    if (!candidate) throw new Error(`Candidate ${candidateId} not found`);
+    if (!candidate) throw new Error(`Profile for applicant ${candidateId} not found`);
 
     // ── 2. Generate signed pulse check token ────────────────────────────────
     const token = await generatePulseToken(engagementId, candidateId, pulseDay);
@@ -69,7 +82,7 @@ Deno.serve(async (req: Request) => {
         Prefer: 'return=minimal',
       },
       body: JSON.stringify({
-        user_id: candidateId,
+        user_id: applicant.user_id,
         type: 'pulse_check',
         engagement_id: engagementId,
         message: `Quick check-in: how's your new role going after ${pulseDay} days? Takes 2 minutes.`,
@@ -89,7 +102,7 @@ Deno.serve(async (req: Request) => {
         subject: `Quick check-in on your new role`,
         template: 'pulse_check',
         variables: {
-          candidate_name: candidate.full_name,
+          candidate_name: candidate.full_name ?? 'there',
           employer_name: employerName,
           pulse_day: pulseDay,
           pulse_url: pulseUrl,

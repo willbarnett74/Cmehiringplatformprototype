@@ -1,298 +1,151 @@
-import { useState, useEffect } from 'react';
-import { Sliders } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import type { EmployerWeightings } from '../../types/supabase';
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
+import {
+  fetchActiveEmployerTraitWeightings,
+  upsertActiveEmployerTraitWeightings,
+} from '../../lib/employerOnboardingPersistence';
 
-// Six trait dimensions — correct 6-dimension framework (Big Five / OCEAN + SDT)
-const TRAIT_DIMENSIONS = [
-  { key: 'learning_velocity', label: 'Learning Velocity' },
-  { key: 'ownership_follow_through', label: 'Ownership & Follow-Through' },
+export type TraitWeights = EmployerWeightings;
+
+const MIN_PCT = 5;
+
+const DIMENSIONS = [
+  { key: 'learning_velocity', label: 'Learning velocity' },
+  { key: 'ownership_follow_through', label: 'Ownership & follow-through' },
   { key: 'resilience', label: 'Resilience' },
-  { key: 'communication_confidence', label: 'Communication Confidence' },
-  { key: 'relational_intelligence', label: 'Relational Intelligence' },
-  { key: 'motivational_fit', label: 'Motivational Fit' },
+  { key: 'communication_confidence', label: 'Communication confidence' },
+  { key: 'relational_intelligence', label: 'Relational intelligence' },
+  { key: 'motivational_fit', label: 'Motivational fit' },
 ] as const;
 
-interface TraitWeights {
-  learning_velocity: number;
-  ownership_follow_through: number;
-  resilience: number;
-  communication_confidence: number;
-  relational_intelligence: number;
-  motivational_fit: number;
+export function defaultTraitWeights(): TraitWeights {
+  return {
+    learning_velocity: 17,
+    ownership_follow_through: 17,
+    resilience: 17,
+    communication_confidence: 17,
+    relational_intelligence: 16,
+    motivational_fit: 16,
+  };
 }
 
-interface TraitWeightingUIProps {
-  onSave?: (weights: TraitWeights) => void;
-  initialWeights?: Partial<TraitWeights>;
-  callback?: () => void;
+export interface TraitWeightingUIProps {
+  weights: TraitWeights;
+  onChange: (weights: TraitWeights) => void;
+  onSave: () => void;
+  /** When set with Supabase configured, loads the active row on mount (via `onChange`) and upserts on Save. */
+  businessId?: string | null;
+  /** Stored on insert only when no active row exists yet (e.g. onboarding). */
+  roleTemplateSlug?: string | null;
 }
 
-// Spec rule: 5% minimum floor per dimension (30 points pre-allocated, 70 free)
-const MIN_WEIGHT = 5;
+function clampDimension(value: number): number {
+  const n = Math.round(Number.isFinite(value) ? value : MIN_PCT);
+  return Math.max(MIN_PCT, Math.min(100, n));
+}
 
-export function TraitWeightingUI({ onSave, initialWeights, callback }: TraitWeightingUIProps) {
-  // Initialize weights - either from props or evenly distributed
-  const [weights, setWeights] = useState<TraitWeights>(() => {
-    if (initialWeights) {
-      return {
-        learning_velocity: initialWeights.learning_velocity ?? MIN_WEIGHT,
-        ownership_follow_through: initialWeights.ownership_follow_through ?? MIN_WEIGHT,
-        resilience: initialWeights.resilience ?? MIN_WEIGHT,
-        communication_confidence: initialWeights.communication_confidence ?? MIN_WEIGHT,
-        relational_intelligence: initialWeights.relational_intelligence ?? MIN_WEIGHT,
-        motivational_fit: initialWeights.motivational_fit ?? MIN_WEIGHT,
-      };
-    }
-    // Default: evenly distributed (~16-17 each)
-    return {
-      learning_velocity: 17,
-      ownership_follow_through: 17,
-      resilience: 17,
-      communication_confidence: 17,
-      relational_intelligence: 16,
-      motivational_fit: 16,
+export function TraitWeightingUI({
+  weights,
+  onChange,
+  onSave,
+  businessId = null,
+  roleTemplateSlug = null,
+}: TraitWeightingUIProps) {
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  const total =
+    weights.learning_velocity +
+    weights.ownership_follow_through +
+    weights.resilience +
+    weights.communication_confidence +
+    weights.relational_intelligence +
+    weights.motivational_fit;
+  const totalOk = total === 100;
+
+  useEffect(() => {
+    if (!businessId || !isSupabaseConfigured || !supabase) return;
+    let cancelled = false;
+    void (async () => {
+      const row = await fetchActiveEmployerTraitWeightings(supabase, businessId);
+      if (!cancelled && row) onChangeRef.current(row);
+    })();
+    return () => {
+      cancelled = true;
     };
-  });
+  }, [businessId]);
 
-  const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; show: boolean }>({ message: '', show: false });
-
-  const showToast = (message: string) => {
-    setToast({ message, show: true });
-    setTimeout(() => setToast({ message: '', show: false }), 2000);
+  const setKey = (key: keyof TraitWeights, raw: number) => {
+    const next = clampDimension(raw);
+    onChange({ ...weights, [key]: next });
   };
 
-  // Calculate running total
-  const total = Object.values(weights).reduce((sum, val) => sum + val, 0);
-  const isValid = total === 100;
-  const remaining = 100 - total;
-
-  // Check 5% minimum floor
-  const belowFloor = TRAIT_DIMENSIONS.filter(t => weights[t.key] < MIN_WEIGHT);
-
-  // Handle weight change with snap to 5s, enforcing 5% floor
-  const handleWeightChange = (key: keyof TraitWeights, value: number) => {
-    const snappedValue = Math.max(MIN_WEIGHT, Math.round(value / 5) * 5);
-    setWeights((prev) => ({
-      ...prev,
-      [key]: snappedValue,
-    }));
-  };
-
-  const handleSave = () => {
-    if (!isValid || belowFloor.length > 0) return;
-
-    console.log('Saving trait weights:', weights);
-    onSave?.(weights);
-    showToast('Trait weights saved successfully!');
-  };
-
-  const handleReset = () => {
-    setWeights({
-      learning_velocity: 17,
-      ownership_follow_through: 17,
-      resilience: 17,
-      communication_confidence: 17,
-      relational_intelligence: 16,
-      motivational_fit: 16,
-    });
+  const handleSave = async () => {
+    if (!totalOk) return;
+    if (businessId && isSupabaseConfigured && supabase) {
+      await upsertActiveEmployerTraitWeightings(supabase, businessId, weights, {
+        roleTemplateSlug,
+      });
+    }
+    onSave();
   };
 
   return (
-    <div>
-      {/* Page Title */}
-      <div className="mb-6">
-        <h1 className="text-2xl text-[#111827] font-semibold mb-1">Trait Weighting</h1>
-        <p className="text-sm text-[#6B7280]">Allocate 100 points across six trait dimensions</p>
+    <div className="text-[#111827]">
+      <div className="mb-5 flex items-baseline justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight">Trait weighting</h2>
+          <p className="mt-0.5 text-sm text-[#6B7280]">Allocate 100% across six dimensions (minimum 5% each).</p>
+        </div>
+        <p
+          className={`shrink-0 text-sm font-medium tabular-nums ${totalOk ? 'text-emerald-600' : 'text-red-600'}`}
+          aria-live="polite"
+        >
+          Total: {total}%
+        </p>
       </div>
 
-      {/* Main Card */}
-      <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-        <div className="flex items-center gap-3 mb-6">
-          <Sliders className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
-          <h3 className="text-base text-[#111827] font-semibold">Trait Allocation</h3>
-        </div>
-
-        {/* Constraint Feedback */}
-        <div
-          className={`mb-6 p-4 border transition-colors ${
-            isValid
-              ? 'bg-[#10B981]/5 border-[#10B981]/20'
-              : remaining > 0
-              ? 'bg-[#F59E0B]/5 border-[#F59E0B]/20'
-              : 'bg-[#EF4444]/5 border-[#EF4444]/20'
-          }`}
-          style={{ borderRadius: '12px' }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className={`text-sm font-semibold ${
-                isValid ? 'text-[#10B981]' :
-                remaining > 0 ? 'text-[#F59E0B]' : 'text-[#EF4444]'
-              }`}>
-                {isValid ? '✓ Perfect! All 100 points allocated' :
-                 remaining > 0 ? `${remaining} points remaining` :
-                 `${Math.abs(remaining)} points over limit`}
-              </p>
-              <p className="text-xs text-[#6B7280] mt-1">
-                Running Total: {total} / 100
-              </p>
+      <div className="rounded-lg border border-[#E5E7EB] bg-white">
+        {DIMENSIONS.map((dim, i) => {
+          const v = weights[dim.key];
+          return (
+            <div
+              key={dim.key}
+              className={`grid grid-cols-1 items-center gap-3 px-4 py-4 sm:grid-cols-[minmax(0,11rem)_1fr_3.5rem] sm:gap-6 ${
+                i < DIMENSIONS.length - 1 ? 'border-b border-[#E5E7EB]' : ''
+              }`}
+            >
+              <span className="text-sm font-medium text-[#374151]">{dim.label}</span>
+              <input
+                type="range"
+                min={MIN_PCT}
+                max={100}
+                step={1}
+                value={Math.max(MIN_PCT, v)}
+                onChange={(e) => setKey(dim.key, parseInt(e.target.value, 10))}
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#F3F4F6] accent-[#111827] [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[#111827] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#111827]"
+                aria-valuemin={MIN_PCT}
+                aria-valuemax={100}
+                aria-valuenow={v}
+                aria-label={dim.label}
+              />
+              <span className="text-right text-sm tabular-nums text-[#111827] sm:min-w-[2.75rem]">{v}%</span>
             </div>
-            {!isValid && (
-              <div className="text-right">
-                <p className="text-xs text-[#6B7280]">
-                  Adjust sliders to reach exactly 100
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Trait Sliders */}
-        <div className="space-y-6 mb-8">
-          {TRAIT_DIMENSIONS.map((trait) => {
-            const value = weights[trait.key];
-            const isBelowFloor = value < MIN_WEIGHT;
-            return (
-              <div key={trait.key}>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm text-[#111827] font-medium">
-                    {trait.label}
-                  </label>
-                  <span className={`text-sm font-semibold min-w-[3rem] text-right ${
-                    isBelowFloor ? 'text-[#EF4444]' : 'text-[#7DBBFF]'
-                  }`}>
-                    {value} pts
-                  </span>
-                </div>
-
-                <div className="relative">
-                  <input
-                    type="range"
-                    min={MIN_WEIGHT}
-                    max="100"
-                    step="5"
-                    value={value}
-                    onChange={(e) => handleWeightChange(trait.key, parseInt(e.target.value))}
-                    onMouseEnter={() => setTooltipVisible(trait.key)}
-                    onMouseLeave={() => setTooltipVisible(null)}
-                    className="w-full h-2 bg-[#F3F3F5] appearance-none cursor-pointer slider-thumb"
-                    style={{
-                      borderRadius: '4px',
-                      border: '1px solid #b5b7bb',
-                    }}
-                  />
-
-                  {/* Tooltip on hover */}
-                  {tooltipVisible === trait.key && (
-                    <div
-                      className="absolute -top-10 bg-[#111827] text-white text-xs px-3 py-1.5 pointer-events-none"
-                      style={{
-                        borderRadius: '8px',
-                        left: `${((value - MIN_WEIGHT) / (100 - MIN_WEIGHT)) * 100}%`,
-                        transform: 'translateX(-50%)',
-                      }}
-                    >
-                      {value} points
-                      <div
-                        className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-[#111827]"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Visual progress bar for current value */}
-                <div className="mt-2 h-1 bg-[#F3F3F5] overflow-hidden" style={{ borderRadius: '2px' }}>
-                  <div
-                    className="h-full bg-[#7DBBFF] transition-all duration-200"
-                    style={{ width: `${value}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Sliders Constraint Info */}
-        <div className="mb-6 p-4 bg-[#F9F9FA] border border-black/[0.08]" style={{ borderRadius: '12px' }}>
-          <p className="text-xs text-[#6B7280]">
-            <span className="font-semibold text-[#111827]">Allocation Rules:</span>
-            <br />
-            • Each dimension has a 5-point minimum floor (30 points pre-allocated)
-            <br />
-            • 70 free points to distribute across dimensions
-            <br />
-            • Values snap to increments of 5
-            <br />
-            • Total must equal exactly 100 to save
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-3 pt-6 border-t border-black/[0.08]">
-          <button
-            onClick={handleReset}
-            className="px-4 py-2 border border-black/[0.08] text-[#111827] hover:bg-[#F9F9FA] transition-colors text-sm font-medium"
-            style={{ borderRadius: '10px' }}
-          >
-            Reset to Default
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!isValid}
-            className={`px-4 py-2 text-white text-sm font-medium transition-colors ${
-              isValid
-                ? 'bg-[#7DBBFF] hover:bg-[#6aabef] cursor-pointer'
-                : 'bg-[#D1D5DB] cursor-not-allowed opacity-60'
-            }`}
-            style={{ borderRadius: '10px' }}
-          >
-            Save Weights
-          </button>
-        </div>
+          );
+        })}
       </div>
 
-      {/* Toast Notification */}
-      {toast.show && (
-        <div
-          className="fixed bottom-5 right-5 bg-[#10B981] text-white px-4 py-2 rounded shadow-md"
-          style={{ zIndex: 1000 }}
+      <div className="mt-5 flex justify-end">
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={!totalOk}
+          className="rounded-md bg-[#111827] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {toast.message}
-        </div>
-      )}
-
-      <style>{`
-        .slider-thumb::-webkit-slider-thumb {
-          appearance: none;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: #7DBBFF;
-          cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        }
-
-        .slider-thumb::-moz-range-thumb {
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: #7DBBFF;
-          cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        }
-
-        .slider-thumb::-webkit-slider-thumb:hover {
-          background: #6aabef;
-          transform: scale(1.1);
-        }
-
-        .slider-thumb::-moz-range-thumb:hover {
-          background: #6aabef;
-          transform: scale(1.1);
-        }
-      `}</style>
+          Save
+        </button>
+      </div>
     </div>
   );
 }

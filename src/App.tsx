@@ -1,17 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { OverviewScreen } from './components/OverviewScreen';
 import { ApplicantScreen } from './components/ApplicantScreen';
 import { EmployerScreen } from './components/EmployerScreen';
 import { DesignSystem } from './components/DesignSystem';
 import { AssessmentLink } from './src/pages/AssessmentLink';
 import { PulseCheckForm } from './src/pages/PulseCheckForm';
+import { LoginScreen } from './components/LoginScreen';
 import { Sparkles, Palette } from 'lucide-react';
 import { UserProfileProvider } from './contexts/UserProfileContext';
+import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
 type Tab = 'overview' | 'applicant' | 'employer' | 'design' | 'assessment' | 'pulsecheck';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    void supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleNavigateToPath = (tab: 'applicant' | 'employer' | 'assessment') => {
     setActiveTab(tab);
@@ -124,8 +137,8 @@ export default function App() {
         {/* Screen Content */}
         <main>
           {activeTab === 'overview' && <OverviewScreen onNavigate={handleNavigateToPath} />}
-          {activeTab === 'applicant' && <ApplicantScreen />}
-          {activeTab === 'employer' && <EmployerScreen />}
+          {activeTab === 'applicant' && (session ? <ApplicantScreen /> : <LoginScreen />)}
+          {activeTab === 'employer' && (session ? <EmployerScreen /> : <LoginScreen />)}
           {activeTab === 'design' && <DesignSystem />}
           {activeTab === 'assessment' && <AssessmentLink />}
           {activeTab === 'pulsecheck' && <PulseCheckForm />}

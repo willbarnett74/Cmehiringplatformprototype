@@ -8,9 +8,11 @@ import { IntakeSection5 } from './intake/IntakeSection5';
 import { IntakeSection6 } from './intake/IntakeSection6';
 import { IntakeSection7 } from './intake/IntakeSection7';
 import { IntakeSection8 } from './intake/IntakeSection8';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
+import {
+  upsertIntakeSectionResponses,
+  markApplicantIntakeComplete,
+} from '../../lib/applicantPersistence';
 
 const SECTION_LABELS = [
   { number: 1, title: 'Background' },
@@ -24,69 +26,34 @@ const SECTION_LABELS = [
 ];
 
 interface IntakeFlowPageProps {
+  /** candidate_profiles.id (UUID) */
   candidateId?: string;
   userId?: string;
   onComplete: () => void;
   onBack?: () => void;
 }
 
-export function IntakeFlowPage({ candidateId, userId, onComplete, onBack }: IntakeFlowPageProps) {
+export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBack }: IntakeFlowPageProps) {
   const [currentSection, setCurrentSection] = useState(1);
   const [completedSections, setCompletedSections] = useState<number[]>([]);
   const [sectionData, setSectionData] = useState<Record<number, Record<string, unknown>>>({});
 
   const persistSectionResponses = async (sectionNumber: number, data: Record<string, unknown>) => {
-    if (!candidateId || !SUPABASE_URL) return;
+    if (!candidateId || !isSupabaseConfigured || !supabase) return;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return;
 
-    const responses = data.responses as Record<string, Record<string, unknown>> | undefined;
-    if (!responses) return;
-
-    const upserts = Object.entries(responses).map(([questionKey, responseData]) =>
-      fetch(`${SUPABASE_URL}/rest/v1/intake_responses`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates',
-        },
-        body: JSON.stringify({
-          candidate_id: candidateId,
-          question_key: questionKey,
-          section_number: sectionNumber,
-          response_value: JSON.stringify(responseData),
-        }),
-      })
-    );
-
-    try {
-      await Promise.all(upserts);
-
-      // Update intake progress on candidate profile
-      await fetch(`${SUPABASE_URL}/rest/v1/candidate_profiles?user_id=eq.${userId}`, {
-        method: 'PATCH',
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({
-          intake_last_section_completed: sectionNumber,
-          intake_status: sectionNumber >= 8 ? 'complete' : 'in_progress',
-        }),
-      });
-    } catch {
-      // Non-blocking: continue even if persistence fails
-    }
+    await upsertIntakeSectionResponses(supabase, candidateId, sectionNumber, data);
   };
 
   const handleSectionComplete = async (data: Record<string, unknown>) => {
     const sectionNumber = data.section as number;
 
-    setSectionData(prev => ({ ...prev, [sectionNumber]: data }));
+    setSectionData((prev) => ({ ...prev, [sectionNumber]: data }));
     if (!completedSections.includes(sectionNumber)) {
-      setCompletedSections(prev => [...prev, sectionNumber]);
+      setCompletedSections((prev) => [...prev, sectionNumber]);
     }
 
     await persistSectionResponses(sectionNumber, data);
@@ -96,21 +63,18 @@ export function IntakeFlowPage({ candidateId, userId, onComplete, onBack }: Inta
     }
   };
 
-  const handleFinalSubmit = async () => {
-    if (candidateId && SUPABASE_URL) {
-      try {
-        await fetch(`${SUPABASE_URL}/rest/v1/candidate_profiles?user_id=eq.${userId}`, {
-          method: 'PATCH',
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-            Prefer: 'return=minimal',
-          },
-          body: JSON.stringify({ intake_status: 'complete' }),
-        });
-      } catch {
-        // Non-blocking
+  const handleSection8Complete = async (data: Record<string, unknown>) => {
+    setSectionData((prev) => ({ ...prev, 8: data }));
+    if (!completedSections.includes(8)) {
+      setCompletedSections((prev) => [...prev, 8]);
+    }
+    await persistSectionResponses(8, data);
+    if (candidateId && isSupabaseConfigured && supabase) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session) {
+        await markApplicantIntakeComplete(supabase, candidateId);
       }
     }
     onComplete();
@@ -146,7 +110,7 @@ export function IntakeFlowPage({ candidateId, userId, onComplete, onBack }: Inta
       case 7:
         return <IntakeSection7 onComplete={handleSectionComplete} initialData={sectionData[7]} />;
       case 8:
-        return <IntakeSection8 onComplete={handleFinalSubmit} profileData={getSection8ProfileData()} />;
+        return <IntakeSection8 onComplete={handleSection8Complete} profileData={getSection8ProfileData()} />;
       default:
         return null;
     }
@@ -164,7 +128,10 @@ export function IntakeFlowPage({ candidateId, userId, onComplete, onBack }: Inta
               </p>
             </div>
             {onBack && (
-              <button onClick={onBack} className="px-4 py-2 text-sm text-[#6B7280] hover:text-[#111827] transition-colors">
+              <button
+                onClick={onBack}
+                className="px-4 py-2 text-sm text-[#6B7280] hover:text-[#111827] transition-colors"
+              >
                 Exit
               </button>
             )}
@@ -178,7 +145,7 @@ export function IntakeFlowPage({ candidateId, userId, onComplete, onBack }: Inta
           </div>
 
           <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-2">
-            {SECTION_LABELS.map(section => {
+            {SECTION_LABELS.map((section) => {
               const isCompleted = completedSections.includes(section.number);
               const isCurrent = currentSection === section.number;
               const isAccessible = section.number <= currentSection;
@@ -192,10 +159,10 @@ export function IntakeFlowPage({ candidateId, userId, onComplete, onBack }: Inta
                     isCurrent
                       ? 'bg-[#7DBBFF] border-[#7DBBFF] text-white'
                       : isCompleted
-                      ? 'bg-white border-[#10B981] text-[#10B981]'
-                      : isAccessible
-                      ? 'bg-white border-black/[0.08] text-[#6B7280] hover:border-[#7DBBFF]'
-                      : 'bg-[#F3F4F6] border-black/[0.05] text-[#9CA3AF] cursor-not-allowed'
+                        ? 'bg-white border-[#10B981] text-[#10B981]'
+                        : isAccessible
+                          ? 'bg-white border-black/[0.08] text-[#6B7280] hover:border-[#7DBBFF]'
+                          : 'bg-[#F3F4F6] border-black/[0.05] text-[#9CA3AF] cursor-not-allowed'
                   }`}
                   style={{ borderRadius: '8px' }}
                 >
@@ -211,9 +178,7 @@ export function IntakeFlowPage({ candidateId, userId, onComplete, onBack }: Inta
           </div>
         </div>
 
-        <div className="bg-[#FAFAFA]">
-          {renderSection()}
-        </div>
+        <div className="bg-[#FAFAFA]">{renderSection()}</div>
 
         {currentSection > 1 && currentSection < 8 && (
           <div className="mt-6 flex justify-start">

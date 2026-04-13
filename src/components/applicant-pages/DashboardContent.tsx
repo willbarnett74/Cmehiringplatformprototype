@@ -1,27 +1,98 @@
+import { useState, useEffect } from 'react';
 import { User, ArrowRight, Target, Brain, MapPin, Briefcase, GraduationCap, Clock, Award, ShieldCheck, Lightbulb, CheckCircle2, AlertCircle, BarChart3, Building2, Zap, MessageSquare, Users, TrendingUp, Flame, Eye } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
+import { ensureApplicantProfile } from '../../lib/applicantPersistence';
 
 interface DashboardContentProps {
   onProfileBuilderClick: (stepId?: number) => void;
 }
 
 export function DashboardContent({ onProfileBuilderClick }: DashboardContentProps) {
+  const [name, setName] = useState('Alex Rivera');
+  const [location, setLocation] = useState('San Francisco, CA');
+  const [experienceYears, setExperienceYears] = useState('6 years');
+  const [education, setEducation] = useState('B.A. Interaction Design');
+  const [availability, setAvailability] = useState('Open to offers');
+  const [summary, setSummary] = useState(
+    'Experienced product designer specializing in early-stage startups with a focus on taking messy, ambiguous problems and building clean, scalable solutions. Thrives in environments that balance experimentation with clear accountability.',
+  );
+  const [intakeComplete, setIntakeComplete] = useState(false);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user?.id) return;
+
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (profileRow?.full_name) setName(profileRow.full_name);
+
+      const profileId = await ensureApplicantProfile(supabase, session.user.id);
+      if (!profileId) return;
+
+      const { data } = await supabase
+        .from('candidate_profiles')
+        .select('location,experience_years,education_summary,availability,experience_narrative,intake_status')
+        .eq('id', profileId)
+        .maybeSingle();
+
+      if (data) {
+        if (data.location) setLocation(data.location);
+        if (data.experience_years != null) setExperienceYears(`${data.experience_years} years`);
+        if (data.education_summary) setEducation(data.education_summary);
+        if (data.availability) setAvailability(data.availability);
+        if (data.experience_narrative) setSummary(data.experience_narrative);
+        if (data.intake_status === 'complete') setIntakeComplete(true);
+      }
+    });
+  }, []);
+
+  const initials = name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <>
       {/* Main CTA Card */}
       <div className="bg-white p-6 border border-black/[0.08] shadow-sm mb-6" style={{ borderRadius: '20px' }}>
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base text-[#111827] font-semibold mb-2">Continue Building Your Profile</h3>
-            <p className="text-sm text-[#6B7280]">Complete your foundation overview to improve your readiness score</p>
-          </div>
-          <button
-            onClick={() => onProfileBuilderClick(1)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#7dbbff] text-white hover:bg-[#6aabef] transition-colors"
-            style={{ borderRadius: '10px' }}
-          >
-            <span className="text-sm font-medium">Foundation Overview</span>
-            <ArrowRight className="w-4 h-4" strokeWidth={2} />
-          </button>
+          {intakeComplete ? (
+            <>
+              <div>
+                <h3 className="text-base text-[#111827] font-semibold mb-2">Your Profile is Ready</h3>
+                <p className="text-sm text-[#6B7280]">Your trait scores have been computed — explore your results below</p>
+              </div>
+              <button
+                onClick={() => onProfileBuilderClick()}
+                className="flex items-center gap-2 px-4 py-2.5 bg-[#10B981] text-white hover:bg-[#0ea572] transition-colors"
+                style={{ borderRadius: '10px' }}
+              >
+                <CheckCircle2 className="w-4 h-4" strokeWidth={2} />
+                <span className="text-sm font-medium">View Profile</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <div>
+                <h3 className="text-base text-[#111827] font-semibold mb-2">Complete Your Intake</h3>
+                <p className="text-sm text-[#6B7280]">Answer 8 short sections to build your trait profile and get matched</p>
+              </div>
+              <button
+                onClick={() => onProfileBuilderClick(1)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-[#7dbbff] text-white hover:bg-[#6aabef] transition-colors"
+                style={{ borderRadius: '10px' }}
+              >
+                <span className="text-sm font-medium">Start Intake</span>
+                <ArrowRight className="w-4 h-4" strokeWidth={2} />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -36,9 +107,9 @@ export function DashboardContent({ onProfileBuilderClick }: DashboardContentProp
           {/* Avatar & Name */}
           <div className="flex flex-col items-center shrink-0">
             <div className="w-20 h-20 rounded-full bg-[#7dbbff] flex items-center justify-center mb-3">
-              <User className="w-10 h-10 text-white" strokeWidth={1.5} />
+              <span className="text-white text-xl font-semibold">{initials}</span>
             </div>
-            <p className="text-sm text-[#111827] font-semibold">Alex Rivera</p>
+            <p className="text-sm text-[#111827] font-semibold">{name}</p>
             <p className="text-xs text-[#6B7280]">Product Designer</p>
           </div>
 
@@ -49,21 +120,21 @@ export function DashboardContent({ onProfileBuilderClick }: DashboardContentProp
                 <MapPin className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Location</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">San Francisco, CA</p>
+              <p className="text-sm text-[#111827] font-medium">{location}</p>
             </div>
             <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <Briefcase className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Experience</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">6 years</p>
+              <p className="text-sm text-[#111827] font-medium">{experienceYears}</p>
             </div>
             <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <GraduationCap className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Education</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">B.A. Interaction Design</p>
+              <p className="text-sm text-[#111827] font-medium">{education}</p>
             </div>
             <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
               <div className="flex items-center gap-2 mb-1.5">
@@ -77,7 +148,7 @@ export function DashboardContent({ onProfileBuilderClick }: DashboardContentProp
                 <Clock className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Availability</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">Open to offers</p>
+              <p className="text-sm text-[#111827] font-medium">{availability}</p>
             </div>
             <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
               <div className="flex items-center gap-2 mb-1.5">
@@ -93,7 +164,7 @@ export function DashboardContent({ onProfileBuilderClick }: DashboardContentProp
         <div className="mt-5 pt-5 border-t border-black/[0.08]">
           <p className="text-xs text-[#6B7280] mb-2">Background Summary</p>
           <p className="text-sm text-[#111827] leading-relaxed">
-            Experienced product designer specializing in early-stage startups with a focus on taking messy, ambiguous problems and building clean, scalable solutions. Thrives in environments that balance experimentation with clear accountability.
+            {summary}
           </p>
         </div>
       </div>

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["/Users/willbarnett/CMe Terminal Workspace/node_modules/.bin/vite"],
+      "cwd": "/Users/willbarnett/CMe Terminal Workspace",
+      "port": 5173
+    }
+  ]
+}

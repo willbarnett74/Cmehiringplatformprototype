@@ -1,87 +1,91 @@
+import { useRef, useState } from 'react';
 import { Sliders } from 'lucide-react';
-import { TraitWeightingUI } from '../../TraitWeightingUI';
+import { TraitWeightingUI, defaultTraitWeights, type TraitWeights } from '../../TraitWeightingUI';
 import { templateToWeights, type RoleTemplate } from '../../RoleTemplatePicker';
 
-interface TraitWeights {
-  learning_velocity: number;
-  ownership_follow_through: number;
-  resilience: number;
-  communication_confidence: number;
-  relational_intelligence: number;
-  motivational_fit: number;
-}
-
 interface TraitWeightingStepProps {
-  businessId: string;
   selectedTemplate: RoleTemplate | null;
   initialWeights?: Partial<TraitWeights>;
+  businessId: string | null;
   onNext: (weights: TraitWeights) => void;
   onBack: () => void;
 }
 
+function mergeInitial(
+  selectedTemplate: RoleTemplate | null,
+  initialWeights: Partial<TraitWeights> | undefined,
+): TraitWeights {
+  const base = defaultTraitWeights();
+  if (selectedTemplate) return templateToWeights(selectedTemplate);
+  if (!initialWeights) return base;
+  return {
+    learning_velocity: initialWeights.learning_velocity ?? base.learning_velocity,
+    ownership_follow_through: initialWeights.ownership_follow_through ?? base.ownership_follow_through,
+    resilience: initialWeights.resilience ?? base.resilience,
+    communication_confidence: initialWeights.communication_confidence ?? base.communication_confidence,
+    relational_intelligence: initialWeights.relational_intelligence ?? base.relational_intelligence,
+    motivational_fit: initialWeights.motivational_fit ?? base.motivational_fit,
+  };
+}
+
 export function TraitWeightingStep({
-  businessId,
   selectedTemplate,
   initialWeights,
+  businessId,
   onNext,
   onBack,
 }: TraitWeightingStepProps) {
-  const prepopulatedWeights = selectedTemplate
-    ? templateToWeights(selectedTemplate)
-    : initialWeights;
-
-  const handleSave = (weights: TraitWeights) => {
-    onNext(weights);
-  };
+  const [weights, setWeights] = useState<TraitWeights>(() =>
+    mergeInitial(selectedTemplate, initialWeights),
+  );
+  const weightsRef = useRef(weights);
+  weightsRef.current = weights;
 
   return (
     <div>
       <div className="mb-8 text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#7DBBFF]/10 flex items-center justify-center">
-          <Sliders className="w-8 h-8 text-[#7DBBFF]" strokeWidth={1.5} />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#7DBBFF]/10">
+          <Sliders className="h-8 w-8 text-[#7DBBFF]" strokeWidth={1.5} />
         </div>
-        <h2 className="text-2xl text-[#111827] font-semibold mb-2">Configure Trait Weighting</h2>
+        <h2 className="mb-2 text-2xl font-semibold text-[#111827]">Configure trait weighting</h2>
         <p className="text-sm text-[#6B7280]">
           {selectedTemplate
             ? `Pre-populated from "${selectedTemplate.name}" template`
-            : 'Allocate 100 points across six trait dimensions'}
+            : 'Allocate 100% across six trait dimensions'}
         </p>
       </div>
 
       {selectedTemplate && (
-        <div
-          className="mb-6 p-4 bg-[#7DBBFF]/5 border border-[#7DBBFF]/20"
-          style={{ borderRadius: '12px' }}
-        >
+        <div className="mb-6 rounded-xl border border-[#7DBBFF]/20 bg-[#7DBBFF]/5 p-4">
           <p className="text-sm text-[#111827]">
-            <span className="font-semibold">Selected Template:</span> {selectedTemplate.name}
+            <span className="font-semibold">Selected template:</span> {selectedTemplate.name}
           </p>
-          <p className="text-xs text-[#6B7280] mt-1">
+          <p className="mt-1 text-xs text-[#6B7280]">
             Weights have been pre-configured based on this role. You can adjust them as needed.
           </p>
           {selectedTemplate.motivation_signal && (
-            <p className="text-xs text-[#7DBBFF] mt-1">
-              Key motivation signals: {selectedTemplate.motivation_signal}
-            </p>
+            <p className="mt-1 text-xs text-[#7DBBFF]">Key motivation signals: {selectedTemplate.motivation_signal}</p>
           )}
         </div>
       )}
 
-      <div className="max-w-3xl mx-auto">
+      <div className="mx-auto max-w-3xl">
         <TraitWeightingUI
+          weights={weights}
+          onChange={setWeights}
+          onSave={() => onNext(weightsRef.current)}
           businessId={businessId}
-          initialWeights={prepopulatedWeights}
-          onSave={handleSave}
+          roleTemplateSlug={selectedTemplate?.id ?? null}
         />
       </div>
 
-      <div className="max-w-3xl mx-auto mt-6">
+      <div className="mx-auto mt-6 max-w-3xl">
         <button
+          type="button"
           onClick={onBack}
-          className="px-6 py-3 border border-black/[0.08] text-[#111827] hover:bg-[#F9F9FA] transition-colors text-sm font-medium"
-          style={{ borderRadius: '10px' }}
+          className="rounded-[10px] border border-black/[0.08] px-6 py-3 text-sm font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA]"
         >
-          Back to Role Selection
+          Back to role selection
         </button>
       </div>
     </div>

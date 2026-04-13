@@ -1,9 +1,6 @@
 import { Settings as SettingsIcon, Bell, User, Lock, CreditCard, Building2, Users, Upload, Sliders } from 'lucide-react';
-import { TraitWeightingUI } from './TraitWeightingUI';
-import { useState } from 'react';
 
 export function SettingsPage() {
-  const [showTraitWeighting, setShowTraitWeighting] = useState(false);
   
   const teamMembers = [
     { id: 1, name: 'Sarah Johnson', email: 'sarah@techcorp.com', role: 'Admin', avatar: 'SJ' },
@@ -240,7 +237,7 @@ export function SettingsPage() {
             <h3 className="text-base text-[#111827] font-semibold">Trait Weighting</h3>
           </div>
           <p className="text-sm text-[#6B7280] mb-4">Adjust the importance of different traits in the hiring process</p>
-          <button className="text-sm text-[#7DBBFF] hover:text-[#6aabef] transition-colors font-medium" onClick={() => setShowTraitWeighting(true)}>
+          <button type="button" className="text-sm text-[#7DBBFF] hover:text-[#6aabef] transition-colors font-medium">
             Configure Trait Weighting
           </button>
         </div>

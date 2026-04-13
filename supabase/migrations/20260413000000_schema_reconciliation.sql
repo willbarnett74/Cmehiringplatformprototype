@@ -1,0 +1,24 @@
+-- Schema Reconciliation — applied manually via Supabase SQL Editor on 2026-04-13
+-- This file documents the changes for git history. Do NOT re-run.
+--
+-- Changes applied:
+--   1. applicant_profiles → renamed to candidate_profiles, trait score columns added
+--   2. applicant_trait_scores → data migrated to candidate_profiles, table dropped
+--   3. intake_responses.applicant_id → renamed to candidate_id
+--   4. intake_responses.question_id → renamed to question_key
+--   5. engagements.applicant_id → renamed to candidate_id
+--   6. engagements.stage constraint updated to include 'hired' and 'rejected'
+--   7. engagements gained: departure_date, departure_type, cohort, role_type, hired_at
+--   8. hiring_decisions → outcome data migrated to engagements.stage, table dropped
+--   9. performance_snapshots.hiring_decision_id → renamed to engagement_id
+--  10. performance_snapshots.snapshot_type → replaced with snapshot_day (integer: 30/90)
+--  11. performance_snapshots.performance_band constraint updated: 'middle' → 'mid'
+--  12. New tables created: role_templates (10 system rows), performance_calibration_versions, role_condition_snapshots
+--  13. roles gained: assessment_link_token, role_type
+--
+-- RLS policies dropped during migration (need recreation):
+--   - "intake_responses: own row"
+--   - "engagements: applicant own rows"
+--   - "performance_snapshots: employer access"
+--   - "applicant_trait_scores: own row" (table dropped)
+--   - "trait_scores: employer read" (table dropped)
