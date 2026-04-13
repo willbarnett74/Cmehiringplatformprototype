@@ -286,6 +286,429 @@ create table if not exists performance_snapshots (
 
 
 -- ============================================================
+-- 5.x Repair partial / legacy tables (safe before RLS)
+--
+-- If a table already existed from an older attempt, CREATE TABLE IF NOT EXISTS
+-- skips the whole statement — so columns may be missing or misnamed. Policies
+-- reference: user_id, owner_id, business_id, applicant_id, engagement_id,
+-- hiring_decision_id, status (applicant_profiles, roles). This block renames
+-- common legacy names, adds status when absent, and raises clear errors if a
+-- table still cannot satisfy RLS (42703).
+-- ============================================================
+
+do $repair$
+declare
+  ps_cnt bigint;
+begin
+  -- applicant_profiles.user_id (policies: auth.uid() = user_id; ap.status)
+  if to_regclass('public.applicant_profiles') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'applicant_profiles' and column_name = 'user_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'applicant_profiles' and column_name = 'profile_id'
+      ) then
+        alter table public.applicant_profiles rename column profile_id to user_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'applicant_profiles' and column_name = 'candidate_user_id'
+      ) then
+        alter table public.applicant_profiles rename column candidate_user_id to user_id;
+      end if;
+    end if;
+  end if;
+
+  -- businesses.owner_id (policies: owner_id = auth.uid(); common legacy: user_id)
+  if to_regclass('public.businesses') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'businesses' and column_name = 'owner_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'businesses' and column_name = 'user_id'
+      ) then
+        alter table public.businesses rename column user_id to owner_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'businesses' and column_name = 'owner'
+      ) then
+        alter table public.businesses rename column owner to owner_id;
+      end if;
+    end if;
+  end if;
+
+  -- roles.business_id (policies join businesses b where b.id = business_id)
+  if to_regclass('public.roles') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'roles' and column_name = 'business_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'roles' and column_name = 'company_id'
+      ) then
+        alter table public.roles rename column company_id to business_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'roles' and column_name = 'organisation_id'
+      ) then
+        alter table public.roles rename column organisation_id to business_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'roles' and column_name = 'organization_id'
+      ) then
+        alter table public.roles rename column organization_id to business_id;
+      end if;
+    end if;
+  end if;
+
+  -- employer_trait_weightings.business_id
+  if to_regclass('public.employer_trait_weightings') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'employer_trait_weightings' and column_name = 'business_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'employer_trait_weightings' and column_name = 'company_id'
+      ) then
+        alter table public.employer_trait_weightings rename column company_id to business_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'employer_trait_weightings' and column_name = 'organisation_id'
+      ) then
+        alter table public.employer_trait_weightings rename column organisation_id to business_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'employer_trait_weightings' and column_name = 'organization_id'
+      ) then
+        alter table public.employer_trait_weightings rename column organization_id to business_id;
+      end if;
+    end if;
+  end if;
+
+  -- engagements.business_id (policies: b.id = business_id)
+  if to_regclass('public.engagements') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'engagements' and column_name = 'business_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'engagements' and column_name = 'company_id'
+      ) then
+        alter table public.engagements rename column company_id to business_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'engagements' and column_name = 'organisation_id'
+      ) then
+        alter table public.engagements rename column organisation_id to business_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'engagements' and column_name = 'organization_id'
+      ) then
+        alter table public.engagements rename column organization_id to business_id;
+      end if;
+    end if;
+  end if;
+
+  -- applicant_trait_scores.applicant_id
+  if to_regclass('public.applicant_trait_scores') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'applicant_trait_scores' and column_name = 'applicant_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'applicant_trait_scores' and column_name = 'candidate_id'
+      ) then
+        alter table public.applicant_trait_scores rename column candidate_id to applicant_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'applicant_trait_scores' and column_name = 'profile_id'
+      ) then
+        alter table public.applicant_trait_scores rename column profile_id to applicant_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'applicant_trait_scores' and column_name = 'applicant_profile_id'
+      ) then
+        alter table public.applicant_trait_scores rename column applicant_profile_id to applicant_id;
+      end if;
+    end if;
+  end if;
+
+  -- intake_responses.applicant_id
+  if to_regclass('public.intake_responses') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'intake_responses' and column_name = 'applicant_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'intake_responses' and column_name = 'candidate_id'
+      ) then
+        alter table public.intake_responses rename column candidate_id to applicant_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'intake_responses' and column_name = 'profile_id'
+      ) then
+        alter table public.intake_responses rename column profile_id to applicant_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'intake_responses' and column_name = 'applicant_profile_id'
+      ) then
+        alter table public.intake_responses rename column applicant_profile_id to applicant_id;
+      end if;
+    end if;
+  end if;
+
+  -- engagements.applicant_id
+  if to_regclass('public.engagements') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'engagements' and column_name = 'applicant_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'engagements' and column_name = 'candidate_id'
+      ) then
+        alter table public.engagements rename column candidate_id to applicant_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'engagements' and column_name = 'profile_id'
+      ) then
+        alter table public.engagements rename column profile_id to applicant_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'engagements' and column_name = 'applicant_profile_id'
+      ) then
+        alter table public.engagements rename column applicant_profile_id to applicant_id;
+      end if;
+    end if;
+  end if;
+
+  -- hiring_decisions.engagement_id (policies join engagements e where e.id = engagement_id)
+  if to_regclass('public.hiring_decisions') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'hiring_decisions' and column_name = 'engagement_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'hiring_decisions' and column_name = 'engagement'
+      ) then
+        alter table public.hiring_decisions rename column engagement to engagement_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'hiring_decisions' and column_name = 'engagements_id'
+      ) then
+        alter table public.hiring_decisions rename column engagements_id to engagement_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'hiring_decisions' and column_name = 'engagement_uuid'
+      ) then
+        alter table public.hiring_decisions rename column engagement_uuid to engagement_id;
+      end if;
+    end if;
+  end if;
+
+  -- performance_snapshots.hiring_decision_id (policies use hd.id = hiring_decision_id)
+  if to_regclass('public.performance_snapshots') is not null then
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'hiring_decision_id'
+    ) then
+      if exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'decision_id'
+      ) then
+        alter table public.performance_snapshots rename column decision_id to hiring_decision_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'hire_decision_id'
+      ) then
+        alter table public.performance_snapshots rename column hire_decision_id to hiring_decision_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'hiring_decision'
+      ) then
+        alter table public.performance_snapshots rename column hiring_decision to hiring_decision_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'decision_uuid'
+      ) then
+        alter table public.performance_snapshots rename column decision_uuid to hiring_decision_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'hiring_decisions_id'
+      ) then
+        alter table public.performance_snapshots rename column hiring_decisions_id to hiring_decision_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'hd_id'
+      ) then
+        alter table public.performance_snapshots rename column hd_id to hiring_decision_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'hiring_decision_uuid'
+      ) then
+        alter table public.performance_snapshots rename column hiring_decision_uuid to hiring_decision_id;
+      elsif exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'hdecision_id'
+      ) then
+        alter table public.performance_snapshots rename column hdecision_id to hiring_decision_id;
+      end if;
+    end if;
+  end if;
+
+  -- performance_snapshots: if still unusable but table is empty, replace with canonical DDL (CREATE IF NOT EXISTS skipped it earlier)
+  if to_regclass('public.performance_snapshots') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'hiring_decision_id'
+     ) then
+    select count(*) into ps_cnt from public.performance_snapshots;
+    if ps_cnt = 0 then
+      drop table public.performance_snapshots cascade;
+      create table public.performance_snapshots (
+        id                    uuid default gen_random_uuid() primary key,
+        created_at            timestamptz default now(),
+        hiring_decision_id    uuid references public.hiring_decisions(id) not null,
+        snapshot_type         text check (snapshot_type in ('30_day', '90_day')) not null,
+        performance_band      text check (performance_band in ('top', 'middle', 'low')),
+        would_rehire          boolean,
+        learning_velocity         integer check (learning_velocity between 1 and 5),
+        ownership_follow_through  integer check (ownership_follow_through between 1 and 5),
+        resilience                integer check (resilience between 1 and 5),
+        communication_confidence  integer check (communication_confidence between 1 and 5),
+        relational_intelligence   integer check (relational_intelligence between 1 and 5),
+        motivational_fit          integer check (motivational_fit between 1 and 5),
+        notes                 text,
+        unique (hiring_decision_id, snapshot_type)
+      );
+    end if;
+  end if;
+
+  -- applicant_profiles.status (policies: ap.status = 'published')
+  if to_regclass('public.applicant_profiles') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'applicant_profiles' and column_name = 'status'
+     ) then
+    alter table public.applicant_profiles add column status text default 'draft';
+  end if;
+
+  -- roles.status (policy: status = 'open')
+  if to_regclass('public.roles') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'roles' and column_name = 'status'
+     ) then
+    alter table public.roles add column status text default 'open';
+  end if;
+
+  -- Fail fast with a clear message if a legacy table still has no applicant_id
+  if to_regclass('public.applicant_trait_scores') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'applicant_trait_scores' and column_name = 'applicant_id'
+     ) then
+    raise exception
+      'public.applicant_trait_scores exists without applicant_id (unexpected column names). '
+      'Back up data if needed, then: DROP TABLE public.applicant_trait_scores CASCADE; and re-run this migration.';
+  end if;
+  if to_regclass('public.intake_responses') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'intake_responses' and column_name = 'applicant_id'
+     ) then
+    raise exception
+      'public.intake_responses exists without applicant_id (unexpected column names). '
+      'Back up data if needed, then: DROP TABLE public.intake_responses CASCADE; and re-run this migration.';
+  end if;
+  if to_regclass('public.engagements') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'engagements' and column_name = 'applicant_id'
+     ) then
+    raise exception
+      'public.engagements exists without applicant_id (unexpected column names). '
+      'Back up data if needed, then: DROP TABLE public.engagements CASCADE; and re-run this migration.';
+  end if;
+
+  if to_regclass('public.hiring_decisions') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'hiring_decisions' and column_name = 'engagement_id'
+     ) then
+    raise exception
+      'public.hiring_decisions exists without engagement_id (unexpected column names). '
+      'Back up data if needed, then: DROP TABLE public.hiring_decisions CASCADE; and re-run this migration.';
+  end if;
+  if to_regclass('public.performance_snapshots') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'performance_snapshots' and column_name = 'hiring_decision_id'
+     ) then
+    raise exception
+      'public.performance_snapshots has data but no hiring_decision_id column we could infer. '
+      'Export data if needed, then: TRUNCATE public.performance_snapshots; or DROP TABLE public.performance_snapshots CASCADE; and re-run this migration.';
+  end if;
+
+  if to_regclass('public.applicant_profiles') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'applicant_profiles' and column_name = 'user_id'
+     ) then
+    raise exception
+      'public.applicant_profiles exists without user_id (unexpected column names). '
+      'Back up data if needed, then: DROP TABLE public.applicant_profiles CASCADE; and re-run this migration.';
+  end if;
+  if to_regclass('public.businesses') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'businesses' and column_name = 'owner_id'
+     ) then
+    raise exception
+      'public.businesses exists without owner_id (unexpected column names). '
+      'Back up data if needed, then: DROP TABLE public.businesses CASCADE; and re-run this migration.';
+  end if;
+  if to_regclass('public.roles') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'roles' and column_name = 'business_id'
+     ) then
+    raise exception
+      'public.roles exists without business_id (unexpected column names). '
+      'Back up data if needed, then: DROP TABLE public.roles CASCADE; and re-run this migration.';
+  end if;
+  if to_regclass('public.employer_trait_weightings') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'employer_trait_weightings' and column_name = 'business_id'
+     ) then
+    raise exception
+      'public.employer_trait_weightings exists without business_id (unexpected column names). '
+      'Back up data if needed, then: DROP TABLE public.employer_trait_weightings CASCADE; and re-run this migration.';
+  end if;
+  if to_regclass('public.engagements') is not null
+     and not exists (
+       select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'engagements' and column_name = 'business_id'
+     ) then
+    raise exception
+      'public.engagements exists without business_id (unexpected column names). '
+      'Back up data if needed, then: DROP TABLE public.engagements CASCADE; and re-run this migration.';
+  end if;
+end
+$repair$;
+
+
+-- ============================================================
 -- 6. Row Level Security Policies
 -- Enable RLS on all tables. Minimum required policies for v1.
 -- ============================================================
@@ -293,6 +716,7 @@ create table if not exists performance_snapshots (
 -- profiles
 alter table profiles enable row level security;
 
+drop policy if exists "profiles: own row" on profiles;
 create policy "profiles: own row"
   on profiles for all
   using (auth.uid() = id);
@@ -300,10 +724,12 @@ create policy "profiles: own row"
 -- applicant_profiles
 alter table applicant_profiles enable row level security;
 
+drop policy if exists "applicant_profiles: own row" on applicant_profiles;
 create policy "applicant_profiles: own row"
   on applicant_profiles for all
   using (auth.uid() = user_id);
 
+drop policy if exists "applicant_profiles: employer read" on applicant_profiles;
 create policy "applicant_profiles: employer read"
   on applicant_profiles for select
   using (
@@ -318,6 +744,7 @@ create policy "applicant_profiles: employer read"
 -- applicant_trait_scores
 alter table applicant_trait_scores enable row level security;
 
+drop policy if exists "applicant_trait_scores: own row" on applicant_trait_scores;
 create policy "applicant_trait_scores: own row"
   on applicant_trait_scores for all
   using (
@@ -328,6 +755,7 @@ create policy "applicant_trait_scores: own row"
     )
   );
 
+drop policy if exists "trait_scores: employer read" on applicant_trait_scores;
 create policy "trait_scores: employer read"
   on applicant_trait_scores for select
   using (
@@ -346,10 +774,12 @@ create policy "trait_scores: employer read"
 -- businesses
 alter table businesses enable row level security;
 
+drop policy if exists "businesses: owner full access" on businesses;
 create policy "businesses: owner full access"
   on businesses for all
   using (owner_id = auth.uid());
 
+drop policy if exists "businesses: employer read" on businesses;
 create policy "businesses: employer read"
   on businesses for select
   using (
@@ -363,6 +793,7 @@ create policy "businesses: employer read"
 -- employer_trait_weightings
 alter table employer_trait_weightings enable row level security;
 
+drop policy if exists "employer_trait_weightings: business owner" on employer_trait_weightings;
 create policy "employer_trait_weightings: business owner"
   on employer_trait_weightings for all
   using (
@@ -376,6 +807,7 @@ create policy "employer_trait_weightings: business owner"
 -- intake_responses
 alter table intake_responses enable row level security;
 
+drop policy if exists "intake_responses: own row" on intake_responses;
 create policy "intake_responses: own row"
   on intake_responses for all
   using (
@@ -389,6 +821,7 @@ create policy "intake_responses: own row"
 -- roles
 alter table roles enable row level security;
 
+drop policy if exists "roles: business owner full access" on roles;
 create policy "roles: business owner full access"
   on roles for all
   using (
@@ -399,6 +832,7 @@ create policy "roles: business owner full access"
     )
   );
 
+drop policy if exists "roles: public read open roles" on roles;
 create policy "roles: public read open roles"
   on roles for select
   using (status = 'open');
@@ -406,6 +840,7 @@ create policy "roles: public read open roles"
 -- engagements
 alter table engagements enable row level security;
 
+drop policy if exists "engagements: applicant own rows" on engagements;
 create policy "engagements: applicant own rows"
   on engagements for select
   using (
@@ -416,6 +851,7 @@ create policy "engagements: applicant own rows"
     )
   );
 
+drop policy if exists "engagements: employer business rows" on engagements;
 create policy "engagements: employer business rows"
   on engagements for all
   using (
@@ -429,6 +865,7 @@ create policy "engagements: employer business rows"
 -- hiring_decisions
 alter table hiring_decisions enable row level security;
 
+drop policy if exists "hiring_decisions: employer access" on hiring_decisions;
 create policy "hiring_decisions: employer access"
   on hiring_decisions for all
   using (
@@ -443,6 +880,7 @@ create policy "hiring_decisions: employer access"
 -- performance_snapshots
 alter table performance_snapshots enable row level security;
 
+drop policy if exists "performance_snapshots: employer access" on performance_snapshots;
 create policy "performance_snapshots: employer access"
   on performance_snapshots for all
   using (

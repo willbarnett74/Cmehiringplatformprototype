@@ -1,3 +1,7 @@
+import { Settings as SettingsIcon, Bell, User, Lock, CreditCard, Building2, Users, Upload, Sliders } from 'lucide-react';
+
+export function SettingsPage() {
+  
 import { Bell, User, Lock, CreditCard, Building2, Users, Upload, Sliders } from 'lucide-react';
 import { TraitWeightingUI } from './TraitWeightingUI';
 
@@ -237,6 +241,10 @@ export function SettingsPage() {
             <Sliders className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
             <h3 className="text-base text-[#111827] font-semibold">Trait Weighting</h3>
           </div>
+          <p className="text-sm text-[#6B7280] mb-4">Adjust the importance of different traits in the hiring process</p>
+          <button type="button" className="text-sm text-[#7DBBFF] hover:text-[#6aabef] transition-colors font-medium">
+            Configure Trait Weighting
+          </button>
           <TraitWeightingUI businessId={MOCK_BUSINESS_ID} />
         </div>
       </div>

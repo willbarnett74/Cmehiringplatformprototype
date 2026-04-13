@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { IntakeSection1 } from './applicant-pages/intake/IntakeSection1';
 import { IntakeSection2 } from './applicant-pages/intake/IntakeSection2';
 import { IntakeSection3 } from './applicant-pages/intake/IntakeSection3';
@@ -10,11 +10,18 @@ import { IntakeSection8 } from './applicant-pages/intake/IntakeSection8';
 import { ProfileBuilderLayout } from './applicant-pages/ProfileBuilderLayout';
 import { OpportunitiesPage } from './applicant-pages/OpportunitiesPage';
 import { TraitScoresDisplay } from './applicant-pages/TraitScoresDisplay';
-import { LayoutDashboard, User, Settings, Compass, ArrowRight, Layers } from 'lucide-react';
+import { LayoutDashboard, User, Settings, Compass, ArrowRight, Layers, LogOut } from 'lucide-react';
 import { NotificationBell } from './shared/NotificationBell';
 import { DashboardContent } from './applicant-pages/DashboardContent';
+import { EditBasicInfoPage } from './applicant-pages/EditBasicInfoPage';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { computeIntakeScores } from '../utils/intakeScoring';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  ensureApplicantProfile,
+  upsertIntakeSectionResponses,
+  markApplicantIntakeComplete,
+} from '../lib/applicantPersistence';
 
 /**
  * Frame Structure:
@@ -36,7 +43,29 @@ export function ApplicantScreen() {
   const [activeSection, setActiveSection] = useState<'dashboard' | 'profileBuilder' | 'companies' | 'settings' | 'intake'>('dashboard');
   const [activeStep, setActiveStep] = useState<number>(1);
   const [cognitiveScore, setCognitiveScore] = useState<number | null>(null);
+  const [applicantProfileId, setApplicantProfileId] = useState<string | null>(null);
+  const [dbTraitScores, setDbTraitScores] = useState<import('../utils/intakeScoring').DimensionScores | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user?.id) return;
+      const id = await ensureApplicantProfile(supabase, session.user.id);
+      setApplicantProfileId(id);
+      if (!id) return;
+      const { data: scores } = await supabase
+        .from('candidate_profiles')
+        .select('learning_velocity,ownership_follow_through,resilience,communication_confidence,relational_intelligence,motivational_fit_mastery,motivational_fit_impact,motivational_fit_recognition,motivational_fit_autonomy')
+        .eq('id', id)
+        .maybeSingle();
+      if (scores) setDbTraitScores(scores as import('../utils/intakeScoring').DimensionScores);
+    });
+  }, []);
   
+  const handleSignOut = async () => {
+    if (supabase) await supabase.auth.signOut();
+  };
+
   // Safety check - ensure profileData is available
   if (!profileData) {
     return (
@@ -93,16 +122,16 @@ export function ApplicantScreen() {
       }
     };
 
-    const handleNext = (data?: any) => {
-      console.log('Section data:', data); // For development
-      
-      // Save section data to context
+    const handleNext = async (data?: Record<string, unknown>) => {
       if (data && data.section) {
-        updateIntakeSection(data.section, data.responses);
-        
-        // Check if we've completed section 8 (final section)
-        if (data.section === 8) {
-          // Calculate trait scores from sections 2-6
+        const sectionNum = data.section as number;
+        updateIntakeSection(sectionNum, data.responses);
+
+        if (supabase && applicantProfileId) {
+          await upsertIntakeSectionResponses(supabase, applicantProfileId, sectionNum, data);
+        }
+
+        if (sectionNum === 8) {
           const intakeResponses = {
             section2: profileData.intakeData.section2,
             section3: profileData.intakeData.section3,
@@ -110,19 +139,20 @@ export function ApplicantScreen() {
             section5: profileData.intakeData.section5,
             section6: profileData.intakeData.section6,
           };
-          
+
           const scores = computeIntakeScores(intakeResponses);
           updateTraitScores(scores);
           markIntakeComplete();
-          
-          console.log('Intake complete! Trait scores:', scores);
+
+          if (supabase && applicantProfileId) {
+            await markApplicantIntakeComplete(supabase, applicantProfileId);
+          }
         }
       }
-      
+
       if (activeStep < 8) {
         setActiveStep(activeStep + 1);
       } else {
-        // Complete and go back to dashboard
         setActiveSection('dashboard');
       }
     };
@@ -131,23 +161,23 @@ export function ApplicantScreen() {
     const renderSection = () => {
       switch (activeStep) {
         case 1:
-          return <IntakeSection1 onComplete={(data) => handleNext(data)} />;
+          return <IntakeSection1 onComplete={(data) => void handleNext(data)} />;
         case 2:
-          return <IntakeSection2 onComplete={(data) => handleNext(data)} />;
+          return <IntakeSection2 onComplete={(data) => void handleNext(data)} />;
         case 3:
-          return <IntakeSection3 onComplete={(data) => handleNext(data)} />;
+          return <IntakeSection3 onComplete={(data) => void handleNext(data)} />;
         case 4:
-          return <IntakeSection4 onComplete={(data) => handleNext(data)} />;
+          return <IntakeSection4 onComplete={(data) => void handleNext(data)} />;
         case 5:
-          return <IntakeSection5 onComplete={(data) => handleNext(data)} />;
+          return <IntakeSection5 onComplete={(data) => void handleNext(data)} />;
         case 6:
-          return <IntakeSection6 onComplete={(data) => handleNext(data)} />;
+          return <IntakeSection6 onComplete={(data) => void handleNext(data)} />;
         case 7:
-          return <IntakeSection7 onComplete={(data) => handleNext(data)} />;
+          return <IntakeSection7 onComplete={(data) => void handleNext(data)} />;
         case 8:
-          return <IntakeSection8 onComplete={() => handleNext()} />;
+          return <IntakeSection8 onComplete={(data) => void handleNext(data)} />;
         default:
-          return <IntakeSection1 onComplete={(data) => handleNext(data)} />;
+          return <IntakeSection1 onComplete={(data) => void handleNext(data)} />;
       }
     };
 
@@ -222,6 +252,15 @@ export function ApplicantScreen() {
                   <Settings className="w-5 h-5" strokeWidth={2} />
                   <span className="text-sm font-medium">Settings</span>
                 </button>
+
+                <button
+                  onClick={() => void handleSignOut()}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-red-50 hover:text-red-500 transition-all mt-2"
+                  style={{ borderRadius: '10px' }}
+                >
+                  <LogOut className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Sign out</span>
+                </button>
               </nav>
             </div>
           </aside>
@@ -236,7 +275,7 @@ export function ApplicantScreen() {
                     <input
                       type="text"
                       placeholder="Search"
-                      className="w-full px-4 py-2 pl-10 bg-[#fafafa] border border-black/[0.08] text-sm text-[#111827] placeholder:text-[#6B7280] focus:outline-none focus:border-[#7dbbff]" 
+                      className="w-full px-4 py-2 pl-10 bg-[#fafafa] border border-black/[0.08] text-sm text-[#111827] placeholder:text-[#6B7280] focus:outline-none focus:border-[#7dbbff]"
                       style={{ borderRadius: '10px' }}
                     />
                     <div className="absolute left-3 top-1/2 -translate-y-1/2">
@@ -268,6 +307,110 @@ export function ApplicantScreen() {
             {/* Companies Page Content */}
             <div className="p-8">
               <OpportunitiesPage />
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // FRAME 4: Settings / Edit Basic Info
+  if (activeSection === 'settings') {
+    return (
+      <div className="relative bg-[#fafafa] min-h-screen">
+        <div className="relative flex min-h-screen">
+          {/* Left Sidebar Navigation */}
+          <aside className="w-[240px] bg-white border-r border-black/[0.08] sticky top-0 h-screen overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-[#7dbbff] flex items-center justify-center shrink-0" style={{ borderRadius: '12px' }}>
+                  <Compass className="w-5 h-5 text-white" strokeWidth={2} />
+                </div>
+                <span className="text-lg text-[#111827] font-semibold">CMe</span>
+              </div>
+              <div className="mb-4">
+                <p className="text-xs text-[#6B7280] uppercase tracking-wider px-3">Menu</p>
+              </div>
+              <nav className="space-y-1 mb-8">
+                <button
+                  onClick={() => setActiveSection('dashboard')}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
+                  style={{ borderRadius: '10px' }}
+                >
+                  <LayoutDashboard className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Dashboard</span>
+                </button>
+                <button
+                  onClick={() => handleProfileBuilderClick()}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
+                  style={{ borderRadius: '10px' }}
+                >
+                  <User className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Profile Builder</span>
+                </button>
+                <button
+                  onClick={() => setActiveSection('companies')}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827] transition-all"
+                  style={{ borderRadius: '10px' }}
+                >
+                  <Layers className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Opportunities</span>
+                </button>
+                <button
+                  onClick={() => setActiveSection('settings')}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#7dbbff]/10 text-[#7dbbff] transition-all"
+                  style={{ borderRadius: '10px' }}
+                >
+                  <Settings className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Settings</span>
+                </button>
+
+                <button
+                  onClick={() => void handleSignOut()}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-red-50 hover:text-red-500 transition-all mt-2"
+                  style={{ borderRadius: '10px' }}
+                >
+                  <LogOut className="w-5 h-5" strokeWidth={2} />
+                  <span className="text-sm font-medium">Sign out</span>
+                </button>
+              </nav>
+            </div>
+          </aside>
+
+          {/* Main Content Area */}
+          <main className="flex-1 overflow-y-auto">
+            {/* Top Header Bar */}
+            <div className="bg-white border-b border-black/[0.08] px-8 py-4 sticky top-0 z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 max-w-md">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search"
+                      className="w-full px-4 py-2 pl-10 bg-[#fafafa] border border-black/[0.08] text-sm text-[#111827] placeholder:text-[#6B7280] focus:outline-none focus:border-[#7dbbff]"
+                      style={{ borderRadius: '10px' }}
+                    />
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                      <svg className="w-4 h-4 text-[#6B7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 px-4 py-2 bg-[#fafafa]" style={{ borderRadius: '10px' }}>
+                    <div className="w-8 h-8 rounded-full bg-[#7dbbff] flex items-center justify-center">
+                      <User className="w-4 h-4 text-white" strokeWidth={2} />
+                    </div>
+                    <span className="text-sm text-[#111827] font-medium">Alex Rivera</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Settings Content */}
+            <div className="p-8">
+              <EditBasicInfoPage />
             </div>
           </main>
         </div>
@@ -332,6 +475,15 @@ export function ApplicantScreen() {
                 <Settings className="w-5 h-5" strokeWidth={2} />
                 <span className="text-sm font-medium">Settings</span>
               </button>
+
+              <button
+                onClick={() => void handleSignOut()}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6B7280] hover:bg-red-50 hover:text-red-500 transition-all mt-2"
+                style={{ borderRadius: '10px' }}
+              >
+                <LogOut className="w-5 h-5" strokeWidth={2} />
+                <span className="text-sm font-medium">Sign out</span>
+              </button>
             </nav>
           </div>
         </aside>
@@ -383,6 +535,11 @@ export function ApplicantScreen() {
             </div>
 
             <DashboardContent onProfileBuilderClick={handleProfileBuilderClick} />
+            {(dbTraitScores || profileData.traitScores) && (
+              <div className="mt-6">
+                <TraitScoresDisplay scores={dbTraitScores ?? profileData.traitScores} showAll />
+              </div>
+            )}
           </div>
         </main>
       </div>
