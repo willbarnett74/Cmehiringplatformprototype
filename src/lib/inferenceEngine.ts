@@ -13,27 +13,22 @@
  *   communication_confidence, relational_intelligence, motivational_fit
  */
 
+import type { StatePattern } from './insightHelpers';
 import {
-  GapAnalysis,
-  StatePattern,
-  calculateGap,
-  generateGapCallout,
   generateDivergenceCallout,
   detectHiringState,
   detectTrendPattern,
-  correlation,
   standardDeviation,
   groupBy,
 } from './insightHelpers';
 
-import {
+import type {
   HiredCandidate,
   EmployerWeights,
   TimeSeriesDataPoint,
   CorrelationData,
-  calculateAverageTraitScores,
-  TRAIT_DIMENSIONS,
 } from './insightQueries';
+import { calculateAverageTraitScores } from './insightQueries';
 
 // ─── Type Definitions ───
 
@@ -143,7 +138,7 @@ export function detectDimensionSignals(
 function generateDimensionCallout(
   dimension: string,
   topAvg: number,
-  midAvg: number,
+  _midAvg: number,
   lowAvg: number,
   strength: string
 ): string {

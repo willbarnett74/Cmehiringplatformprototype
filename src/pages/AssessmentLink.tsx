@@ -18,17 +18,17 @@
 
 import { useState, useEffect } from 'react';
 import { CheckCircle, ArrowRight, Lock, Users, BarChart, Compass } from 'lucide-react';
-import { useUserProfile } from '../../contexts/UserProfileContext';
-import { ProfileBuilderLayout } from '../../components/applicant-pages/ProfileBuilderLayout';
-import { IntakeSection1 } from '../../components/applicant-pages/intake/IntakeSection1';
-import { IntakeSection2 } from '../../components/applicant-pages/intake/IntakeSection2';
-import { IntakeSection3 } from '../../components/applicant-pages/intake/IntakeSection3';
-import { IntakeSection4 } from '../../components/applicant-pages/intake/IntakeSection4';
-import { IntakeSection5 } from '../../components/applicant-pages/intake/IntakeSection5';
-import { IntakeSection6 } from '../../components/applicant-pages/intake/IntakeSection6';
-import { IntakeSection7 } from '../../components/applicant-pages/intake/IntakeSection7';
-import { IntakeSection8 } from '../../components/applicant-pages/intake/IntakeSection8';
-import { computeIntakeScores } from '../../utils/intakeScoring';
+import { useUserProfile } from '../contexts/UserProfileContext';
+import { ProfileBuilderLayout } from '../components/applicant-pages/ProfileBuilderLayout';
+import { IntakeSection1 } from '../components/applicant-pages/intake/IntakeSection1';
+import { IntakeSection2 } from '../components/applicant-pages/intake/IntakeSection2';
+import { IntakeSection3 } from '../components/applicant-pages/intake/IntakeSection3';
+import { IntakeSection4 } from '../components/applicant-pages/intake/IntakeSection4';
+import { IntakeSection5 } from '../components/applicant-pages/intake/IntakeSection5';
+import { IntakeSection6 } from '../components/applicant-pages/intake/IntakeSection6';
+import { IntakeSection7 } from '../components/applicant-pages/intake/IntakeSection7';
+import { IntakeSection8 } from '../components/applicant-pages/intake/IntakeSection8';
+import { computeIntakeScores } from '../utils/intakeScoring';
 import { mockEdgeFunctionTrigger } from '../lib/matchScoring';
 
 interface AssessmentLinkProps {
@@ -36,7 +36,7 @@ interface AssessmentLinkProps {
   token?: string;
 }
 
-export function AssessmentLink({ token = 'demo_token_abc123' }: AssessmentLinkProps) {
+export function AssessmentLink({ token: _token = 'demo_token_abc123' }: AssessmentLinkProps) {
   const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, resetProfile } = useUserProfile();
   const [step, setStep] = useState<'landing' | 'intake' | 'complete'>('landing');
   const [activeStep, setActiveStep] = useState<number>(1);

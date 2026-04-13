@@ -14,9 +14,10 @@
  */
 
 import { useState } from 'react';
-import { CandidateProfile } from '../../types/employer';
-import { EmployerWeights, TraitScores, TRAIT_DIMENSIONS } from '../../../lib/insightQueries';
-import { PanelIntroBlock, DataState, DIMENSION_LABELS } from './shared';
+import type { CandidateProfile } from '../../types/employer';
+import type { EmployerWeights, TraitScores } from '../../../lib/insightQueries';
+import { PanelIntroBlock, DIMENSION_LABELS } from './shared';
+import type { DataState } from './shared';
 
 interface PipelineSectionProps {
   candidates: CandidateProfile[];
@@ -135,7 +136,7 @@ const mockPipelineCandidates: {
 type SortField = 'match_score' | 'date_added' | 'stage';
 type StageFilter = 'all' | 'Interviewing' | 'Contacted' | 'Discovered';
 
-export function PipelineSection({ candidates, employerWeights, dataState }: PipelineSectionProps) {
+export function PipelineSection({ candidates: _candidates, employerWeights, dataState: _dataState }: PipelineSectionProps) {
   const [sortField, setSortField] = useState<SortField>('match_score');
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
 

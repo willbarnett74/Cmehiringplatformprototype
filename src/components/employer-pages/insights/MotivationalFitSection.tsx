@@ -11,8 +11,9 @@
 
 import { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { MotivationalFitHire } from '../../../lib/insightQueries';
-import { PanelIntroBlock, StateBanner, GateScreen, Callout, DataState } from './shared';
+import type { MotivationalFitHire } from '../../../lib/insightQueries';
+import { PanelIntroBlock, StateBanner, GateScreen, Callout } from './shared';
+import type { DataState } from './shared';
 
 interface MotivationalFitSectionProps {
   motivationalFitData: MotivationalFitHire[];

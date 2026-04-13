@@ -1,4 +1,4 @@
-import { DimensionScores } from '../../utils/intakeScoring';
+import type { DimensionScores } from '../../utils/intakeScoring';
 import { Brain, Target, Zap, MessageSquare, Users, Trophy, TrendingUp, Star, Compass } from 'lucide-react';
 
 interface TraitScoresDisplayProps {

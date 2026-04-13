@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
-import { DimensionScores } from '../utils/intakeScoring';
+import { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
+import type { DimensionScores } from '../utils/intakeScoring';
 
 // Intake response structure for all 8 sections
 export interface IntakeData {
@@ -16,12 +17,25 @@ export interface IntakeData {
 }
 
 // User profile data mapped to candidate_profiles table
-interface UserProfileData {
+export interface UserProfileData {
   // Intake Flow Completion Status
   intakeData: IntakeData;
   
   // 9-Dimension Trait Scores (from Sections 2-6)
   trait_scores: DimensionScores | null;
+
+  cognitive_score?: number;
+  work_style_selection?: string;
+  adaptability_tag?: string;
+  decision_style?: string;
+  communication_style?: string;
+  total_experience?: number | null;
+  isComplete?: boolean;
+  is_transitioning?: boolean;
+  open_to_change?: boolean;
+  ready_to_step_up?: boolean;
+  recently_retrained?: boolean;
+  motivation_tags?: string[];
   
   // Section 7 - Career Direction Preferences
   career_preferences: {

@@ -189,8 +189,8 @@ export function getTraitHealthColor(health: 'high' | 'medium' | 'low'): string {
  * MOCK: Simulates the Supabase Edge Function that triggers when intake_status = 'complete'
  */
 export async function mockEdgeFunctionTrigger(
-  candidateId: number,
-  employerId: number
+  _candidateId: number,
+  _employerId: number
 ): Promise<{ success: boolean; matchScore: number; message: string }> {
   try {
     const mockCandidateScores: CandidateDimensionScores = {
@@ -213,7 +213,7 @@ export async function mockEdgeFunctionTrigger(
 
     const result = computeMatchScore(mockCandidateScores, mockEmployerWeights);
 
-    console.log(`[Edge Function Mock] Computed match score for candidate ${candidateId}:`, result.matchScore);
+    console.log(`[Edge Function Mock] Computed match score for candidate ${_candidateId}:`, result.matchScore);
 
     return {
       success: true,

@@ -1,5 +1,5 @@
 // Design System Components - Reusable UI components (Light Theme)
-import { LucideIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Edit3, ExternalLink } from 'lucide-react';
 
 // Badge/Pill component
@@ -312,9 +312,10 @@ interface DSTagButtonProps {
   selected?: boolean;
   color?: 'purple' | 'teal' | 'blue';
   onClick?: () => void;
+  disabled?: boolean;
 }
 
-export function DSTagButton({ children, selected = false, color = 'purple', onClick }: DSTagButtonProps) {
+export function DSTagButton({ children, selected = false, color = 'purple', onClick, disabled }: DSTagButtonProps) {
   const colors = {
     purple: 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100',
     teal: 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100',
@@ -325,7 +326,9 @@ export function DSTagButton({ children, selected = false, color = 'purple', onCl
 
   return (
     <button 
+      type="button"
       onClick={onClick}
+      disabled={disabled}
       className={`px-4 py-2 border rounded-lg transition-colors font-medium ${selected ? colors[color] : defaultStyles}`}
     >
       {children}
@@ -397,7 +400,7 @@ interface DSElevatedCardProps {
   className?: string;
 }
 
-export function DSElevatedCard({ children, glowColor = 'blue', className = '' }: DSElevatedCardProps) {
+export function DSElevatedCard({ children, glowColor: _glowColor = 'blue', className = '' }: DSElevatedCardProps) {
   return (
     <div className={`bg-white border border-black/[0.08] shadow-sm p-8 ${className}`} style={{ borderRadius: '20px' }}>
       {children}

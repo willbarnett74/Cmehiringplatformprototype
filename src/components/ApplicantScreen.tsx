@@ -10,7 +10,7 @@ import { IntakeSection8 } from './applicant-pages/intake/IntakeSection8';
 import { ProfileBuilderLayout } from './applicant-pages/ProfileBuilderLayout';
 import { OpportunitiesPage } from './applicant-pages/OpportunitiesPage';
 import { TraitScoresDisplay } from './applicant-pages/TraitScoresDisplay';
-import { LayoutDashboard, User, Settings, Compass, ArrowRight, Layers, LogOut } from 'lucide-react';
+import { LayoutDashboard, User, Settings, Compass, Layers, LogOut } from 'lucide-react';
 import { NotificationBell } from './shared/NotificationBell';
 import { DashboardContent } from './applicant-pages/DashboardContent';
 import { EditBasicInfoPage } from './applicant-pages/EditBasicInfoPage';
@@ -42,7 +42,6 @@ export function ApplicantScreen() {
   const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete } = useUserProfile();
   const [activeSection, setActiveSection] = useState<'dashboard' | 'profileBuilder' | 'companies' | 'settings' | 'intake'>('dashboard');
   const [activeStep, setActiveStep] = useState<number>(1);
-  const [cognitiveScore, setCognitiveScore] = useState<number | null>(null);
   const [applicantProfileId, setApplicantProfileId] = useState<string | null>(null);
   const [dbTraitScores, setDbTraitScores] = useState<import('../utils/intakeScoring').DimensionScores | null>(null);
 
@@ -93,18 +92,6 @@ export function ApplicantScreen() {
     7: getStepStatus(7),
     8: getStepStatus(8),
   };
-
-  // Profile Builder Steps
-  const profileBuilderSteps = [
-    { id: 1, label: 'Section 1 – Background Narrative', component: 'IntakeSection1', time: '5–7 min' },
-    { id: 2, label: 'Section 2 – How You Work', component: 'IntakeSection2', time: '7–9 min' },
-    { id: 3, label: 'Section 3 – How You Think', component: 'IntakeSection3', time: '10–12 min' },
-    { id: 4, label: 'Section 4 – How You Handle Difficulty', component: 'IntakeSection4', time: '8–10 min' },
-    { id: 5, label: 'Section 5 – How You Relate to Others', component: 'IntakeSection5', time: '8–10 min' },
-    { id: 6, label: 'Section 6 – What Drives You', component: 'IntakeSection6', time: '8–10 min' },
-    { id: 7, label: 'Section 7 – Career Direction', component: 'IntakeSection7', time: '4–5 min' },
-    { id: 8, label: 'Section 8 – Your Profile', component: 'IntakeSection8', time: '3–5 min' },
-  ];
 
   // Handle navigation to Profile Builder
   const handleProfileBuilderClick = (stepId?: number) => {
@@ -535,9 +522,9 @@ export function ApplicantScreen() {
             </div>
 
             <DashboardContent onProfileBuilderClick={handleProfileBuilderClick} />
-            {(dbTraitScores || profileData.traitScores) && (
+            {(dbTraitScores || profileData.trait_scores) && (
               <div className="mt-6">
-                <TraitScoresDisplay scores={dbTraitScores ?? profileData.traitScores} showAll />
+                <TraitScoresDisplay scores={dbTraitScores ?? profileData.trait_scores} showAll />
               </div>
             )}
           </div>

@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "ESNext", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "paths": {
+      "sonner": ["./node_modules/sonner/dist/index.d.ts"],
+      "sonner@*": ["./node_modules/sonner/dist/index.d.ts"],
+      "lucide-react": ["./node_modules/lucide-react/dist/lucide-react.d.ts"],
+      "lucide-react@*": ["./node_modules/lucide-react/dist/lucide-react.d.ts"],
+      "@radix-ui/*": ["./node_modules/@radix-ui/*/dist/index.d.ts"],
+      "class-variance-authority": ["./node_modules/class-variance-authority/dist/index.d.ts"],
+      "class-variance-authority@*": ["./node_modules/class-variance-authority/dist/index.d.ts"]
+    },
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["src"]
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, ArrowRight, Target, Brain, MapPin, Briefcase, GraduationCap, Clock, Award, ShieldCheck, Lightbulb, CheckCircle2, AlertCircle, BarChart3, Building2, Zap, MessageSquare, Users, TrendingUp, Flame, Eye } from 'lucide-react';
+import { User, ArrowRight, Target, Brain, MapPin, Briefcase, GraduationCap, Clock, Award, ShieldCheck, Lightbulb, CheckCircle2, AlertCircle, BarChart3, Building2, Zap, MessageSquare, Users, Flame, Eye } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { ensureApplicantProfile } from '../../lib/applicantPersistence';
 

@@ -5,7 +5,7 @@
  * All new functionality is in /src/components/employer-pages/InsightPage.tsx
  */
 
-import { InsightPage } from '../../src/components/employer-pages/InsightPage';
+import { InsightPage } from './InsightPage';
 
 export function InsightsAnalyticsPage() {
   return <InsightPage />;

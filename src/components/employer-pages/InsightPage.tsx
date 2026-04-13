@@ -19,9 +19,12 @@
 
 import { useState, useEffect } from 'react';
 import { AlertCircle, Download } from 'lucide-react';
-import { fetchInsightData, InsightData } from '../../lib/insightQueries';
-import { runInferenceEngine, InferenceResult } from '../../lib/inferenceEngine';
-import { getDataState, DataState } from './insights/shared';
+import { fetchInsightData } from '../../lib/insightQueries';
+import type { InsightData } from '../../lib/insightQueries';
+import { runInferenceEngine } from '../../lib/inferenceEngine';
+import type { InferenceResult } from '../../lib/inferenceEngine';
+import { getDataState } from './insights/shared';
+import type { DataState } from './insights/shared';
 import { HiringProfileSection } from './insights/HiringProfileSection';
 import { CorrelationsSection } from './insights/CorrelationsSection';
 import { PipelineSection } from './insights/PipelineSection';

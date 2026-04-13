@@ -81,7 +81,11 @@ export function IntakeSection5({ onComplete }: IntakeSection5Props) {
       { id: 'trust-c', text: 'Through a combination of both — trusted for being reliable and competent but also for genuinely caring about the people. The two can\'t be fully separated.', scores: { relational_intelligence: 4, learning_velocity: 3 } },
       { id: 'trust-d', text: 'Through honest, direct communication over time. Trust comes from people knowing exactly where they stand — prefers being consistently transparent over being strategically warm.', scores: { relational_intelligence: 3, communication_confidence: 5 } },
     ];
-    setQ4ShuffledOptions([...q4Options].sort(() => Math.random() - 0.5));
+    setQ4ShuffledOptions(
+      [...q4Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
 
     const q5Options = [
       { id: 'difficult-a', text: 'Focuses on delivering the work regardless of the friction. Keeps interactions professional and minimal, protects output, and doesn\'t invest significant energy in changing the dynamic — some working relationships are just transactional.', scores: { relational_intelligence: 1, ownership_follow_through: 5 } },
@@ -89,7 +93,11 @@ export function IntakeSection5({ onComplete }: IntakeSection5Props) {
       { id: 'difficult-c', text: 'Addresses it directly. Picks a neutral moment, names what has been noticed, and asks if there\'s something to work through — direct conversation is more effective than either ignoring it or over-analysing it.', scores: { relational_intelligence: 3, communication_confidence: 5, ownership_follow_through: 3 } },
       { id: 'difficult-d', text: 'Adjusts how they\'re engaging to reduce the friction. Thinks about what the other person responds well to and modifies approach — prefers finding a way to make the relationship functional over pushing through the difficulty unchanged.', scores: { relational_intelligence: 4, ownership_follow_through: 3 } },
     ];
-    setQ5ShuffledOptions([...q5Options].sort(() => Math.random() - 0.5));
+    setQ5ShuffledOptions(
+      [...q5Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
   }, []);
 
   const canProceed = q1Choice && q2Choice && q3Choice && q4Choice && q5Choice && q6IsValid && !isSubmitting;

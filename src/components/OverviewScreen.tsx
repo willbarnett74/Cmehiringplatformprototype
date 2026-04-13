@@ -1,5 +1,4 @@
-import { UserCheck, Lightbulb, Target, Zap, TrendingUp, Facebook, Twitter, Instagram, Youtube, ChevronRight, Users, User, Briefcase, X, Link2 } from 'lucide-react';
-import { DSBadge, DSElevatedCard, DSIconContainer, DSListItem, DSFeatureChip } from './ds/DSComponents';
+import { ChevronRight, User, Briefcase, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState } from 'react';
 

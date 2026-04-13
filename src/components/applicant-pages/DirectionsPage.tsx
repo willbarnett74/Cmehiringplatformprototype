@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Zap, Users, BarChart, Layout, Lightbulb, Sparkles, X } from 'lucide-react';
+import { Zap, Users, BarChart, Layout, Lightbulb, X } from 'lucide-react';
 import { DSSectionHeader, DSSurfaceCard, DSTagButton } from '../ds/DSComponents';
 
 export function DirectionsPage() {
@@ -167,7 +167,7 @@ export function DirectionsPage() {
                 <DSTagButton
                   key={problem}
                   selected={selectedProblems.includes(problem)}
-                  color={selectedProblems.includes(problem) ? 'blue' : 'default'}
+                  color="blue"
                   onClick={() => toggleProblem(problem)}
                 >
                   {problem}
@@ -265,7 +265,7 @@ export function DirectionsPage() {
                   <DSTagButton
                     key={industry}
                     selected={false}
-                    color="default"
+                    color="blue"
                     onClick={() => toggleIndustry(industry)}
                     disabled={selectedIndustries.length >= 5}
                   >
@@ -397,7 +397,7 @@ export function DirectionsPage() {
                   <DSTagButton
                     key={chip}
                     selected={selectedSuccessChips.includes(chip)}
-                    color={selectedSuccessChips.includes(chip) ? 'blue' : 'default'}
+                    color="blue"
                     onClick={() => toggleSuccessChip(chip)}
                   >
                     {chip}
@@ -448,7 +448,7 @@ export function DirectionsPage() {
                   <DSTagButton
                     key={environment}
                     selected={false}
-                    color="default"
+                    color="blue"
                     onClick={() => toggleEnvironment(environment)}
                   >
                     {environment}

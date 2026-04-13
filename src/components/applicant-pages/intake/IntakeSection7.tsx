@@ -33,7 +33,7 @@ interface IntakeSection7Props {
   initialData?: any;
 }
 
-export function IntakeSection7({ onComplete, initialData }: IntakeSection7Props) {
+export function IntakeSection7({ onComplete, initialData: _initialData }: IntakeSection7Props) {
   // S7Q1 - What you're looking for (multi-select, max 2)
   const [q1Selections, setQ1Selections] = useState<string[]>([]);
 

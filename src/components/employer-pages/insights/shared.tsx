@@ -5,7 +5,7 @@
  * All styled to match the CMe Insights design spec.
  */
 
-import { AlertCircle, CheckCircle, AlertTriangle, Info, TrendingUp } from 'lucide-react';
+import { AlertCircle, CheckCircle, AlertTriangle, Info } from 'lucide-react';
 
 // ─── Data State Types ───
 

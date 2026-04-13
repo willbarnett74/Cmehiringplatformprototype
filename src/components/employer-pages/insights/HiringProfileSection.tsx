@@ -11,9 +11,11 @@
 
 import { useState } from 'react';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
-import { EmployerWeights, HiredCandidate, calculateAverageTraitScores } from '../../../lib/insightQueries';
-import { WeightingDivergence } from '../../../lib/inferenceEngine';
-import { PanelIntroBlock, Callout, DataState, DIMENSION_LABELS } from './shared';
+import { calculateAverageTraitScores } from '../../../lib/insightQueries';
+import type { EmployerWeights, HiredCandidate } from '../../../lib/insightQueries';
+import type { WeightingDivergence } from '../../../lib/inferenceEngine';
+import { PanelIntroBlock, Callout, DIMENSION_LABELS } from './shared';
+import type { DataState } from './shared';
 
 interface HiringProfileSectionProps {
   employerWeights: EmployerWeights;
@@ -36,7 +38,7 @@ export function HiringProfileSection({
   hiredCandidates,
   divergences,
   dataState: initialDataState,
-  snapshotCount,
+  snapshotCount: _snapshotCount,
 }: HiringProfileSectionProps) {
   const [previewState, setPreviewState] = useState<DataState>(initialDataState);
   const dataState = previewState;

@@ -12,9 +12,10 @@
  */
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { CorrelationData } from '../../../lib/insightQueries';
-import { DimensionSignal } from '../../../lib/inferenceEngine';
-import { PanelIntroBlock, StateBanner, GateScreen, Callout, DataState, DIMENSION_ABBREVS, ABBREV_KEY } from './shared';
+import type { CorrelationData } from '../../../lib/insightQueries';
+import type { DimensionSignal } from '../../../lib/inferenceEngine';
+import { PanelIntroBlock, StateBanner, GateScreen, Callout, DIMENSION_ABBREVS, ABBREV_KEY } from './shared';
+import type { DataState } from './shared';
 
 interface CorrelationsSectionProps {
   correlationData: CorrelationData[];
@@ -25,7 +26,7 @@ interface CorrelationsSectionProps {
 
 export function CorrelationsSection({
   correlationData,
-  dimensionSignals,
+  dimensionSignals: _dimensionSignals,
   dataState,
   snapshotCount,
 }: CorrelationsSectionProps) {

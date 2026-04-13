@@ -1,4 +1,4 @@
-import { Target, Plus, TrendingUp, Award, Calendar, CheckCircle2 } from 'lucide-react';
+import { Target, TrendingUp, Award, Calendar, CheckCircle2 } from 'lucide-react';
 import { DSSectionHeader, DSSurfaceCard } from '../ds/DSComponents';
 import { CognitiveAgilityAssessment } from '../CognitiveAgilityAssessment';
 import { useUserProfile } from '../../contexts/UserProfileContext';
@@ -84,8 +84,8 @@ function AssessmentHistoryCard({ assessment }: { assessment: AssessmentHistoryIt
   );
 }
 
-export function SkillsTestingPage({ cognitiveScore, onCognitiveScoreChange }: SkillsTestingPageProps = {}) {
-  const { profileData, updateProfileData } = useUserProfile();
+export function SkillsTestingPage({ cognitiveScore: _cognitiveScore, onCognitiveScoreChange }: SkillsTestingPageProps = {}) {
+  const { profileData: _profileData, updateProfileData } = useUserProfile();
   
   const handleCognitiveScoreUpdate = (score: number) => {
     // Update both local prop and global context

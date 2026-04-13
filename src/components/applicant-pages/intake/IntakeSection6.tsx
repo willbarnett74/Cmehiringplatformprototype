@@ -59,7 +59,11 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
       { id: 'sat-c', text: 'From both equally. Needs to know the work was good and that it mattered to someone — quality without impact feels hollow and impact without quality feels accidental.', scores: { motivational_fit_mastery: 3, motivational_fit_impact: 4 } },
       { id: 'sat-d', text: 'From having figured something out that was genuinely hard. The satisfaction is in the problem-solving — the effect on others is important but it\'s the challenge itself that is most energising.', scores: { motivational_fit_mastery: 5, motivational_fit_impact: 1, learning_velocity: 5 } },
     ];
-    setQ1ShuffledOptions([...q1Options].sort(() => Math.random() - 0.5));
+    setQ1ShuffledOptions(
+      [...q1Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
 
     const q2Options = [
       { id: 'keep-a', text: 'Knowing that people they respect can see the effort and the progress. When external recognition is present it significantly helps push through difficult patches — it confirms the effort is worth it.', scores: { motivational_fit_recognition: 5, motivational_fit_mastery: 1 } },
@@ -67,7 +71,11 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
       { id: 'keep-c', text: 'The knowledge that it matters to someone. Connecting the difficult work to a real outcome for a real person or team gives enough purpose to push through even when it\'s unrewarding.', scores: { motivational_fit_impact: 5, motivational_fit_mastery: 2, motivational_fit_recognition: 2 } },
       { id: 'keep-d', text: 'A mix of internal drive and external signal. Has own standards but also finds that recognition from the right people at the right moments meaningfully sustains motivation through difficult patches.', scores: { motivational_fit_mastery: 3, motivational_fit_recognition: 4 } },
     ];
-    setQ2ShuffledOptions([...q2Options].sort(() => Math.random() - 0.5));
+    setQ2ShuffledOptions(
+      [...q2Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
 
     const q4Options = [
       { id: 'rel-a', text: 'Genuinely motivated by external outcomes — career progression, financial reward, recognition, status. These aren\'t superficial drivers — they\'re real and meaningful motivators that shape how hard the work is pursued.', scores: { motivational_fit_recognition: 5, motivational_fit_mastery: 1 } },
@@ -75,7 +83,11 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
       { id: 'rel-c', text: 'The work itself is the primary thing. Most engaged when learning, solving something genuinely hard, or producing something to be proud of — external recognition matters but it doesn\'t drive them.', scores: { motivational_fit_mastery: 5, motivational_fit_recognition: 1 } },
       { id: 'rel-d', text: 'Motivated by impact more than recognition or craft. What matters most is whether the work matters — whether it\'s changing something real for the people or outcomes being worked toward.', scores: { motivational_fit_impact: 5, motivational_fit_mastery: 2, motivational_fit_recognition: 1 } },
     ];
-    setQ4ShuffledOptions([...q4Options].sort(() => Math.random() - 0.5));
+    setQ4ShuffledOptions(
+      [...q4Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
 
     const q5Options = [
       { id: 'worth-a', text: 'Being part of something that matters beyond their own contribution. Work is most meaningful when contributing to a shared goal or a larger purpose — individual autonomy matters less than whether the collective outcome is significant.', scores: { motivational_fit_impact: 5, motivational_fit_autonomy: 1 } },
@@ -83,7 +95,11 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
       { id: 'worth-c', text: 'A combination of meaningful work and genuine independence. Contributing to something that matters while having the freedom to pursue it in their own way — either without the other feels incomplete.', scores: { motivational_fit_impact: 3, motivational_fit_autonomy: 4 } },
       { id: 'worth-d', text: 'Knowing that the people they\'re working with and for value what they bring. The relationships and the recognition within the work matter as much as the independence or the collective outcome.', scores: { motivational_fit_recognition: 4, motivational_fit_impact: 2, motivational_fit_autonomy: 2 } },
     ];
-    setQ5ShuffledOptions([...q5Options].sort(() => Math.random() - 0.5));
+    setQ5ShuffledOptions(
+      [...q5Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
   }, []);
 
   const handleRankChange = (orderedIds: string[], scores: Record<string, number>) => {

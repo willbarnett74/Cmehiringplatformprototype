@@ -19,9 +19,10 @@
 
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { InferenceResult } from '../../../lib/inferenceEngine';
-import { HiredCandidate } from '../../../lib/insightQueries';
-import { PanelIntroBlock, GateScreen, DataState, DIMENSION_LABELS } from './shared';
+import type { InferenceResult } from '../../../lib/inferenceEngine';
+import type { HiredCandidate } from '../../../lib/insightQueries';
+import { PanelIntroBlock, GateScreen, DIMENSION_LABELS } from './shared';
+import type { DataState } from './shared';
 
 interface InferenceSectionProps {
   inference: InferenceResult;

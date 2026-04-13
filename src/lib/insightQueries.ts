@@ -12,7 +12,7 @@
  *   mastery, impact, recognition, autonomy
  */
 
-import { CandidateProfile } from '../../components/types/employer';
+import type { CandidateProfile } from '../components/types/employer';
 
 // ─── Trait Dimension Keys ───
 
@@ -622,7 +622,7 @@ function mockMotivationalFitData(): MotivationalFitHire[] {
 /**
  * Fetches all insight data in parallel using Promise.all
  */
-export async function fetchInsightData(employerId: number): Promise<InsightData> {
+export async function fetchInsightData(_employerId: number): Promise<InsightData> {
   try {
     const [employerWeights, hiredCandidates, timeSeriesData] = await Promise.all([
       Promise.resolve(mockEmployerWeights()),

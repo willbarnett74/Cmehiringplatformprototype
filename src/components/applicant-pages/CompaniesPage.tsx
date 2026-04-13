@@ -1,4 +1,4 @@
-import { Building2, Briefcase, MapPin, MessageSquare, Eye, Star, Calendar, ArrowUpRight, Clock, ChevronDown, TrendingUp, Phone, Mail, Sparkles, X, Send, Download, Check } from 'lucide-react';
+import { Building2, MapPin, MessageSquare, Eye, Star, Calendar, ArrowUpRight, Clock, ChevronDown, Phone, Mail, Sparkles, X, Send, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface Company {
@@ -489,19 +489,19 @@ export function CompaniesPage() {
                 className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-300 ${getNextStepStyle(company.nextStep)}`}
                 style={{ borderRadius: '10px' }}
                 onClick={() => openModal(
-                  company.nextStep.includes('Interview') ? 'interview' :
-                  company.nextStep.includes('Follow') ? 'followup' :
-                  company.nextStep.includes('Message') ? 'message' :
-                  company.nextStep.includes('Apply') ? 'roledetails' :
-                  company.nextStep.includes('Check') ? 'roledetails' : null,
+                  company.nextStep?.includes('Interview') ? 'interview' :
+                  company.nextStep?.includes('Follow') ? 'followup' :
+                  company.nextStep?.includes('Message') ? 'message' :
+                  company.nextStep?.includes('Apply') ? 'roledetails' :
+                  company.nextStep?.includes('Check') ? 'roledetails' : null,
                   company
                 )}
               >
-                {company.nextStep.includes('Interview') && <Calendar className="w-4 h-4" strokeWidth={2} />}
-                {company.nextStep.includes('Follow') && <MessageSquare className="w-4 h-4" strokeWidth={2} />}
-                {company.nextStep.includes('Message') && <Mail className="w-4 h-4" strokeWidth={2} />}
-                {company.nextStep.includes('Apply') && <ArrowUpRight className="w-4 h-4" strokeWidth={2} />}
-                {company.nextStep.includes('Check') && <Eye className="w-4 h-4" strokeWidth={2} />}
+                {company.nextStep?.includes('Interview') && <Calendar className="w-4 h-4" strokeWidth={2} />}
+                {company.nextStep?.includes('Follow') && <MessageSquare className="w-4 h-4" strokeWidth={2} />}
+                {company.nextStep?.includes('Message') && <Mail className="w-4 h-4" strokeWidth={2} />}
+                {company.nextStep?.includes('Apply') && <ArrowUpRight className="w-4 h-4" strokeWidth={2} />}
+                {company.nextStep?.includes('Check') && <Eye className="w-4 h-4" strokeWidth={2} />}
                 <span>{company.nextStep}</span>
               </button>
             )}

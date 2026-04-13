@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Bell, User, Lock, CreditCard, Building2, Users, Upload, Sliders } from 'lucide-react';
+import { Bell, User, Lock, CreditCard, Building2, Users, Upload, Sliders } from 'lucide-react';
 
 export function SettingsPage() {
   

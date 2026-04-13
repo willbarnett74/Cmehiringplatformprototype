@@ -69,7 +69,7 @@ export function TraitProfilePage() {
   const { profileData } = useUserProfile();
   const [published, setPublished] = useState(false);
 
-  const traitScores = profileData?.traitScores ?? null;
+  const traitScores = profileData?.trait_scores ?? null;
   const intakeData = profileData?.intakeData;
   const isComplete = profileData?.isComplete ?? false;
 

@@ -11,9 +11,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Bell, CheckCheck } from 'lucide-react';
+import type { Notification, NotificationType } from '../../lib/notificationService';
 import {
-  Notification,
-  NotificationType,
   getNotifications,
   getUnreadCount,
   markAsRead,
