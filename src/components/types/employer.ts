@@ -26,6 +26,21 @@ export interface CandidateProfile {
     collaboration?: number;
     ownership?: number;
   };
+  // Spec 5: Spec 1 dimension scores used by the match scoring engine
+  dimensionScores?: {
+    learning_velocity: number;
+    ownership_follow_through: number;
+    resilience: number;
+    communication_confidence: number;
+    relational_intelligence: number;
+    motivational_fit: number;
+    motivational_fit_mastery: number;
+    motivational_fit_impact: number;
+    motivational_fit_recognition: number;
+    motivational_fit_autonomy: number;
+  };
+  // ISO timestamp of last stage change — used to compute days in current stage
+  stageUpdatedAt?: string;
 }
 
 // Backward-compatible alias — existing components reference `Candidate`
