@@ -580,7 +580,7 @@ export function ApplicantScreen() {
                   <div className="w-8 h-8 rounded-full bg-[#7dbbff] flex items-center justify-center">
                     <User className="w-4 h-4 text-white" strokeWidth={2} />
                   </div>
-                  <span className="text-sm text-[#111827] font-medium">Alex Rivera</span>
+                  <span className="text-sm text-[#111827] font-medium">{userName || 'Account'}</span>
                 </div>
 
                 <NotificationBell
