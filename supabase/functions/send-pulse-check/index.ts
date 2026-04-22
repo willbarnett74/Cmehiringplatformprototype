@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
 
     // ── 1. Fetch applicant → profile (email / name live on profiles) ─────────
     const applicantRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/applicant_profiles?id=eq.${candidateId}&select=user_id`,
+      `${SUPABASE_URL}/rest/v1/candidate_profiles?id=eq.${candidateId}&select=user_id`,
       {
         headers: {
           apikey: SUPABASE_SERVICE_ROLE_KEY,

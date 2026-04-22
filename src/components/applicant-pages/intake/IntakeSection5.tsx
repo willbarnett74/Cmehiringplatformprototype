@@ -1,23 +1,5 @@
 import { useState, useEffect } from 'react';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-const S5Q6_SYSTEM_PROMPT = `You are scoring a candidate's written response about navigating a difficult working relationship.
-Score the response on FOUR dimensions, each from 1 (very low) to 5 (very high).
-Return ONLY a valid JSON object with exactly these keys:
-{
-  "empathy_perspective_taking": <1-5>,
-  "outcome_orientation": <1-5>,
-  "self_awareness": <1-5>,
-  "communication_approach": <1-5>
-}
-Rubric:
-- empathy_perspective_taking: Does the candidate show curiosity about why the other person behaved as they did?
-- outcome_orientation: Does the candidate focus on resolving the situation or just describing how difficult it was?
-- self_awareness: Does the candidate acknowledge their own role in the dynamic?
-- communication_approach: Does the candidate describe direct intentional communication or avoidance?`;
-
 interface IntakeSection5Props {
   onComplete: (data: Record<string, unknown>) => void;
   initialData?: unknown;
@@ -41,14 +23,8 @@ export function IntakeSection5({ onComplete }: IntakeSection5Props) {
   const [q5Choice, setQ5Choice] = useState<string | null>(null);
   const [q5ShuffledOptions, setQ5ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q6Narrative, setQ6Narrative] = useState('');
-  const q6WordCount = q6Narrative.trim().split(/\s+/).filter(w => w.length > 0).length;
-  const q6MinWords = 50;
-  const q6MaxWords = 100;
-  const q6IsValid = q6WordCount >= q6MinWords && q6WordCount <= q6MaxWords;
-  const q6IsOverMax = q6WordCount > q6MaxWords;
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [q6Choice, setQ6Choice] = useState<string | null>(null);
+  const [q6ShuffledOptions, setQ6ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
   useEffect(() => {
     const q1Options = [
@@ -98,37 +74,27 @@ export function IntakeSection5({ onComplete }: IntakeSection5Props) {
         .sort(() => Math.random() - 0.5)
         .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
     );
+
+    const q6Options = [
+      { id: 'reflect-a', text: 'Recognises their own approach probably contributed to the difficulty in some way and can name specifically how — genuinely curious about what they could have done differently, not just in theory.', scores: { relational_intelligence: 5, communication_confidence: 4, ownership_follow_through: 4 } },
+      { id: 'reflect-b', text: 'Sees it primarily as the other person\'s issue to manage — some people are just difficult, and the main task was getting the work done despite that.', scores: { relational_intelligence: 1, communication_confidence: 2, ownership_follow_through: 3 } },
+      { id: 'reflect-c', text: 'Can see both sides but is honest that they wouldn\'t change much about how they handled it — acted reasonably and the other person made it unnecessarily hard.', scores: { relational_intelligence: 3, communication_confidence: 3, ownership_follow_through: 3 } },
+      { id: 'reflect-d', text: 'Wishes they\'d raised the tension directly sooner rather than navigating around it — the indirect approach probably prolonged something a direct conversation would have resolved faster.', scores: { relational_intelligence: 4, communication_confidence: 5, ownership_follow_through: 4 } },
+    ];
+    setQ6ShuffledOptions([...q6Options].sort(() => Math.random() - 0.5));
   }, []);
 
-  const canProceed = q1Choice && q2Choice && q3Choice && q4Choice && q5Choice && q6IsValid && !isSubmitting;
+  const canProceed = q1Choice && q2Choice && q3Choice && q4Choice && q5Choice && q6Choice;
 
-  const handleNext = async () => {
+  const handleNext = () => {
     if (!canProceed) return;
-    setIsSubmitting(true);
 
     const q1Option = q1ShuffledOptions.find(o => o.id === q1Choice)!;
     const q2Option = q2ShuffledOptions.find(o => o.id === q2Choice)!;
     const q3Option = q3ShuffledOptions.find(o => o.id === q3Choice)!;
     const q4Option = q4ShuffledOptions.find(o => o.id === q4Choice)!;
     const q5Option = q5ShuffledOptions.find(o => o.id === q5Choice)!;
-
-    let llmScores: Record<string, number> | undefined;
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/score-behavioural-task`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ narrative: q6Narrative, system_prompt: S5Q6_SYSTEM_PROMPT }),
-      });
-      if (res.ok) {
-        llmScores = await res.json();
-      }
-    } catch {
-      // Non-blocking: proceed without LLM scores
-    }
+    const q6Option = q6ShuffledOptions.find(o => o.id === q6Choice)!;
 
     onComplete({
       section: 5,
@@ -138,11 +104,9 @@ export function IntakeSection5({ onComplete }: IntakeSection5Props) {
         S5Q3: { question_key: 'S5Q3', option_id: q3Choice, scores: q3Option.scores },
         S5Q4: { question_key: 'S5Q4', option_id: q4Choice, scores: q4Option.scores },
         S5Q5: { question_key: 'S5Q5', option_id: q5Choice, scores: q5Option.scores },
-        S5Q6: { question_key: 'S5Q6', narrative: q6Narrative, word_count: q6WordCount, llm_scores: llmScores },
+        S5Q6: { question_key: 'S5Q6', option_id: q6Choice, scores: q6Option.scores },
       },
     });
-
-    setIsSubmitting(false);
   };
 
   return (
@@ -263,60 +227,19 @@ export function IntakeSection5({ onComplete }: IntakeSection5Props) {
         </div>
       </div>
 
-      {/* S5Q6 — LLM scored */}
+      {/* S5Q6 */}
       <div className="bg-white border border-black/[0.08] p-8 mb-8" style={{ borderRadius: '20px' }}>
-        <h3 className="text-base text-[#111827] font-medium mb-4">
-          Reflective narrative <span className="text-[#EF4444]">*</span>
+        <h3 className="text-base text-[#111827] font-medium mb-6">
+          Thinking back on a working relationship you found genuinely difficult — which most accurately describes how you reflected on your own role in it? <span className="text-[#EF4444]">*</span>
         </h3>
-        <div className="space-y-3 mb-4">
-          <div className="bg-[#F9FAFB] border border-black/[0.06] p-4" style={{ borderRadius: '10px' }}>
-            <div className="text-xs font-semibold text-[#7DBBFF] mb-2">EXPERIENCED PROFESSIONAL</div>
-            <p className="text-sm text-[#111827] leading-relaxed">
-              Describe a situation where you had to work with someone you found genuinely difficult — a colleague, a client, a manager. What made it difficult, what did you do, and how did it resolve?
-            </p>
-          </div>
-          <div className="bg-[#F9FAFB] border border-black/[0.06] p-4" style={{ borderRadius: '10px' }}>
-            <div className="text-xs font-semibold text-[#7DBBFF] mb-2">EARLY CAREER</div>
-            <p className="text-sm text-[#111827] leading-relaxed">
-              Describe a situation where you had to navigate a relationship that felt difficult or uncomfortable. What made it hard and what did you do?
-            </p>
-          </div>
-        </div>
-        <details className="mb-4 bg-[#F0F9FF] border border-[#7DBBFF]/20 p-3 text-xs text-[#6B7280]" style={{ borderRadius: '8px' }}>
-          <summary className="font-medium cursor-pointer select-none">How this response is scored (LLM rubric)</summary>
-          <div className="mt-3 space-y-2 leading-relaxed">
-            <p><span className="font-semibold text-[#111827]">Empathy / perspective-taking</span> → Relational Intelligence</p>
-            <p><span className="font-semibold text-[#111827]">Outcome orientation</span> → Ownership &amp; Follow-Through</p>
-            <p><span className="font-semibold text-[#111827]">Self-awareness</span> → Relational Intelligence</p>
-            <p><span className="font-semibold text-[#111827]">Communication approach</span> → Communication Confidence</p>
-          </div>
-        </details>
-        <textarea
-          value={q6Narrative}
-          onChange={e => setQ6Narrative(e.target.value)}
-          placeholder="Example: Worked with a senior stakeholder who dismissed my input in meetings..."
-          className="w-full h-56 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all"
-          style={{ borderRadius: '12px' }}
-        />
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-4">
-              <span className="text-[#6B7280]">Required: {q6MinWords}–{q6MaxWords} words</span>
-              {q6IsOverMax && <span className="text-[#EF4444] font-medium">Maximum exceeded</span>}
-            </div>
-            <div className={`font-medium tabular-nums ${q6WordCount < q6MinWords ? 'text-[#9CA3AF]' : q6IsValid ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-              {q6WordCount} / {q6MaxWords} words
-            </div>
-          </div>
-          <div className="w-full h-1.5 bg-[#F3F4F6] overflow-hidden" style={{ borderRadius: '4px' }}>
-            <div
-              className={`h-full transition-all duration-200 ${q6WordCount < q6MinWords ? 'bg-[#9CA3AF]' : q6IsValid ? 'bg-[#10B981]' : 'bg-[#EF4444]'}`}
-              style={{ width: `${Math.min((q6WordCount / q6MaxWords) * 100, 100)}%` }}
-            />
-          </div>
-          {q6WordCount < q6MinWords && (
-            <p className="text-xs text-[#6B7280]">{q6MinWords - q6WordCount} more {q6MinWords - q6WordCount === 1 ? 'word' : 'words'} required</p>
-          )}
+        <div className="space-y-3">
+          {q6ShuffledOptions.map(option => (
+            <button key={option.id} onClick={() => setQ6Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${q6Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              style={{ borderRadius: '12px' }}>
+              <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -329,7 +252,7 @@ export function IntakeSection5({ onComplete }: IntakeSection5Props) {
           }`}
           style={{ borderRadius: '12px' }}
         >
-          {isSubmitting ? 'Scoring response…' : 'Continue to Next Section →'}
+          Continue to Next Section →
         </button>
       </div>
     </div>

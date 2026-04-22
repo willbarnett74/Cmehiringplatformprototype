@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { DimensionScores } from '../utils/intakeScoring';
 
@@ -76,6 +76,8 @@ interface UserProfileContextType {
   updateTraitScores: (scores: DimensionScores) => void;
   markIntakeComplete: () => void;
   resetProfile: () => void;
+  /** Replace full profile (e.g. after loading from Supabase). */
+  replaceProfileData: (next: UserProfileData) => void;
 }
 
 const defaultIntakeData: IntakeData = {
@@ -147,6 +149,10 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
     setProfileData(defaultProfileData);
   };
 
+  const replaceProfileData = useCallback((next: UserProfileData) => {
+    setProfileData(next);
+  }, []);
+
   return (
     <UserProfileContext.Provider 
       value={{ 
@@ -155,7 +161,8 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
         updateIntakeSection,
         updateTraitScores,
         markIntakeComplete,
-        resetProfile 
+        resetProfile,
+        replaceProfileData,
       }}
     >
       {children}

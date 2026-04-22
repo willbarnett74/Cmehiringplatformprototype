@@ -29,7 +29,12 @@ import { IntakeSection6 } from '../components/applicant-pages/intake/IntakeSecti
 import { IntakeSection7 } from '../components/applicant-pages/intake/IntakeSection7';
 import { IntakeSection8 } from '../components/applicant-pages/intake/IntakeSection8';
 import { computeIntakeScores } from '../utils/intakeScoring';
-import { mockEdgeFunctionTrigger } from '../lib/matchScoring';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  ensureApplicantProfile,
+  upsertIntakeSectionResponses,
+  markApplicantIntakeComplete,
+} from '../lib/applicantPersistence';
 
 interface AssessmentLinkProps {
   // In production, pass token from URL params via React Router
@@ -42,6 +47,8 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
   const [activeStep, setActiveStep] = useState<number>(1);
   const [isLoading, setIsLoading] = useState(false);
   const [matchScore, setMatchScore] = useState<number | null>(null);
+  const [candidateProfileId, setCandidateProfileId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   
   // Mock: Decode token to get employer info
   // In production: validate server-side, fetch employer details
@@ -56,8 +63,44 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
     resetProfile();
   }, []);
 
-  const handleStartIntake = () => {
-    setStep('intake');
+  const handleStartIntake = async () => {
+    setSubmitError(null);
+
+    if (!isSupabaseConfigured || !supabase) {
+      setSubmitError('Supabase is not configured. Please contact support.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // 1. Anonymous auth — gives the candidate a real auth.uid() so RLS passes.
+      //    If they already have a session from a previous attempt, reuse it.
+      const { data: sessionData } = await supabase.auth.getSession();
+      let userId = sessionData.session?.user?.id ?? null;
+
+      if (!userId) {
+        const { data: anonData, error: anonErr } = await supabase.auth.signInAnonymously();
+        if (anonErr || !anonData.user) {
+          throw new Error(anonErr?.message ?? 'Anonymous sign-in failed');
+        }
+        userId = anonData.user.id;
+      }
+
+      // 2. Create (or find) the candidate_profiles row for this auth user.
+      const profileId = await ensureApplicantProfile(supabase, userId);
+      if (!profileId) {
+        throw new Error('Could not create candidate profile');
+      }
+
+      setCandidateProfileId(profileId);
+      setStep('intake');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[AssessmentLink] handleStartIntake failed:', message);
+      setSubmitError(`We couldn't start your assessment: ${message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ─── Profile Builder Logic (mirrors ApplicantScreen exactly) ───
@@ -90,12 +133,26 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
     }
   };
 
-  const handleNext = (data?: any) => {
-    console.log('[AssessmentLink] Section data:', data);
-
+  const handleNext = async (data?: any) => {
     // Save section data to context (identical to ApplicantScreen)
     if (data && data.section) {
       updateIntakeSection(data.section, data.responses);
+
+      // Persist this section's responses to Supabase as the user progresses.
+      if (candidateProfileId && isSupabaseConfigured && supabase) {
+        try {
+          await upsertIntakeSectionResponses(
+            supabase,
+            candidateProfileId,
+            data.section,
+            data,
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          console.error('[AssessmentLink] section persist failed:', message);
+          setSubmitError(`We couldn't save section ${data.section}: ${message}`);
+        }
+      }
 
       // Check if we've completed section 8 (final section)
       if (data.section === 8) {
@@ -111,8 +168,6 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
         const scores = computeIntakeScores(intakeResponses);
         updateTraitScores(scores);
         markIntakeComplete();
-
-        console.log('[AssessmentLink] Intake complete! Trait scores:', scores);
       }
     }
 
@@ -152,34 +207,24 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
 
   const handleIntakeComplete = async () => {
     setIsLoading(true);
-    
-    // MOCK: In production, this happens server-side via Supabase Edge Function
+    setSubmitError(null);
+
     try {
-      // 1. Create candidate_profiles record
-      console.log('[AssessmentLink] Creating candidate profile...', profileData);
-      
-      // 2. Create engagement record
-      const candidateId = Math.floor(Math.random() * 10000); // Mock ID
-      console.log('[AssessmentLink] Creating engagement record...', {
-        candidate_id: candidateId,
-        employer_id: employerInfo.employer_id,
-        stage: 'newSignals',
-      });
-      
-      // 3. Trigger Edge Function to compute match score
-      const result = await mockEdgeFunctionTrigger(candidateId, employerInfo.employer_id);
-      
-      if (result.success) {
-        setMatchScore(result.matchScore);
+      if (!candidateProfileId || !isSupabaseConfigured || !supabase) {
+        throw new Error('Missing candidate profile or Supabase configuration');
       }
-      
-      // 4. Transition to completion screen
-      setTimeout(() => {
-        setIsLoading(false);
-        setStep('complete');
-      }, 1500);
+
+      // Mark the candidate_profiles row as intake_status = 'complete'.
+      await markApplicantIntakeComplete(supabase, candidateProfileId);
+
+      // Match score wiring comes in a follow-up task; leave null for now.
+      setMatchScore(null);
+      setStep('complete');
     } catch (error) {
-      console.error('[AssessmentLink] Error completing intake:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[AssessmentLink] Error completing intake:', message);
+      setSubmitError(`We couldn't submit your assessment: ${message}`);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -279,14 +324,25 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
               </div>
             </div>
 
+            {/* Error Banner */}
+            {submitError && (
+              <div
+                className="mb-4 px-4 py-3 bg-[#FEE2E2] border border-[#FCA5A5] text-sm text-[#B91C1C]"
+                style={{ borderRadius: '10px' }}
+              >
+                {submitError}
+              </div>
+            )}
+
             {/* CTA Button */}
             <button
               onClick={handleStartIntake}
-              className="w-full bg-[#7DBBFF] text-white py-4 font-medium text-base flex items-center justify-center gap-2 hover:bg-[#5BA3E8] transition-colors"
+              disabled={isLoading}
+              className="w-full bg-[#7DBBFF] text-white py-4 font-medium text-base flex items-center justify-center gap-2 hover:bg-[#5BA3E8] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ borderRadius: '14px' }}
             >
-              Start Assessment
-              <ArrowRight className="w-5 h-5" strokeWidth={2} />
+              {isLoading ? 'Starting…' : 'Start Assessment'}
+              {!isLoading && <ArrowRight className="w-5 h-5" strokeWidth={2} />}
             </button>
 
             {/* Footer Note */}
@@ -332,6 +388,18 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
             </div>
           </div>
         </div>
+
+        {/* Error Banner */}
+        {submitError && (
+          <div className="max-w-7xl mx-auto px-6 pt-4">
+            <div
+              className="px-4 py-3 bg-[#FEE2E2] border border-[#FCA5A5] text-sm text-[#B91C1C]"
+              style={{ borderRadius: '10px' }}
+            >
+              {submitError}
+            </div>
+          </div>
+        )}
 
         {/* Profile Builder Layout — same as Applicant View */}
         <ProfileBuilderLayout

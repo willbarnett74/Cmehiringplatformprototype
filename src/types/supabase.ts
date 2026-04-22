@@ -83,6 +83,7 @@ export type CandidateProfile = {
   updated_at: string;
   user_id: string;
   status: string | null;
+  age: number | null;
   location: string | null;
   work_rights: string | null;
   availability: string | null;
@@ -119,9 +120,11 @@ export type CandidateProfile = {
   motivational_fit_impact: number | null;
   motivational_fit_recognition: number | null;
   motivational_fit_autonomy: number | null;
+  motivational_fit: number | null;
   // Intake tracking
   intake_status: string | null;
   published: boolean | null;
+  optional_fields_completed: boolean | null;
 };
 
 export type IntakeResponse = {

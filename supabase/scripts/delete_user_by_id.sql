@@ -11,7 +11,7 @@
 
 do $body$
 declare
-  uid uuid := '00000000-0000-0000-0000-000000000000';  -- <-- paste your user id here
+  uid uuid := '167f28ae-edc0-4b06-bb3a-3ae22e34efcf';  -- <-- paste your user id here
 begin
   if uid = '00000000-0000-0000-0000-000000000000'::uuid then
     raise exception 'Set uid to your user UUID from Authentication → Users.';

@@ -6,6 +6,14 @@ interface TraitScoresDisplayProps {
   showAll?: boolean;
 }
 
+function normalizedTraitScore(
+  scores: DimensionScores,
+  key: keyof DimensionScores,
+): number {
+  const v = scores[key];
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
 export function TraitScoresDisplay({ scores, showAll = false }: TraitScoresDisplayProps) {
   if (!scores) {
     return (
@@ -111,7 +119,8 @@ export function TraitScoresDisplay({ scores, showAll = false }: TraitScoresDispl
 
       <div className="space-y-5">
         {displayTraits.map((trait) => {
-          const score = scores[trait.key as keyof DimensionScores];
+          const key = trait.key as keyof DimensionScores;
+          const score = normalizedTraitScore(scores, key);
           const Icon = trait.icon;
           
           return (
