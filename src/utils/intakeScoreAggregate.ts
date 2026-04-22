@@ -88,7 +88,7 @@ export function computeDimensionScoreFromInputs(inputs: number[]): number | null
 }
 
 export function emptyDimensionInputs(): Record<DimensionKey, number[]> {
-  return Object.fromEntries(DIMENSION_KEYS.map((k) => [k, []])) as Record<DimensionKey, number[]>;
+  return Object.fromEntries(DIMENSION_KEYS.map((k) => [k, [] as number[]])) as unknown as Record<DimensionKey, number[]>;
 }
 
 export function ingestPayloadIntoBuckets(

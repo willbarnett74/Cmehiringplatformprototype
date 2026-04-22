@@ -262,3 +262,64 @@ export function generateMockEmployerWeights(): EmployerWeights {
     motivational_fit: shuffled[5],
   };
 }
+
+// ─── Spec 5: Exported scoring functions ─────────────────────
+
+export type DimensionFlag = {
+  key: keyof CandidateDimensionScores;
+  label: string;
+  value: number;
+};
+
+/** Averages the four motivational fit sub-dimensions into a single composite score. */
+export function computeMotivationalFit(scores: {
+  motivational_fit_mastery: number;
+  motivational_fit_impact: number;
+  motivational_fit_recognition: number;
+  motivational_fit_autonomy: number;
+}): number {
+  return (
+    scores.motivational_fit_mastery +
+    scores.motivational_fit_impact +
+    scores.motivational_fit_recognition +
+    scores.motivational_fit_autonomy
+  ) / 4;
+}
+
+/** Computes weighted match score as a single 0–100 number. */
+export function computeMatchScoreSimple(
+  candidate: CandidateDimensionScores,
+  weights: EmployerWeights
+): number {
+  const weighted =
+    (candidate.learning_velocity * weights.learning_velocity / 100) +
+    (candidate.ownership_follow_through * weights.ownership_follow_through / 100) +
+    (candidate.resilience * weights.resilience / 100) +
+    (candidate.communication_confidence * weights.communication_confidence / 100) +
+    (candidate.relational_intelligence * weights.relational_intelligence / 100) +
+    (candidate.motivational_fit * weights.motivational_fit / 100);
+  return Math.round(weighted * 100) / 100;
+}
+
+/**
+ * Returns the top 2 strongest and 1 weakest dimensions for a candidate-employer pair.
+ * Ranking is by weighted contribution (score × weight / 100), not raw score.
+ */
+export function getDimensionFlags(
+  candidate: CandidateDimensionScores,
+  weights: EmployerWeights
+): { strongest: DimensionFlag[]; weakest: DimensionFlag } {
+  const contributions: DimensionFlag[] = ([
+    { key: 'learning_velocity',        label: 'Learning Velocity',       value: candidate.learning_velocity * weights.learning_velocity / 100 },
+    { key: 'ownership_follow_through', label: 'Ownership',               value: candidate.ownership_follow_through * weights.ownership_follow_through / 100 },
+    { key: 'resilience',               label: 'Resilience',              value: candidate.resilience * weights.resilience / 100 },
+    { key: 'communication_confidence', label: 'Communication',           value: candidate.communication_confidence * weights.communication_confidence / 100 },
+    { key: 'relational_intelligence',  label: 'Relational Intelligence', value: candidate.relational_intelligence * weights.relational_intelligence / 100 },
+    { key: 'motivational_fit',         label: 'Motivational Fit',        value: candidate.motivational_fit * weights.motivational_fit / 100 },
+  ] as DimensionFlag[]).sort((a, b) => b.value - a.value);
+
+  return {
+    strongest: contributions.slice(0, 2),
+    weakest: contributions[contributions.length - 1],
+  };
+}
