@@ -8,50 +8,63 @@ interface DashboardContentProps {
 }
 
 export function DashboardContent({ onProfileBuilderClick }: DashboardContentProps) {
-  const [name, setName] = useState('Alex Rivera');
-  const [location, setLocation] = useState('San Francisco, CA');
-  const [experienceYears, setExperienceYears] = useState('6 years');
-  const [education, setEducation] = useState('B.A. Interaction Design');
-  const [availability, setAvailability] = useState('Open to offers');
-  const [summary, setSummary] = useState(
-    'Experienced product designer specializing in early-stage startups with a focus on taking messy, ambiguous problems and building clean, scalable solutions. Thrives in environments that balance experimentation with clear accountability.',
-  );
+  const [name, setName] = useState('');
+  const [location, setLocation] = useState<string | null>(null);
+  const [experienceYears, setExperienceYears] = useState<string | null>(null);
+  const [education, setEducation] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const [intakeComplete, setIntakeComplete] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) return;
-    void supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.user?.id) return;
+    if (!isSupabaseConfigured || !supabase) {
+      setHasLoaded(true);
+      return;
+    }
+    void supabase.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        try {
+          if (!session?.user?.id) return;
 
-      const { data: profileRow } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (profileRow?.full_name) setName(profileRow.full_name);
+          const { data: profileRow } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          if (profileRow?.full_name) setName(profileRow.full_name as string);
 
-      const profileId = await ensureApplicantProfile(supabase, session.user.id);
-      if (!profileId) return;
+          const profileId = await ensureApplicantProfile(supabase, session.user.id);
+          if (!profileId) return;
 
-      const { data } = await supabase
-        .from('candidate_profiles')
-        .select('location,experience_years,education_summary,availability,experience_narrative,intake_status')
-        .eq('id', profileId)
-        .maybeSingle();
+          const { data } = await supabase
+            .from('candidate_profiles')
+            .select('location,experience_years,education_summary,availability,experience_narrative,intake_status')
+            .eq('id', profileId)
+            .maybeSingle();
 
-      if (data) {
-        if (data.location) setLocation(data.location);
-        if (data.experience_years != null) setExperienceYears(`${data.experience_years} years`);
-        if (data.education_summary) setEducation(data.education_summary);
-        if (data.availability) setAvailability(data.availability);
-        if (data.experience_narrative) setSummary(data.experience_narrative);
-        if (data.intake_status === 'complete') setIntakeComplete(true);
-      }
-    });
+          if (data) {
+            if (data.location) setLocation(data.location as string);
+            if (data.experience_years != null) setExperienceYears(`${data.experience_years} years`);
+            if (data.education_summary) setEducation(data.education_summary as string);
+            if (data.availability) setAvailability(data.availability as string);
+            if (data.experience_narrative) setSummary(data.experience_narrative as string);
+            if (data.intake_status === 'complete') setIntakeComplete(true);
+          }
+        } finally {
+          setHasLoaded(true);
+        }
+      })
+      .catch(() => {
+        setHasLoaded(true);
+      });
   }, []);
 
   const initials = name
+    .trim()
     .split(' ')
+    .filter(Boolean)
     .map((n) => n[0])
     .join('')
     .slice(0, 2)
@@ -106,11 +119,27 @@ export function DashboardContent({ onProfileBuilderClick }: DashboardContentProp
         <div className="flex items-start gap-6">
           {/* Avatar & Name */}
           <div className="flex flex-col items-center shrink-0">
-            <div className="w-20 h-20 rounded-full bg-[#7dbbff] flex items-center justify-center mb-3">
-              <span className="text-white text-xl font-semibold">{initials}</span>
+            <div
+              className={`w-20 h-20 rounded-full flex items-center justify-center mb-3 ${
+                !hasLoaded ? 'bg-[#E5E7EB] animate-pulse' : 'bg-[#7dbbff]'
+              }`}
+            >
+              {hasLoaded && name.trim() ? (
+                <span className="text-white text-xl font-semibold">{initials}</span>
+              ) : hasLoaded && !name.trim() ? (
+                <User className="w-8 h-8 text-white" strokeWidth={2} />
+              ) : null}
             </div>
-            <p className="text-sm text-[#111827] font-semibold">{name}</p>
-            <p className="text-xs text-[#6B7280]">Product Designer</p>
+            {!hasLoaded ? (
+              <div className="h-4 w-32 bg-[#E5E7EB] rounded animate-pulse mb-1" aria-hidden />
+            ) : (
+              <p className="text-sm text-[#111827] font-semibold">{name.trim() || '—'}</p>
+            )}
+            {!hasLoaded ? (
+              <div className="h-3 w-24 bg-[#E5E7EB] rounded animate-pulse mt-1" aria-hidden />
+            ) : (
+              <p className="text-xs text-[#6B7280]">—</p>
+            )}
           </div>
 
           {/* Info Grid */}
@@ -120,42 +149,66 @@ export function DashboardContent({ onProfileBuilderClick }: DashboardContentProp
                 <MapPin className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Location</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">{location}</p>
+              {!hasLoaded ? (
+                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
+              ) : (
+                <p className="text-sm text-[#111827] font-medium">{location || '—'}</p>
+              )}
             </div>
             <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <Briefcase className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Experience</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">{experienceYears}</p>
+              {!hasLoaded ? (
+                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
+              ) : (
+                <p className="text-sm text-[#111827] font-medium">{experienceYears || '—'}</p>
+              )}
             </div>
             <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <GraduationCap className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Education</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">{education}</p>
+              {!hasLoaded ? (
+                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
+              ) : (
+                <p className="text-sm text-[#111827] font-medium">{education || '—'}</p>
+              )}
             </div>
             <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <Building2 className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Current Company</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">TechCorp Inc.</p>
+              {!hasLoaded ? (
+                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
+              ) : (
+                <p className="text-sm text-[#111827] font-medium">—</p>
+              )}
             </div>
             <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <Clock className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Availability</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">{availability}</p>
+              {!hasLoaded ? (
+                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
+              ) : (
+                <p className="text-sm text-[#111827] font-medium">{availability || '—'}</p>
+              )}
             </div>
             <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <Target className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
                 <span className="text-xs text-[#6B7280]">Career Focus</span>
               </div>
-              <p className="text-sm text-[#111827] font-medium">Product & Strategy</p>
+              {!hasLoaded ? (
+                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
+              ) : (
+                <p className="text-sm text-[#111827] font-medium">—</p>
+              )}
             </div>
           </div>
         </div>
@@ -163,9 +216,14 @@ export function DashboardContent({ onProfileBuilderClick }: DashboardContentProp
         {/* Summary */}
         <div className="mt-5 pt-5 border-t border-black/[0.08]">
           <p className="text-xs text-[#6B7280] mb-2">Background Summary</p>
-          <p className="text-sm text-[#111827] leading-relaxed">
-            {summary}
-          </p>
+          {!hasLoaded ? (
+            <div className="space-y-2" aria-hidden>
+              <div className="h-3.5 w-full bg-[#E5E7EB] rounded animate-pulse" />
+              <div className="h-3.5 w-[80%] bg-[#E5E7EB] rounded animate-pulse" />
+            </div>
+          ) : (
+            <p className="text-sm text-[#111827] leading-relaxed">{summary || '—'}</p>
+          )}
         </div>
       </div>
 

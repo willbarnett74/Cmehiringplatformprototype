@@ -45,11 +45,18 @@ export function ApplicantScreen() {
   const [cognitiveScore, setCognitiveScore] = useState<number | null>(null);
   const [applicantProfileId, setApplicantProfileId] = useState<string | null>(null);
   const [dbTraitScores, setDbTraitScores] = useState<import('../utils/intakeScoring').DimensionScores | null>(null);
+  const [userName, setUserName] = useState('');
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
     void supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user?.id) return;
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (profileRow?.full_name) setUserName(profileRow.full_name as string);
       const id = await ensureApplicantProfile(supabase, session.user.id);
       setApplicantProfileId(id);
       if (!id) return;
@@ -291,7 +298,7 @@ export function ApplicantScreen() {
                     <div className="w-8 h-8 rounded-full bg-[#7dbbff] flex items-center justify-center">
                       <User className="w-4 h-4 text-white" strokeWidth={2} />
                     </div>
-                    <span className="text-sm text-[#111827] font-medium">Alex Rivera</span>
+                    <span className="text-sm text-[#111827] font-medium">{userName || 'Account'}</span>
                   </div>
 
                   <button className="relative p-2 hover:bg-[#fafafa] transition-colors" style={{ borderRadius: '10px' }}>
@@ -402,7 +409,7 @@ export function ApplicantScreen() {
                     <div className="w-8 h-8 rounded-full bg-[#7dbbff] flex items-center justify-center">
                       <User className="w-4 h-4 text-white" strokeWidth={2} />
                     </div>
-                    <span className="text-sm text-[#111827] font-medium">Alex Rivera</span>
+                    <span className="text-sm text-[#111827] font-medium">{userName || 'Account'}</span>
                   </div>
                 </div>
               </div>
@@ -514,7 +521,7 @@ export function ApplicantScreen() {
                   <div className="w-8 h-8 rounded-full bg-[#7dbbff] flex items-center justify-center">
                     <User className="w-4 h-4 text-white" strokeWidth={2} />
                   </div>
-                  <span className="text-sm text-[#111827] font-medium">Alex Rivera</span>
+                  <span className="text-sm text-[#111827] font-medium">{userName || 'Account'}</span>
                 </div>
 
                 <NotificationBell
