@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
+import type { MutableRefObject } from 'react';
 
 interface IntakeSection2Props {
   onComplete: (data: Record<string, unknown>) => void;
   initialData?: unknown;
+  submitRef?: MutableRefObject<(() => void) | null>;
+  hideFooterButton?: boolean;
 }
 
-export function IntakeSection2({ onComplete }: IntakeSection2Props) {
+export function IntakeSection2({ onComplete, submitRef, hideFooterButton = false }: IntakeSection2Props) {
   const [q1Choice, setQ1Choice] = useState<'strongly_a' | 'mostly_a' | 'mostly_b' | 'strongly_b' | null>(null);
   const [q1FollowUp, setQ1FollowUp] = useState('');
   const q1FollowUpWordCount = q1FollowUp.trim().split(/\s+/).filter(w => w.length > 0).length;
@@ -82,6 +85,16 @@ export function IntakeSection2({ onComplete }: IntakeSection2Props) {
     });
   };
 
+  useEffect(() => {
+    return () => {
+      if (submitRef) submitRef.current = null;
+    };
+  }, [submitRef]);
+
+  if (hideFooterButton && submitRef) {
+    submitRef.current = handleNext;
+  }
+
   const workStyleOptions = [
     'Remote', 'Hybrid', 'In-person', 'Flexible hours', 'Standard hours',
     'Fast-paced', 'Steady and structured', 'Small team', 'Large organisation',
@@ -97,22 +110,26 @@ export function IntakeSection2({ onComplete }: IntakeSection2Props) {
 
   return (
     <div>
-      <div className="mb-8">
-        <h2 className="text-2xl text-[#111827] mb-2">SECTION 2 — How You Work</h2>
-        <div className="flex items-center gap-2 text-sm text-[#6B7280] mb-4">
-          <span className="text-[#7DBBFF] font-medium">
-            Dimensions scored: Motivational Fit (Autonomy, Mastery, Recognition, Impact), Resilience, Relational Intelligence
-          </span>
-          <span className="text-[#9CA3AF]">•</span>
-          <span>Est. time: 7–9 min</span>
-        </div>
-      </div>
+      {!hideFooterButton ? (
+        <>
+          <div className="mb-8">
+            <h2 className="text-2xl text-[#111827] mb-2">SECTION 2 — How You Work</h2>
+            <div className="flex items-center gap-2 text-sm text-[#6B7280] mb-4">
+              <span className="text-[#7DBBFF] font-medium">
+                Dimensions scored: Motivational Fit (Autonomy, Mastery, Recognition, Impact), Resilience, Relational Intelligence
+              </span>
+              <span className="text-[#9CA3AF]">•</span>
+              <span>Est. time: 7–9 min</span>
+            </div>
+          </div>
 
-      <div className="bg-white border border-[#7DBBFF]/30 p-6 mb-8" style={{ borderRadius: '16px' }}>
-        <p className="text-sm text-[#111827] leading-relaxed italic">
-          "There's no right way to work. This section is about understanding what brings out the best in you — your natural style, what energises you, and the environments where you genuinely thrive."
-        </p>
-      </div>
+          <div className="bg-white border border-[#7DBBFF]/30 p-6 mb-8" style={{ borderRadius: '16px' }}>
+            <p className="text-sm text-[#111827] leading-relaxed italic">
+              "There's no right way to work. This section is about understanding what brings out the best in you — your natural style, what energises you, and the environments where you genuinely thrive."
+            </p>
+          </div>
+        </>
+      ) : null}
 
       {/* S2Q1 */}
       <div className="bg-white border border-black/[0.08] p-8 mb-8" style={{ borderRadius: '20px' }}>
@@ -319,18 +336,21 @@ export function IntakeSection2({ onComplete }: IntakeSection2Props) {
         )}
       </div>
 
-      <div className="flex justify-end">
-        <button
-          onClick={handleNext}
-          disabled={!canProceed}
-          className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-            canProceed ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md' : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
-          }`}
-          style={{ borderRadius: '12px' }}
-        >
-          Continue to Next Section →
-        </button>
-      </div>
+      {!hideFooterButton ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!canProceed}
+            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
+              canProceed ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md' : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+            }`}
+            style={{ borderRadius: '12px' }}
+          >
+            Continue to Next Section →
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

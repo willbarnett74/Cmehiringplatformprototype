@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { MutableRefObject } from 'react';
 import { RankedPreference, type RankItem } from './RankedPreference';
 
 const RANK_ITEMS: RankItem[] = [
@@ -11,9 +12,11 @@ const RANK_ITEMS: RankItem[] = [
 interface IntakeSection6Props {
   onComplete: (data: Record<string, unknown>) => void;
   initialData?: unknown;
+  submitRef?: MutableRefObject<(() => void) | null>;
+  hideFooterButton?: boolean;
 }
 
-export function IntakeSection6({ onComplete }: IntakeSection6Props) {
+export function IntakeSection6({ onComplete, submitRef, hideFooterButton = false }: IntakeSection6Props) {
   const [q1Choice, setQ1Choice] = useState<string | null>(null);
   const [q1ShuffledOptions, setQ1ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
@@ -131,24 +134,38 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
     });
   };
 
+  useEffect(() => {
+    return () => {
+      if (submitRef) submitRef.current = null;
+    };
+  }, [submitRef]);
+
+  if (hideFooterButton && submitRef) {
+    submitRef.current = handleNext;
+  }
+
   return (
     <div>
-      <div className="mb-8">
-        <h2 className="text-2xl text-[#111827] mb-2">SECTION 6 — What Drives You</h2>
-        <div className="flex items-center gap-2 text-sm text-[#6B7280] mb-4">
-          <span className="text-[#7DBBFF] font-medium">
-            Dimensions scored: Motivational Fit — all four sub-dimensions (Mastery, Impact, Recognition, Autonomy), Learning Velocity
-          </span>
-          <span className="text-[#9CA3AF]">•</span>
-          <span>Est. time: 8–10 min</span>
-        </div>
-      </div>
+      {!hideFooterButton ? (
+        <>
+          <div className="mb-8">
+            <h2 className="text-2xl text-[#111827] mb-2">SECTION 6 — What Drives You</h2>
+            <div className="flex items-center gap-2 text-sm text-[#6B7280] mb-4">
+              <span className="text-[#7DBBFF] font-medium">
+                Dimensions scored: Motivational Fit — all four sub-dimensions (Mastery, Impact, Recognition, Autonomy), Learning Velocity
+              </span>
+              <span className="text-[#9CA3AF]">•</span>
+              <span>Est. time: 8–10 min</span>
+            </div>
+          </div>
 
-      <div className="bg-white border border-[#7DBBFF]/30 p-6 mb-8" style={{ borderRadius: '16px' }}>
-        <p className="text-sm text-[#111827] leading-relaxed italic">
-          "This section is about what genuinely motivates you — not what sounds impressive, but what actually gives you energy and keeps you engaged over time."
-        </p>
-      </div>
+          <div className="bg-white border border-[#7DBBFF]/30 p-6 mb-8" style={{ borderRadius: '16px' }}>
+            <p className="text-sm text-[#111827] leading-relaxed italic">
+              "This section is about what genuinely motivates you — not what sounds impressive, but what actually gives you energy and keeps you engaged over time."
+            </p>
+          </div>
+        </>
+      ) : null}
 
       {/* S6Q1 */}
       <div className="bg-white border border-black/[0.08] p-8 mb-8" style={{ borderRadius: '20px' }}>
@@ -246,18 +263,21 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <button
-          onClick={handleNext}
-          disabled={!canProceed}
-          className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-            canProceed ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md' : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
-          }`}
-          style={{ borderRadius: '12px' }}
-        >
-          Continue to Next Section →
-        </button>
-      </div>
+      {!hideFooterButton ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!canProceed}
+            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
+              canProceed ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md' : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+            }`}
+            style={{ borderRadius: '12px' }}
+          >
+            Continue to Next Section →
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

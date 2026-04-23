@@ -55,6 +55,9 @@ export type Profile = {
   role: UserRole;
   avatar_url: string | null;
   onboarding_complete: boolean;
+  /** Added in migration 20260424120000; null if column not yet applied. */
+  notify_email_matches?: boolean | null;
+  notify_weekly_digest?: boolean | null;
 };
 
 export type Business = {
@@ -77,6 +80,16 @@ export type EmployerTraitWeighting = {
   role_template: string | null;
 } & EmployerWeightings;
 
+export type CandidateActivityEventType = 'match' | 'view' | 'profile' | 'system';
+
+export type CandidateActivityEvent = {
+  id: string;
+  created_at: string;
+  user_id: string;
+  event_type: CandidateActivityEventType;
+  body: string;
+};
+
 export type CandidateProfile = {
   id: string;
   created_at: string;
@@ -84,6 +97,12 @@ export type CandidateProfile = {
   user_id: string;
   status: string | null;
   age: number | null;
+  job_title: string | null;
+  current_company: string | null;
+  phone: string | null;
+  linkedin_url: string | null;
+  gender: string | null;
+  certifications: string | null;
   location: string | null;
   work_rights: string | null;
   availability: string | null;

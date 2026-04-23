@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { MutableRefObject } from 'react';
 
 interface IntakeSection1Props {
   onComplete: (data: { 
@@ -20,9 +21,19 @@ interface IntakeSection1Props {
     S1Q1?: { narrative: string };
     S1Q2?: { narrative: string };
   };
+  /** Flat chrome matching CMe Portal v2 / design handoff */
+  layoutVariant?: 'default' | 'handoff';
+  submitRef?: MutableRefObject<(() => void) | null>;
+  hideFooterButton?: boolean;
 }
 
-export function IntakeSection1({ onComplete, initialData }: IntakeSection1Props) {
+export function IntakeSection1({
+  onComplete,
+  initialData,
+  layoutVariant = 'default',
+  submitRef,
+  hideFooterButton = false,
+}: IntakeSection1Props) {
   // S1Q1 - Background narrative
   const [narrativeQ1, setNarrativeQ1] = useState(initialData?.S1Q1?.narrative || '');
   const wordCountQ1 = narrativeQ1.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -63,6 +74,83 @@ export function IntakeSection1({ onComplete, initialData }: IntakeSection1Props)
       });
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (submitRef) submitRef.current = null;
+    };
+  }, [submitRef]);
+
+  if (hideFooterButton && submitRef) {
+    submitRef.current = handleNext;
+  }
+
+  if (layoutVariant === 'handoff') {
+    return (
+      <div className="flex flex-col gap-7">
+        <div>
+          <label className="mb-1.5 block text-[13px] font-semibold text-[#111827]">
+            Your professional background
+          </label>
+          <p className="mb-2.5 text-xs leading-[1.55] text-[#9CA3AF]">
+            Describe your career trajectory, the types of roles you have held, and what you have built or led. 3–5
+            sentences.
+          </p>
+          <textarea
+            value={narrativeQ1}
+            onChange={(e) => setNarrativeQ1(e.target.value)}
+            placeholder="I have spent the last 7 years working in product management across B2B SaaS companies…"
+            rows={5}
+            className="w-full resize-y rounded-[5px] border border-black/[0.12] bg-white px-3.5 py-3 text-[13.5px] leading-[1.65] text-[#111827] placeholder:text-[#9CA3AF] transition-colors focus:border-[#7dbbff] focus:outline-none"
+          />
+          <div className="mt-1.5 flex flex-wrap items-start justify-between gap-2">
+            <div className="text-xs text-[#6B7280]">
+              Required: {minWordsQ1}–{maxWordsQ1} words
+              {showSoftWarningQ1 ? (
+                <span className="ml-2 font-medium text-[#F59E0B]">Approaching upper range</span>
+              ) : null}
+              {isOverMaxQ1 ? <span className="ml-2 font-medium text-[#EF4444]">Maximum exceeded</span> : null}
+            </div>
+            <span className="font-dashboard-mono text-[11px] text-[#C4C4CC]">{narrativeQ1.length} chars</span>
+          </div>
+          {wordCountQ1 < minWordsQ1 ? (
+            <p className="mt-1 text-xs text-[#6B7280]">
+              {minWordsQ1 - wordCountQ1} more {minWordsQ1 - wordCountQ1 === 1 ? 'word' : 'words'} required
+            </p>
+          ) : null}
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-[13px] font-semibold text-[#111827]">
+            Your proudest professional moment
+          </label>
+          <p className="mb-2.5 text-xs leading-[1.55] text-[#9CA3AF]">
+            A specific situation where you did something you are genuinely proud of. Focus on what you did, the
+            challenge, and the outcome.
+          </p>
+          <textarea
+            value={narrativeQ2}
+            onChange={(e) => setNarrativeQ2(e.target.value)}
+            placeholder="The project I am most proud of was…"
+            rows={5}
+            className="w-full resize-y rounded-[5px] border border-black/[0.12] bg-white px-3.5 py-3 text-[13.5px] leading-[1.65] text-[#111827] placeholder:text-[#9CA3AF] transition-colors focus:border-[#7dbbff] focus:outline-none"
+          />
+          <div className="mt-1.5 flex flex-wrap items-start justify-between gap-2">
+            <div className="text-xs text-[#6B7280]">
+              Required: {minWordsQ2}–{maxWordsQ2} words
+              {isOverMaxQ2 ? <span className="ml-2 font-medium text-[#EF4444]">Maximum exceeded</span> : null}
+            </div>
+            <span className="font-dashboard-mono text-[11px] text-[#C4C4CC]">{narrativeQ2.length} chars</span>
+          </div>
+          {wordCountQ2 < minWordsQ2 ? (
+            <p className="mt-1 text-xs text-[#6B7280]">
+              {minWordsQ2 - wordCountQ2} more {minWordsQ2 - wordCountQ2 === 1 ? 'word' : 'words'} required
+            </p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -326,20 +414,23 @@ export function IntakeSection1({ onComplete, initialData }: IntakeSection1Props)
       </details>
 
       {/* Navigation */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleNext}
-          disabled={!canProceed}
-          className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-            canProceed
-              ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
-              : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
-          }`}
-          style={{ borderRadius: '12px' }}
-        >
-          Continue to Next Section →
-        </button>
-      </div>
+      {!hideFooterButton ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!canProceed}
+            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
+              canProceed
+                ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
+                : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+            }`}
+            style={{ borderRadius: '12px' }}
+          >
+            Continue to Next Section →
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,50 +1,38 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { LucideIcon } from 'lucide-react';
-import {
-  User,
-  ArrowRight,
-  Target,
-  Brain,
-  MapPin,
-  Briefcase,
-  GraduationCap,
-  Clock,
-  Award,
-  ShieldCheck,
-  Lightbulb,
-  CheckCircle2,
-  AlertCircle,
-  BarChart3,
-  Building2,
-  Zap,
-  MessageSquare,
-  Users,
-  Flame,
-  Eye,
-  X,
-  ClipboardList,
-} from 'lucide-react';
+import { Pencil, Check, ArrowRight } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { ensureApplicantProfile } from '../../lib/applicantPersistence';
 import type { DimensionScores } from '../../utils/intakeScoring';
+import type { CandidateActivityEventType } from '../../types/supabase';
+import {
+  applicantPipelineMockData,
+  fitLabelAndColor,
+} from '../../lib/applicantOpportunitiesMock';
+import { formatTimeAgo } from '../../lib/notificationService';
 
 export interface DashboardSection1Narratives {
   backgroundNarrative?: string;
   proudMoment?: string;
 }
 
-interface DashboardContentProps {
+export interface DashboardContentProps {
   onProfileBuilderClick: (stepId?: number) => void;
+  onEditProfile: () => void;
+  onViewAllPipeline: () => void;
   traitScores: DimensionScores | null;
   intakeComplete: boolean;
   section1: DashboardSection1Narratives | null;
+  /** Hydrated Section 7 from context — used when DB not yet synced or for "what you're looking for" copy */
+  intakeSection7?: Record<string, unknown>;
+  /** Increment after profile save so name / meta / activity refetch from Supabase */
+  profileRefreshKey?: number;
 }
 
-function signalBand(score: number): { signal: string; signalColor: string; level: number } {
-  if (score >= 75) return { signal: 'Strong', signalColor: '#10B981', level: 4 };
-  if (score >= 50) return { signal: 'Moderate', signalColor: '#7dbbff', level: 3 };
-  if (score >= 25) return { signal: 'Emerging', signalColor: '#F59E0B', level: 2 };
-  return { signal: 'Early', signalColor: '#EF4444', level: 1 };
+function signalBand(score: number): { signal: string; signalColor: string } {
+  if (score >= 75) return { signal: 'Strong', signalColor: '#10B981' };
+  if (score >= 50) return { signal: 'Moderate', signalColor: '#7dbbff' };
+  if (score >= 25) return { signal: 'Emerging', signalColor: '#F59E0B' };
+  return { signal: 'Early', signalColor: '#EF4444' };
 }
 
 function stdDev(values: number[]): number {
@@ -77,48 +65,116 @@ function dimensionStatus(score: number): { status: string; color: string } {
   return { status: 'Lower signal', color: '#6B7280' };
 }
 
-const INSIGHT_TRAIT_DEFS: Array<{
-  key: keyof DimensionScores;
-  trait: string;
-  descriptor: string;
-  icon: LucideIcon;
-}> = [
-  { key: 'ownership_follow_through', trait: 'Ownership & Drive', descriptor: 'Initiative and follow-through', icon: Target },
-  { key: 'learning_velocity', trait: 'Learning & Structure', descriptor: 'Pace and problem framing', icon: Brain },
-  { key: 'communication_confidence', trait: 'Communication', descriptor: 'Clarity and intent', icon: MessageSquare },
-  { key: 'resilience', trait: 'Resilience', descriptor: 'Steadiness under pressure', icon: Flame },
-  { key: 'relational_intelligence', trait: 'Collaboration', descriptor: 'Working with others', icon: Users },
-  { key: 'motivational_fit_mastery', trait: 'Drive for Mastery', descriptor: 'Craft and depth', icon: Zap },
+const TRAIT_ROWS_HANDOFF: Array<{ key: keyof DimensionScores; label: string }> = [
+  { key: 'ownership_follow_through', label: 'Ownership & Drive' },
+  { key: 'learning_velocity', label: 'Learning Velocity' },
+  { key: 'motivational_fit_mastery', label: 'Drive for Mastery' },
+  { key: 'motivational_fit_impact', label: 'Impact Drive' },
+  { key: 'communication_confidence', label: 'Communication' },
+  { key: 'resilience', label: 'Resilience' },
+  { key: 'relational_intelligence', label: 'Collaboration' },
+  { key: 'motivational_fit_autonomy', label: 'Autonomy' },
+  { key: 'motivational_fit_recognition', label: 'Recognition' },
 ];
 
 const STRENGTH_LABELS: Record<string, string> = {
   learning_velocity: 'Learning velocity',
-  ownership_follow_through: 'Ownership',
+  ownership_follow_through: 'Ownership & Drive',
   resilience: 'Resilience',
   communication_confidence: 'Communication',
   relational_intelligence: 'Collaboration',
-  motivational_fit_mastery: 'Mastery drive',
+  motivational_fit_mastery: 'Drive for Mastery',
   motivational_fit_impact: 'Impact drive',
   motivational_fit_recognition: 'Recognition',
   motivational_fit_autonomy: 'Autonomy',
 };
 
+function SectionRule({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="flex items-center gap-3.5"
+      style={{ margin: '32px 0 20px' }}
+    >
+      <span
+        className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]"
+      >
+        {children}
+      </span>
+      <div className="h-px flex-1 bg-black/[0.08]" />
+    </div>
+  );
+}
+
+function activityDotColor(t: CandidateActivityEventType): string {
+  if (t === 'match') return '#10B981';
+  if (t === 'view') return '#7dbbff';
+  return '#9CA3AF';
+}
+
+function companyInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase() || '—';
+}
+
+type Section7Parts = {
+  lookingFor: string[] | null;
+  roleTypes: string[] | null;
+  workLocation: string | null;
+  orgSize: string | null;
+  partTime: string | null;
+  growthTeaser: string | null;
+};
+
+function parseIntakeSection7(raw: Record<string, unknown> | undefined): Section7Parts | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const q1 = raw.S7Q1 as { looking_for?: string[] } | undefined;
+  const q2 = raw.S7Q2 as { growth_direction?: string } | undefined;
+  const q4 = raw.S7Q4 as { role_type_preferences?: string[] } | undefined;
+  const q5 = raw.S7Q5 as {
+    work_location?: string;
+    org_size?: string;
+    part_time_openness?: string;
+  } | undefined;
+  const growth = q2?.growth_direction?.trim();
+  const growthTeaser =
+    growth && growth.length > 120 ? `${growth.slice(0, 117)}…` : growth ?? null;
+  return {
+    lookingFor: Array.isArray(q1?.looking_for) ? q1!.looking_for : null,
+    roleTypes: Array.isArray(q4?.role_type_preferences) ? q4!.role_type_preferences : null,
+    workLocation: q5?.work_location ?? null,
+    orgSize: q5?.org_size ?? null,
+    partTime: q5?.part_time_openness ?? null,
+    growthTeaser,
+  };
+}
+
 export function DashboardContent({
   onProfileBuilderClick,
+  onEditProfile,
+  onViewAllPipeline,
   traitScores,
   intakeComplete,
   section1,
+  intakeSection7,
+  profileRefreshKey = 0,
 }: DashboardContentProps) {
   const [name, setName] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [location, setLocation] = useState<string | null>(null);
   const [experienceYears, setExperienceYears] = useState<string | null>(null);
   const [education, setEducation] = useState<string | null>(null);
   const [availability, setAvailability] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [currentSituation, setCurrentSituation] = useState<string | null>(null);
-  const [careerFocus, setCareerFocus] = useState<string | null>(null);
-  const [showIntakeNudge, setShowIntakeNudge] = useState(false);
+  const [preferredRolesDb, setPreferredRolesDb] = useState<string[]>([]);
+  const [workTypeDb, setWorkTypeDb] = useState<string[]>([]);
+  const [orgSizeDb, setOrgSizeDb] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [activityRows, setActivityRows] = useState<
+    Array<{ id: string; event_type: CandidateActivityEventType; body: string; created_at: string }>
+  >([]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
@@ -133,10 +189,12 @@ export function DashboardContent({
 
           const { data: profileRow } = await supabase
             .from('profiles')
-            .select('full_name')
+            .select('full_name,avatar_url')
             .eq('id', session.user.id)
             .maybeSingle();
-          if (profileRow?.full_name) setName(profileRow.full_name as string);
+          setName(typeof profileRow?.full_name === 'string' ? profileRow.full_name : '');
+          setAvatarUrl(typeof profileRow?.avatar_url === 'string' ? profileRow.avatar_url : null);
+          setAvatarLoadFailed(false);
 
           const profileId = await ensureApplicantProfile(supabase, session.user.id);
           if (!profileId) return;
@@ -144,24 +202,61 @@ export function DashboardContent({
           const { data } = await supabase
             .from('candidate_profiles')
             .select(
-              'location,experience_years,education_summary,availability,experience_narrative,intake_status,current_situation,preferred_role_types',
+              'location,experience_years,education_summary,availability,experience_narrative,intake_status,current_situation,preferred_role_types,preferred_work_type,org_size_preference',
             )
             .eq('id', profileId)
             .maybeSingle();
 
           if (data) {
-            if (data.location) setLocation(data.location as string);
-            if (data.experience_years != null) setExperienceYears(`${data.experience_years} years`);
-            if (data.education_summary) setEducation(data.education_summary as string);
-            if (data.availability) setAvailability(data.availability as string);
-            if (data.experience_narrative) setSummary(data.experience_narrative as string);
-            if (data.current_situation) setCurrentSituation(data.current_situation as string);
+            setLocation(typeof data.location === 'string' && data.location ? data.location : null);
+            setExperienceYears(
+              data.experience_years != null && data.experience_years !== ''
+                ? `${data.experience_years} years`
+                : null,
+            );
+            setEducation(
+              typeof data.education_summary === 'string' && data.education_summary
+                ? data.education_summary
+                : null,
+            );
+            setAvailability(
+              typeof data.availability === 'string' && data.availability ? data.availability : null,
+            );
+            setSummary(
+              typeof data.experience_narrative === 'string' && data.experience_narrative
+                ? data.experience_narrative
+                : null,
+            );
+            setCurrentSituation(
+              typeof data.current_situation === 'string' && data.current_situation
+                ? data.current_situation
+                : null,
+            );
             const pr = data.preferred_role_types as string[] | null;
-            if (pr && pr.length > 0) setCareerFocus(pr.slice(0, 3).join(', '));
-            const complete = data.intake_status === 'complete';
-            if (!complete && !sessionStorage.getItem('cme_intake_nudge_dismissed')) {
-              setShowIntakeNudge(true);
-            }
+            setPreferredRolesDb(Array.isArray(pr) ? pr : []);
+            const pw = data.preferred_work_type as string[] | null;
+            setWorkTypeDb(Array.isArray(pw) ? pw : []);
+            setOrgSizeDb(
+              typeof data.org_size_preference === 'string' ? data.org_size_preference : null,
+            );
+          }
+
+          const { data: events, error: eventsErr } = await supabase
+            .from('candidate_activity_events')
+            .select('id,event_type,body,created_at')
+            .eq('user_id', session.user.id)
+            .order('created_at', { ascending: false })
+            .limit(12);
+
+          if (!eventsErr && events) {
+            setActivityRows(
+              events as Array<{
+                id: string;
+                event_type: CandidateActivityEventType;
+                body: string;
+                created_at: string;
+              }>,
+            );
           }
         } finally {
           setHasLoaded(true);
@@ -170,7 +265,7 @@ export function DashboardContent({
       .catch(() => {
         setHasLoaded(true);
       });
-  }, []);
+  }, [profileRefreshKey]);
 
   const initials = name
     .trim()
@@ -181,32 +276,56 @@ export function DashboardContent({
     .slice(0, 2)
     .toUpperCase();
 
-  const dismissNudge = () => {
-    sessionStorage.setItem('cme_intake_nudge_dismissed', '1');
-    setShowIntakeNudge(false);
-  };
-
   const backgroundNarrative = section1?.backgroundNarrative?.trim() || (summary ?? '');
   const proudMoment = section1?.proudMoment?.trim() || '';
 
-  const narrativeInsightCards = useMemo(() => {
-    if (!traitScores) return null;
-    return INSIGHT_TRAIT_DEFS.map((def) => {
-      const score = traitScores[def.key];
-      const band = signalBand(score);
-      return {
-        trait: def.trait,
-        descriptor: def.descriptor,
-        icon: def.icon,
-        key: def.key,
-        ...band,
-        score,
-        blurb: `Your structured assessment scores this area around ${Math.round(score)}/100 — a ${band.signal.toLowerCase()} signal compared to your other dimensions.`,
-      };
-    });
-  }, [traitScores]);
+  const s7 = useMemo(() => parseIntakeSection7(intakeSection7), [intakeSection7]);
+
+  const mergedRoleTypes = useMemo(() => {
+    if (preferredRolesDb.length > 0) return preferredRolesDb;
+    return s7?.roleTypes ?? [];
+  }, [preferredRolesDb, s7]);
+
+  const roleHeadline =
+    mergedRoleTypes.length > 0 ? mergedRoleTypes.slice(0, 3).join(' · ') : null;
+
+  const workSetupLine = useMemo(() => {
+    if (workTypeDb.length > 0) return workTypeDb.filter(Boolean).join(' · ');
+    const parts = [s7?.workLocation, s7?.partTime].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : null;
+  }, [workTypeDb, s7]);
+
+  const orgSizeLine = useMemo(() => orgSizeDb ?? s7?.orgSize ?? null, [orgSizeDb, s7]);
+
+  const lookingForLine = useMemo(() => {
+    if (!s7?.lookingFor?.length) return null;
+    return s7.lookingFor.join(' · ');
+  }, [s7]);
+
+  /** Compact "Available" line: welcome timing first, then work prefs from Section 7 / DB */
+  const availableMetaValue = useMemo(() => {
+    if (availability?.trim()) return availability.trim();
+    const parts = [workSetupLine, orgSizeLine].filter(Boolean);
+    if (parts.length > 0) return parts.join(' · ');
+    return '';
+  }, [availability, workSetupLine, orgSizeLine]);
+
+  /** Compact "Focus" line: role types, else what you're looking for */
+  const focusMetaValue = useMemo(() => {
+    if (mergedRoleTypes.length > 0) return mergedRoleTypes.join(' · ');
+    if (lookingForLine) return lookingForLine;
+    return '';
+  }, [mergedRoleTypes, lookingForLine]);
 
   const topStrengths = useMemo(() => {
+    if (!traitScores) return [];
+    return (Object.entries(traitScores) as [keyof DimensionScores, number][])
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([k]) => STRENGTH_LABELS[k] ?? k);
+  }, [traitScores]);
+
+  const topDimensionsNumbered = useMemo(() => {
     if (!traitScores) return [];
     return (Object.entries(traitScores) as [keyof DimensionScores, number][])
       .sort((a, b) => b[1] - a[1])
@@ -248,45 +367,12 @@ export function DashboardContent({
     ];
   }, [traitScores]);
 
-  const observations = useMemo(() => {
-    if (!traitScores) return [];
-    const out: Array<{ type: 'ok' | 'warn'; text: string }> = [];
-    const own = traitScores.ownership_follow_through;
-    const rel = traitScores.relational_intelligence;
-    if (own >= 66 && rel >= 66) {
-      out.push({ type: 'ok', text: 'Ownership and collaboration signals are both strong in your assessment profile.' });
-    } else if (own - rel >= 25) {
-      out.push({
-        type: 'warn',
-        text: 'You show higher ownership than collaboration preference — you may prefer driving work individually.',
-      });
-    } else if (rel - own >= 25) {
-      out.push({
-        type: 'ok',
-        text: 'Collaboration-oriented profile with solid relational signals relative to ownership emphasis.',
-      });
-    }
-    const mast = traitScores.motivational_fit_mastery;
-    const rec = traitScores.motivational_fit_recognition;
-    if (Math.abs(mast - rec) >= 30) {
-      out.push({
-        type: 'warn',
-        text:
-          mast > rec
-            ? 'Motivation skews toward mastery and craft over external recognition.'
-            : 'Motivation skews toward recognition and visibility alongside your other drivers.',
-      });
-    } else {
-      out.push({ type: 'ok', text: 'Motivational sub-dimensions are relatively balanced across mastery and recognition.' });
-    }
-    return out.slice(0, 3);
-  }, [traitScores]);
-
   const achievementBullets = useMemo(() => {
     if (!traitScores) {
       return [
         { title: 'Complete your intake', body: 'Trait signals appear after Sections 2–6.' },
         { title: 'Add your proud moment', body: 'Section 1 captures the story we highlight here.' },
+        { title: 'Finish your profile', body: 'Employers use these notes alongside your scores.' },
       ];
     }
     const top = (Object.entries(traitScores) as [keyof DimensionScores, number][]).sort((a, b) => b[1] - a[1]);
@@ -310,509 +396,428 @@ export function DashboardContent({
     ];
   }, [traitScores, proudMoment]);
 
-  const behavioralTags = useMemo(() => {
-    if (!traitScores) return [];
-    const tags: string[] = [];
-    if (traitScores.ownership_follow_through >= 66) tags.push('High ownership');
-    if (traitScores.learning_velocity >= 66) tags.push('Fast learner');
-    if (traitScores.communication_confidence >= 66) tags.push('Clear communicator');
-    if (traitScores.relational_intelligence >= 66) tags.push('People-aware');
-    if (traitScores.motivational_fit_impact >= 66) tags.push('Impact-led');
-    return tags.slice(0, 5);
-  }, [traitScores]);
+  const dashboardOpportunities = useMemo(() => applicantPipelineMockData.slice(0, 3), []);
+
+  const metaFieldsRow1: Array<{ label: string; value: string }> = [
+    { label: 'Location', value: location || '—' },
+    { label: 'Experience', value: experienceYears || '—' },
+    { label: 'Education', value: education || '—' },
+    { label: 'Available', value: availableMetaValue || '—' },
+  ];
 
   return (
-    <>
-      {showIntakeNudge && !intakeComplete && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-50 flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-[420px] p-8 shadow-xl" style={{ borderRadius: '20px' }}>
-            <div className="w-12 h-12 bg-[#7dbbff]/10 flex items-center justify-center mb-6" style={{ borderRadius: '14px' }}>
-              <ClipboardList className="w-6 h-6 text-[#7dbbff]" strokeWidth={2} />
-            </div>
-
-            <h3 className="text-xl text-[#111827] font-semibold mb-2 tracking-tight">Complete your trait profile</h3>
-            <p className="text-sm text-[#6B7280] mb-6 leading-relaxed">
-              8 short sections — takes about 15 minutes. Once done, employers can find and match you based on how you
-              actually work, not just your CV.
-            </p>
-
-            <div className="space-y-2 mb-8">
-              {[
-                'How you work and what drives you',
-                'How you think and handle difficulty',
-                'How you relate to others',
-                'Your career direction and goals',
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-2.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#7dbbff] shrink-0" />
-                  <span className="text-sm text-[#374151]">{item}</span>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => {
-                dismissNudge();
-                onProfileBuilderClick(1);
-              }}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-[#7dbbff] text-white hover:bg-[#6aabef] transition-colors font-medium text-sm mb-3"
-              style={{ borderRadius: '12px' }}
+    <div className="font-dashboard text-[#111827] antialiased">
+      {/* Identity row */}
+      <div
+        className="flex flex-row items-start gap-7 border-b border-black/[0.08] pb-7"
+      >
+        <div
+          className={`flex h-[54px] w-[54px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#7dbbff] ${
+            !hasLoaded ? 'animate-pulse' : ''
+          }`}
+        >
+          {hasLoaded && avatarUrl && !avatarLoadFailed ? (
+            <img
+              src={avatarUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              onError={() => setAvatarLoadFailed(true)}
+            />
+          ) : null}
+          {hasLoaded && (!avatarUrl || avatarLoadFailed) && initials ? (
+            <span className="text-[18px] font-semibold text-white">{initials}</span>
+          ) : null}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-0.5 flex flex-wrap items-baseline gap-3">
+            <h2
+              className="text-[22px] font-semibold tracking-[-0.025em] text-[#111827]"
+              style={{ lineHeight: 1.3 }}
             >
-              <span>Start now</span>
-              <ArrowRight className="w-4 h-4" strokeWidth={2} />
-            </button>
-
-            <button
-              onClick={dismissNudge}
-              className="w-full flex items-center justify-center gap-1.5 py-2 text-sm text-[#9CA3AF] hover:text-[#6B7280] transition-colors"
-            >
-              <X className="w-3.5 h-3.5" strokeWidth={2} />
-              Maybe later
-            </button>
+              {hasLoaded ? name.trim() || '—' : '…'}
+            </h2>
+            {roleHeadline ? (
+              <span className="text-[13px] text-[#9CA3AF]">{roleHeadline}</span>
+            ) : null}
           </div>
-        </div>
-      )}
-
-      <div className="bg-white p-6 border border-black/[0.08] shadow-sm mb-6" style={{ borderRadius: '20px' }}>
-        <div className="flex items-center justify-between">
-          {intakeComplete ? (
-            <>
-              <div>
-                <h3 className="text-base text-[#111827] font-semibold mb-2">Your Profile is Ready</h3>
-                <p className="text-sm text-[#6B7280]">Your trait scores have been computed — explore your results below</p>
-              </div>
-              <button
-                onClick={() => onProfileBuilderClick()}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#10B981] text-white hover:bg-[#0ea572] transition-colors"
-                style={{ borderRadius: '10px' }}
-              >
-                <CheckCircle2 className="w-4 h-4" strokeWidth={2} />
-                <span className="text-sm font-medium">View Profile</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <div>
-                <h3 className="text-base text-[#111827] font-semibold mb-2">Complete Your Intake</h3>
-                <p className="text-sm text-[#6B7280]">Answer 8 short sections to build your trait profile and get matched</p>
-              </div>
-              <button
-                onClick={() => onProfileBuilderClick(1)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#7dbbff] text-white hover:bg-[#6aabef] transition-colors"
-                style={{ borderRadius: '10px' }}
-              >
-                <span className="text-sm font-medium">Start Intake</span>
-                <ArrowRight className="w-4 h-4" strokeWidth={2} />
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white p-6 border border-black/[0.08] shadow-sm mb-6" style={{ borderRadius: '20px' }}>
-        <div className="flex items-center gap-2 mb-5">
-          <User className="w-5 h-5 text-[#7dbbff]" strokeWidth={2} />
-          <h3 className="text-base text-[#111827] font-semibold">General Overview</h3>
-        </div>
-
-        <div className="flex items-start gap-6">
-          <div className="flex flex-col items-center shrink-0">
-            <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center mb-3 ${
-                !hasLoaded ? 'bg-[#E5E7EB] animate-pulse' : 'bg-[#7dbbff]'
-              }`}
-            >
-              {hasLoaded && name.trim() ? (
-                <span className="text-white text-xl font-semibold">{initials}</span>
-              ) : hasLoaded && !name.trim() ? (
-                <User className="w-8 h-8 text-white" strokeWidth={2} />
-              ) : null}
-            </div>
-            {!hasLoaded ? (
-              <div className="h-4 w-32 bg-[#E5E7EB] rounded animate-pulse mb-1" aria-hidden />
-            ) : (
-              <p className="text-sm text-[#111827] font-semibold">{name.trim() || '—'}</p>
-            )}
-            {!hasLoaded ? (
-              <div className="h-3 w-24 bg-[#E5E7EB] rounded animate-pulse mt-1" aria-hidden />
-            ) : (
-              <p className="text-xs text-[#6B7280] text-center max-w-[140px]">
-                {currentSituation || 'Role / situation not set'}
-              </p>
-            )}
-          </div>
-
-          <div className="flex-1 grid grid-cols-3 gap-4">
-            <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <MapPin className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
-                <span className="text-xs text-[#6B7280]">Location</span>
-              </div>
-              {!hasLoaded ? (
-                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
-              ) : (
-                <p className="text-sm text-[#111827] font-medium">{location || '—'}</p>
-              )}
-            </div>
-            <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
-                <span className="text-xs text-[#6B7280]">Experience</span>
-              </div>
-              {!hasLoaded ? (
-                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
-              ) : (
-                <p className="text-sm text-[#111827] font-medium">{experienceYears || '—'}</p>
-              )}
-            </div>
-            <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
-                <span className="text-xs text-[#6B7280]">Education</span>
-              </div>
-              {!hasLoaded ? (
-                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
-              ) : (
-                <p className="text-sm text-[#111827] font-medium">{education || '—'}</p>
-              )}
-            </div>
-            <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Building2 className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
-                <span className="text-xs text-[#6B7280]">Current situation</span>
-              </div>
-              {!hasLoaded ? (
-                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
-              ) : (
-                <p className="text-sm text-[#111827] font-medium">{currentSituation || '—'}</p>
-              )}
-            </div>
-            <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Clock className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
-                <span className="text-xs text-[#6B7280]">Availability</span>
-              </div>
-              {!hasLoaded ? (
-                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
-              ) : (
-                <p className="text-sm text-[#111827] font-medium">{availability || '—'}</p>
-              )}
-            </div>
-            <div className="p-3 bg-[#F9F9FA]" style={{ borderRadius: '12px' }}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Target className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
-                <span className="text-xs text-[#6B7280]">Career focus</span>
-              </div>
-              {!hasLoaded ? (
-                <div className="h-4 w-full max-w-[120px] bg-[#E5E7EB] rounded animate-pulse" aria-hidden />
-              ) : (
-                <p className="text-sm text-[#111827] font-medium">{careerFocus || '—'}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 pt-5 border-t border-black/[0.08]">
-          <p className="text-xs text-[#6B7280] mb-2">Background summary</p>
-          {!hasLoaded ? (
-            <div className="space-y-2" aria-hidden>
-              <div className="h-3.5 w-full bg-[#E5E7EB] rounded animate-pulse" />
-              <div className="h-3.5 w-4/5 bg-[#E5E7EB] rounded animate-pulse" />
-            </div>
-          ) : (
-            <p className="text-sm text-[#111827] leading-relaxed">{summary || '—'}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div className="bg-white p-6 border border-black/[0.08] shadow-sm col-span-2" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2">
-              <Lightbulb className="w-5 h-5 text-[#7dbbff]" strokeWidth={2} />
-              <h3 className="text-base text-[#111827] font-semibold">Narrative Insights</h3>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7dbbff]/8" style={{ borderRadius: '8px' }}>
-              <Eye className="w-3.5 h-3.5 text-[#7dbbff]" strokeWidth={2} />
-              <span className="text-xs text-[#7dbbff] font-medium">From assessment</span>
-            </div>
-          </div>
-          <p className="text-xs text-[#6B7280] mb-6">
-            Trait signals from your structured intake (Sections 2–6). Section 1 narratives are summarised below — they are
-            not separately scored.
+          <p className="mb-4 text-[12.5px] text-[#6B7280]">
+            {hasLoaded ? currentSituation || 'Situation not set' : '…'}
           </p>
-
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {narrativeInsightCards ? (
-              narrativeInsightCards.map((item) => {
-                const TraitIcon = item.icon;
-                return (
-                <div
-                  key={item.trait}
-                  className="p-4 bg-[#F9FAFB] border border-black/[0.05] relative overflow-hidden"
-                  style={{ borderRadius: '14px' }}
-                >
-                  <div className="absolute top-0 left-0 h-1 w-full bg-[#F3F4F6]">
-                    <div
-                      className="h-full transition-all"
-                      style={{
-                        width: `${(item.level / 5) * 100}%`,
-                        backgroundColor: item.signalColor,
-                        borderRadius: '0 2px 2px 0',
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-start justify-between mt-1 mb-2.5">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center"
-                        style={{ backgroundColor: `${item.signalColor}15` }}
-                      >
-                        <TraitIcon className="w-4 h-4" style={{ color: item.signalColor }} strokeWidth={2} />
-                      </div>
-                      <div>
-                        <p className="text-sm text-[#111827] font-medium">{item.trait}</p>
-                        <p className="text-[11px] text-[#9CA3AF]">{item.descriptor}</p>
-                      </div>
-                    </div>
-                    <span
-                      className="text-[10px] font-medium px-2 py-0.5 mt-1"
-                      style={{ color: item.signalColor, backgroundColor: `${item.signalColor}12`, borderRadius: '6px' }}
-                    >
-                      {item.signal}
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#6B7280] leading-relaxed">{item.blurb}</p>
-                </div>
-              );
-              })
-            ) : (
-              <div className="col-span-3 p-6 bg-[#F9FAFB] border border-black/[0.06] text-sm text-[#6B7280]" style={{ borderRadius: '12px' }}>
-                Complete the intake to see trait-based narrative signals here.
+          <div className="flex flex-wrap gap-x-7 gap-y-2.5">
+            {metaFieldsRow1.map((f) => (
+              <div key={f.label}>
+                <p className="mb-0.5 text-[10px] uppercase tracking-[0.08em] text-[#9CA3AF]">{f.label}</p>
+                <p className="text-[13px] font-medium text-[#111827]">{hasLoaded ? f.value : '…'}</p>
               </div>
-            )}
-          </div>
-
-          <div className="bg-gradient-to-r from-[#7dbbff]/[0.06] to-[#7dbbff]/[0.02] border border-[#7dbbff]/10 p-5 mb-6" style={{ borderRadius: '14px' }}>
-            <p className="text-xs text-[#7dbbff] font-medium mb-2 uppercase tracking-wide">How you describe yourself</p>
-            <p className="text-sm text-[#111827] leading-relaxed">
-              {backgroundNarrative ||
-                'Your Section 1 background narrative will appear here after you complete Profile Builder — Section 1.'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-5">
-            <div>
-              <p className="text-xs text-[#6B7280] mb-3">Strongest dimensions (from scores)</p>
-              <div className="flex flex-wrap gap-2">
-                {topStrengths.length > 0 ? (
-                  topStrengths.map((strength) => (
-                    <span
-                      key={strength}
-                      className="px-3 py-1.5 bg-[#7dbbff]/10 text-[#7dbbff] text-xs font-medium"
-                      style={{ borderRadius: '10px' }}
-                    >
-                      {strength}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-xs text-[#9CA3AF]">—</span>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs text-[#6B7280] mb-3">Work-style emphasis (from motivation &amp; collaboration scores)</p>
-              {workContextRows.length > 0 ? (
-                <div className="space-y-2">
-                  {workContextRows.map((item) => (
-                    <div key={item.label} className="flex items-center justify-between">
-                      <span className="text-xs text-[#111827]">{item.label}</span>
-                      <div className="flex gap-0.5">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <div
-                            key={i}
-                            className={`w-5 h-1.5 ${i <= item.level ? 'bg-[#7dbbff]' : 'bg-[#E5E7EB]'}`}
-                            style={{ borderRadius: '2px' }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-xs text-[#9CA3AF]">Complete intake to see work-style emphasis.</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 border border-black/[0.08] shadow-sm col-span-2" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-2 mb-5">
-            <Award className="w-5 h-5 text-[#7dbbff]" strokeWidth={2} />
-            <h3 className="text-base text-[#111827] font-semibold">Achievement Spotlight</h3>
-          </div>
-          <p className="text-xs text-[#6B7280] mb-4">From Section 1 — your proudest professional moment</p>
-
-          <div className="bg-[#F9FAFB] border border-black/[0.06] p-4 mb-5" style={{ borderRadius: '12px' }}>
-            {proudMoment ? (
-              <p className="text-sm text-[#111827] leading-relaxed italic">&ldquo;{proudMoment}&rdquo;</p>
-            ) : (
-              <p className="text-sm text-[#6B7280] leading-relaxed">
-                You have not added a proud moment yet. Open Profile Builder → Section 1 to capture the story you want
-                employers to see here.
+            ))}
+            <div className="w-full basis-full">
+              <p className="mb-0.5 text-[10px] uppercase tracking-[0.08em] text-[#9CA3AF]">Focus</p>
+              <p className="text-[13px] font-medium text-[#111827]">
+                {hasLoaded ? focusMetaValue || '—' : '…'}
               </p>
-            )}
-          </div>
-
-          <div className="mb-5">
-            <p className="text-xs text-[#6B7280] mb-3">What your scores suggest</p>
-            <div className="space-y-2.5">
-              {achievementBullets.map((b, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                      i === 0 ? 'bg-[#10B981]/10' : i === 1 ? 'bg-[#7dbbff]/10' : 'bg-[#F59E0B]/10'
-                    }`}
-                  >
-                    {i === 0 ? (
-                      <CheckCircle2 className="w-4 h-4 text-[#10B981]" strokeWidth={2} />
-                    ) : i === 1 ? (
-                      <BarChart3 className="w-4 h-4 text-[#7dbbff]" strokeWidth={2} />
-                    ) : (
-                      <Brain className="w-4 h-4 text-[#F59E0B]" strokeWidth={2} />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#111827] font-medium">{b.title}</p>
-                    <p className="text-xs text-[#6B7280]">{b.body}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-black/[0.08]">
-            <p className="text-xs text-[#6B7280] mb-2.5">Behavioral tags (from top dimensions)</p>
-            <div className="flex flex-wrap gap-2">
-              {behavioralTags.length > 0 ? (
-                behavioralTags.map((tag, i) => {
-                  const palette = ['#10B981', '#7dbbff', '#F59E0B', '#8B5CF6', '#6366F1'];
-                  const c = palette[i % palette.length];
-                  return (
-                    <span
-                      key={tag}
-                      className="px-3 py-1.5 text-xs font-medium"
-                      style={{ borderRadius: '10px', color: c, backgroundColor: `${c}15` }}
-                    >
-                      {tag}
-                    </span>
-                  );
-                })
-              ) : (
-                <span className="text-xs text-[#9CA3AF]">—</span>
-              )}
             </div>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onEditProfile}
+          className="flex shrink-0 items-center gap-2 whitespace-nowrap border border-black/[0.11] bg-white px-3.5 py-1.5 transition-colors hover:bg-[#f9f9f9]"
+          style={{ borderRadius: 5 }}
+        >
+          <Pencil className="h-[13px] w-[13px] text-[#6B7280]" strokeWidth={2} />
+          <span className="text-[12px] font-medium text-[#374151]">Edit profile</span>
+        </button>
       </div>
 
-      <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-[#7dbbff]" strokeWidth={2} />
-            <h3 className="text-base text-[#111827] font-semibold">Consistency &amp; Signal Quality</h3>
+      {/* Profile status */}
+      <div
+        className="mb-1 mt-0 flex flex-wrap items-center justify-between gap-3 px-4 py-2.5"
+        style={{
+          borderRadius: 5,
+          ...(intakeComplete
+            ? {
+                background: 'rgba(16,185,129,0.05)',
+                border: '1px solid rgba(16,185,129,0.15)',
+              }
+            : {
+                background: 'rgba(245,158,11,0.05)',
+                border: '1px solid rgba(245,158,11,0.15)',
+              }),
+        }}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ background: intakeComplete ? '#10B981' : '#F59E0B' }}
+          />
+          <p
+            className="text-[12.5px] font-medium"
+            style={{ color: intakeComplete ? '#065F46' : '#92400E' }}
+          >
+            {intakeComplete
+              ? 'Trait profile complete — you are visible to matched employers'
+              : 'Intake not yet complete — finish your profile to appear in employer searches'}
+          </p>
+        </div>
+        {intakeComplete ? (
+          <div className="flex items-center gap-1.5">
+            <Check className="h-[13px] w-[13px] text-[#10B981]" strokeWidth={2.5} />
+            <span className="text-[11px] font-semibold text-[#10B981]">Complete</span>
           </div>
-          {traitScores && consistencyOverall != null && (
-            <div
-              className="flex items-center gap-2 px-3 py-1.5"
-              style={{
-                borderRadius: '8px',
-                backgroundColor: consistencyOverall >= 70 ? '#10B98115' : consistencyOverall >= 50 ? '#F59E0B15' : '#F3F4F6',
-              }}
-            >
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{
-                  backgroundColor: consistencyOverall >= 70 ? '#10B981' : consistencyOverall >= 50 ? '#F59E0B' : '#6B7280',
-                }}
-              />
+        ) : (
+          <button
+            type="button"
+            onClick={() => onProfileBuilderClick(1)}
+            className="flex items-center gap-1 text-[11px] font-semibold text-[#F59E0B]"
+          >
+            Continue intake
+            <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
+          </button>
+        )}
+      </div>
+
+      <SectionRule>Trait Profile</SectionRule>
+
+      <div className="grid grid-cols-1 gap-x-[52px] gap-y-2.5 lg:grid-cols-2">
+        {TRAIT_ROWS_HANDOFF.map(({ key, label }) => {
+          const score = traitScores ? Math.round(traitScores[key]) : 0;
+          const band = traitScores ? signalBand(traitScores[key]) : { signal: '—', signalColor: '#9CA3AF' };
+          const displayScore = traitScores ? score : 0;
+          return (
+            <div key={key} className="flex items-center gap-3">
               <span
-                className="text-xs font-medium"
-                style={{
-                  color: consistencyOverall >= 70 ? '#10B981' : consistencyOverall >= 50 ? '#F59E0B' : '#6B7280',
-                }}
+                className="shrink-0 text-[12.5px] text-[#374151]"
+                style={{ width: 158, lineHeight: 1.4 }}
               >
-                {consistencyLabel}
+                {label}
+              </span>
+              <div className="h-0.5 min-w-0 flex-1 overflow-hidden rounded-[1px] bg-[#EBEBEB]">
+                {traitScores ? (
+                  <div
+                    className="h-full rounded-[1px] transition-[width] duration-[600ms] ease-out"
+                    style={{ width: `${displayScore}%`, background: band.signalColor }}
+                  />
+                ) : null}
+              </div>
+              <span
+                className="w-6 shrink-0 text-right font-dashboard-mono text-[11px]"
+                style={{ color: band.signalColor }}
+              >
+                {traitScores ? displayScore : '—'}
+              </span>
+              <span
+                className="w-[54px] shrink-0 text-[10px] font-medium"
+                style={{ color: band.signalColor }}
+              >
+                {traitScores ? band.signal : '—'}
               </span>
             </div>
-          )}
-        </div>
-        <p className="text-xs text-[#6B7280] mb-5">
-          Spread across your nine dimension scores (lower spread = more even profile). This is a heuristic — not a stored
-          LLM consistency grade.
-        </p>
+          );
+        })}
+      </div>
 
-        <div className="grid grid-cols-3 gap-5">
-          <div className="p-4 bg-[#F9F9FA] border border-black/[0.06]" style={{ borderRadius: '14px' }}>
-            <p className="text-xs text-[#6B7280] mb-3">Score spread index</p>
-            {consistencyOverall != null ? (
-              <>
-                <div className="flex items-end gap-2 mb-3">
-                  <p className="text-3xl text-[#111827] font-semibold">{consistencyOverall}</p>
-                  <p className="text-sm text-[#6B7280] mb-1">/100</p>
-                </div>
-                <div className="w-full h-2 bg-[#E5E7EB] rounded-full overflow-hidden mb-2">
-                  <div className="h-full bg-[#10B981] rounded-full" style={{ width: `${consistencyOverall}%` }} />
-                </div>
-                <p className="text-xs text-[#6B7280]">
-                  Higher means your dimension scores are closer together (fewer extreme outliers).
-                </p>
-              </>
+      <SectionRule>Narrative</SectionRule>
+
+      <div className="grid grid-cols-1 gap-[52px] lg:grid-cols-2">
+        <div>
+          <p className="mb-2.5 text-[10px] uppercase tracking-[0.08em] text-[#9CA3AF]">Background summary</p>
+          <p className="text-[13.5px] leading-[1.7] text-[#374151]">
+            {backgroundNarrative ||
+              'Your background summary will appear here from your profile and Section 1 narrative.'}
+          </p>
+          <p className="mb-2.5 mt-5 text-[10px] uppercase tracking-[0.08em] text-[#9CA3AF]">Key strengths</p>
+          <div className="flex flex-wrap gap-1.5">
+            {topStrengths.length > 0 ? (
+              topStrengths.map((tag) => (
+                <span
+                  key={tag}
+                  className="border border-black/[0.13] px-2.5 py-1 text-[11.5px] font-medium text-[#374151]"
+                  style={{ borderRadius: 3 }}
+                >
+                  {tag}
+                </span>
+              ))
             ) : (
-              <p className="text-sm text-[#6B7280]">Complete intake to see a spread-based consistency index.</p>
+              <span className="text-[13.5px] text-[#9CA3AF]">Complete intake to see key strengths from scores.</span>
             )}
           </div>
-
-          <div className="p-4 bg-[#F9F9FA] border border-black/[0.06]" style={{ borderRadius: '14px' }}>
-            <p className="text-xs text-[#6B7280] mb-3">Dimension alignment</p>
-            <div className="space-y-3">
-              {traitScores ? (
-                signalBreakdown.map((signal) => (
-                  <div key={signal.label} className="flex items-center justify-between">
-                    <span className="text-xs text-[#111827]">{signal.label}</span>
-                    <span className="text-xs font-medium" style={{ color: signal.color }}>
-                      {signal.status}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <span className="text-xs text-[#9CA3AF]">—</span>
-              )}
-            </div>
-          </div>
-
-          <div className="p-4 bg-[#F9F9FA] border border-black/[0.06]" style={{ borderRadius: '14px' }}>
-            <p className="text-xs text-[#6B7280] mb-3">Observations</p>
-            <div className="space-y-3">
-              {observations.length > 0 ? (
-                observations.map((o, i) => (
-                  <div key={i} className="flex items-start gap-2.5">
-                    {o.type === 'ok' ? (
-                      <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" strokeWidth={2} />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-[#F59E0B] shrink-0 mt-0.5" strokeWidth={2} />
-                    )}
-                    <p className="text-xs text-[#111827] leading-relaxed">{o.text}</p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-[#6B7280]">Complete intake for automated observations from your score pattern.</p>
-              )}
-            </div>
+        </div>
+        <div>
+          <p className="mb-2.5 text-[10px] uppercase tracking-[0.08em] text-[#9CA3AF]">
+            Proudest professional moment
+          </p>
+          {proudMoment ? (
+            <blockquote
+              className="border-l-2 border-[#7dbbff] pl-4 text-[13.5px] italic leading-[1.75] text-[#111827]"
+            >
+              {proudMoment}
+            </blockquote>
+          ) : (
+            <p className="text-[13.5px] leading-[1.7] text-[#6B7280]">
+              Add your story in Profile Builder — Section 1.
+            </p>
+          )}
+          <p className="mb-2.5 mt-5 text-[10px] uppercase tracking-[0.08em] text-[#9CA3AF]">Top dimensions</p>
+          <div className="flex flex-col gap-2">
+            {topDimensionsNumbered.length > 0 ? (
+              topDimensionsNumbered.map((label, i) => (
+                <div key={label} className="flex items-baseline gap-1.5">
+                  <span className="w-4 shrink-0 font-dashboard-mono text-[10px] text-[#C4C4CC]">{i + 1}</span>
+                  <span className="text-[13px] font-medium text-[#111827]">{label}</span>
+                </div>
+              ))
+            ) : (
+              <span className="text-sm text-[#9CA3AF]">—</span>
+            )}
           </div>
         </div>
       </div>
-    </>
+
+      <SectionRule>Work Style &amp; Signal Quality</SectionRule>
+
+      <div className="grid grid-cols-1 gap-[52px] lg:grid-cols-3">
+        <div>
+          <p className="mb-3 text-[10px] uppercase tracking-[0.08em] text-[#9CA3AF]">Emphasis from scores</p>
+          <div className="flex flex-col gap-3">
+            {workContextRows.map((item) => (
+              <div key={item.label}>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[12.5px] text-[#374151]">{item.label}</span>
+                  <span className="font-dashboard-mono text-[10px] text-[#9CA3AF]">{item.level}/5</span>
+                </div>
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div
+                      key={i}
+                      className="h-0.5 flex-1 rounded-[1.5px]"
+                      style={{
+                        background: i <= item.level ? '#7dbbff' : '#E9E9EE',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-3 text-[10px] uppercase tracking-[0.08em] text-[#9CA3AF]">Score spread index</p>
+          {consistencyOverall != null ? (
+            <>
+              <div className="mb-2 flex items-end gap-1">
+                <span className="font-dashboard-mono text-[38px] font-semibold tracking-[-0.04em] text-[#111827]">
+                  {consistencyOverall}
+                </span>
+                <span className="mb-1.5 font-dashboard-mono text-[13px] text-[#9CA3AF]">/100</span>
+              </div>
+              <div className="mb-2 h-0.5 w-full overflow-hidden rounded-[1px] bg-[#EBEBEB]">
+                <div
+                  className="h-full rounded-[1px] bg-[#10B981]"
+                  style={{ width: `${consistencyOverall}%` }}
+                />
+              </div>
+              <p className="text-[11.5px] font-medium text-[#10B981]">{consistencyLabel}</p>
+              <p className="mt-2 text-[11.5px] leading-normal text-[#9CA3AF]">
+                Higher means your dimension scores are closer together (fewer extreme outliers).
+              </p>
+            </>
+          ) : (
+            <p className="text-[13.5px] text-[#6B7280]">Complete intake to see spread index.</p>
+          )}
+        </div>
+        <div>
+          <p className="mb-3 text-[10px] uppercase tracking-[0.08em] text-[#9CA3AF]">Dimension alignment</p>
+          <div>
+            {traitScores ? (
+              signalBreakdown.map((row, idx) => (
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between py-2.5"
+                  style={{
+                    borderTop: idx === 0 ? undefined : '1px solid rgba(0,0,0,0.06)',
+                  }}
+                >
+                  <span className="text-[12.5px] text-[#374151]">{row.label}</span>
+                  <span className="text-[11px] font-semibold" style={{ color: row.color }}>
+                    {row.status}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <span className="text-sm text-[#9CA3AF]">—</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <SectionRule>Achievement Notes</SectionRule>
+
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
+        {achievementBullets.map((b, i) => (
+          <div key={i} className="flex gap-3.5">
+            <span className="mt-0.5 shrink-0 font-dashboard-mono text-[11px] text-[#C4C4CC]">{i + 1}</span>
+            <div>
+              <p className="mb-1.5 text-[13px] font-semibold tracking-[-0.01em] text-[#111827]">{b.title}</p>
+              <p className="text-[12.5px] leading-[1.6] text-[#6B7280]">{b.body}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <SectionRule>Matched Opportunities</SectionRule>
+
+      <div>
+        {dashboardOpportunities.map((opp, idx) => {
+          const fit = fitLabelAndColor(opp.matchScore);
+          const isLast = idx === dashboardOpportunities.length - 1;
+          const type = opp.employmentType ?? 'Full-time';
+          const sector = opp.sector ?? 'Technology';
+          return (
+            <button
+              key={opp.id}
+              type="button"
+              onClick={onViewAllPipeline}
+              className="grid w-full grid-cols-[1fr_auto] gap-4 py-3.5 text-left transition-colors hover:bg-black/[0.02]"
+              style={{
+                borderBottom: isLast ? undefined : '1px solid rgba(0,0,0,0.07)',
+              }}
+            >
+              <div className="flex gap-5">
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-black/[0.05] text-[12px] font-bold text-[#6B7280]"
+                  style={{ borderRadius: 6 }}
+                >
+                  {companyInitials(opp.company)}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-baseline gap-2.5">
+                    <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-[#111827]">
+                      {opp.role}
+                    </span>
+                    <span className="text-[11px] text-[#9CA3AF]">{opp.company}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11.5px] text-[#6B7280]">
+                    <span>{opp.location}</span>
+                    <span className="h-1 w-1 shrink-0 rounded-full bg-[#D1D5DB]" />
+                    <span>{type}</span>
+                    <span className="h-1 w-1 shrink-0 rounded-full bg-[#D1D5DB]" />
+                    <span>{sector}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-4">
+                <div>
+                  <p className="text-[10px] font-medium uppercase text-[#9CA3AF]">Fit</p>
+                  <div className="flex items-baseline gap-0.5">
+                    <span className="font-dashboard-mono text-base font-bold" style={{ color: fit.color }}>
+                      {opp.matchScore}
+                    </span>
+                    <span className="font-dashboard-mono text-[10px] text-[#9CA3AF]">/100</span>
+                  </div>
+                  <div className="mt-1 h-[3px] w-20 overflow-hidden rounded-[1.5px] bg-[#EBEBEB]">
+                    <div
+                      className="h-full rounded-[1.5px]"
+                      style={{ width: `${opp.matchScore}%`, background: fit.color }}
+                    />
+                  </div>
+                  <p className="mt-1 text-[10px] font-semibold" style={{ color: fit.color }}>
+                    {fit.label}
+                  </p>
+                </div>
+                <ArrowRight className="h-[15px] w-[15px] text-[#C4C4CC]" strokeWidth={2} />
+              </div>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={onViewAllPipeline}
+          className="mt-3 flex items-center gap-1.5 text-[12px] font-medium text-[#7dbbff]"
+        >
+          View all opportunities
+          <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
+        </button>
+      </div>
+
+      <SectionRule>Recent Activity</SectionRule>
+
+      <div className="relative pl-5">
+        <div
+          className="pointer-events-none absolute bottom-1.5 left-[5px] top-1.5 w-px bg-black/[0.07]"
+          aria-hidden
+        />
+        {activityRows.length === 0 ? (
+          <p className="text-[12.5px] text-[#6B7280]">
+            Activity from your profile and intake will show up here.
+          </p>
+        ) : (
+          activityRows.map((ev, idx) => {
+            const col = activityDotColor(ev.event_type);
+            const isLast = idx === activityRows.length - 1;
+            return (
+              <div
+                key={ev.id}
+                className="relative flex gap-3.5"
+                style={{ paddingBottom: isLast ? 0 : 14 }}
+              >
+                <span
+                  className="absolute left-[2px] mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full border-[1.5px] border-white"
+                  style={{
+                    background: col,
+                    boxShadow: `0 0 0 1px ${col}`,
+                  }}
+                />
+                <div className="pl-4">
+                  <p className="text-[12.5px] leading-normal text-[#374151]">{ev.body}</p>
+                  <p className="mt-0.5 font-dashboard-mono text-[11px] text-[#9CA3AF]">
+                    {formatTimeAgo(new Date(ev.created_at))}
+                  </p>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
 }

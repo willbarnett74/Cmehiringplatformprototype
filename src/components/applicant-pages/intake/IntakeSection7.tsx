@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { MutableRefObject } from 'react';
 
 interface IntakeSection7Props {
   onComplete: (data: { 
@@ -31,9 +32,16 @@ interface IntakeSection7Props {
     };
   }) => void;
   initialData?: any;
+  submitRef?: MutableRefObject<(() => void) | null>;
+  hideFooterButton?: boolean;
 }
 
-export function IntakeSection7({ onComplete, initialData: _initialData }: IntakeSection7Props) {
+export function IntakeSection7({
+  onComplete,
+  initialData: _initialData,
+  submitRef,
+  hideFooterButton = false,
+}: IntakeSection7Props) {
   // S7Q1 - What you're looking for (multi-select, max 2)
   const [q1Selections, setQ1Selections] = useState<string[]>([]);
 
@@ -151,28 +159,42 @@ export function IntakeSection7({ onComplete, initialData: _initialData }: Intake
     });
   };
 
+  useEffect(() => {
+    return () => {
+      if (submitRef) submitRef.current = null;
+    };
+  }, [submitRef]);
+
+  if (hideFooterButton && submitRef) {
+    submitRef.current = handleNext;
+  }
+
   return (
     <div>
-      {/* Section Header */}
-      <div className="mb-8">
-        <h2 className="text-2xl text-[#111827] mb-2">
-          SECTION 7 — Career Direction
-        </h2>
-        <div className="flex items-center gap-2 text-sm text-[#6B7280] mb-4">
-          <span className="text-[#7DBBFF] font-medium">
-            Dimensions scored: Employer filtering data only — no trait scoring
-          </span>
-          <span className="text-[#9CA3AF]">•</span>
-          <span>Est. time: 4–5 min</span>
-        </div>
-      </div>
+      {!hideFooterButton ? (
+        <>
+          {/* Section Header */}
+          <div className="mb-8">
+            <h2 className="text-2xl text-[#111827] mb-2">
+              SECTION 7 — Career Direction
+            </h2>
+            <div className="flex items-center gap-2 text-sm text-[#6B7280] mb-4">
+              <span className="text-[#7DBBFF] font-medium">
+                Dimensions scored: Employer filtering data only — no trait scoring
+              </span>
+              <span className="text-[#9CA3AF]">•</span>
+              <span>Est. time: 4–5 min</span>
+            </div>
+          </div>
 
-      {/* Framing */}
-      <div className="bg-white border border-[#7DBBFF]/30 p-6 mb-8" style={{ borderRadius: '16px' }}>
-        <p className="text-sm text-[#111827] leading-relaxed italic">
-          "Almost there. This section is about where you're headed — not where you think you should be headed, but what genuinely interests and motivates you about your next step."
-        </p>
-      </div>
+          {/* Framing */}
+          <div className="bg-white border border-[#7DBBFF]/30 p-6 mb-8" style={{ borderRadius: '16px' }}>
+            <p className="text-sm text-[#111827] leading-relaxed italic">
+              "Almost there. This section is about where you're headed — not where you think you should be headed, but what genuinely interests and motivates you about your next step."
+            </p>
+          </div>
+        </>
+      ) : null}
 
       {/* S7Q1 - What you're looking for */}
       <div className="bg-white border border-black/[0.08] p-8 mb-8" style={{ borderRadius: '20px' }}>
@@ -480,20 +502,23 @@ export function IntakeSection7({ onComplete, initialData: _initialData }: Intake
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleNext}
-          disabled={!canProceed}
-          className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-            canProceed
-              ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
-              : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
-          }`}
-          style={{ borderRadius: '12px' }}
-        >
-          Continue to Next Section →
-        </button>
-      </div>
+      {!hideFooterButton ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!canProceed}
+            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
+              canProceed
+                ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
+                : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+            }`}
+            style={{ borderRadius: '12px' }}
+          >
+            Continue to Next Section →
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

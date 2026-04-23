@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Check, Camera } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
-import { ensureApplicantProfile, updateApplicantBasicInfo } from '../../lib/applicantPersistence';
+import {
+  ensureApplicantProfile,
+  updateApplicantBasicInfo,
+  insertCandidateActivityEvent,
+  uploadApplicantAvatar,
+} from '../../lib/applicantPersistence';
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 
@@ -78,16 +83,61 @@ function SelectInput({
   );
 }
 
-export function EditBasicInfoPage() {
+function parseOptionalInt(raw: string): { value: number | null; invalid: boolean } {
+  const t = raw.trim();
+  if (t === '') return { value: null, invalid: false };
+  const n = Number(t);
+  if (!Number.isFinite(n)) return { value: null, invalid: true };
+  return { value: Math.round(n), invalid: false };
+}
+
+function PreferenceToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-black/[0.07] py-3 last:border-b-0">
+      <span className="text-[13px] text-[#374151]">{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? 'bg-[#7dbbff]' : 'bg-[#E5E7EB]'}`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'left-5' : 'left-0.5'}`}
+        />
+      </button>
+    </div>
+  );
+}
+
+export function EditBasicInfoPage({
+  onSaved,
+  showPreferencesSection = false,
+}: {
+  onSaved?: () => void;
+  /** When true (Settings page), show notification / visibility preferences and persist to Supabase. */
+  showPreferencesSection?: boolean;
+} = {}) {
   const [applicantProfileId, setApplicantProfileId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Photo
+  // Photo (stored URL on profiles.avatar_url; pending file uploaded on Save)
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
 
   // Personal details
   const [fullName, setFullName] = useState('');
@@ -115,6 +165,10 @@ export function EditBasicInfoPage() {
   const [phone, setPhone] = useState('');
   const [linkedin, setLinkedin] = useState('');
 
+  const [notifyEmailMatches, setNotifyEmailMatches] = useState(true);
+  const [notifyWeeklyDigest, setNotifyWeeklyDigest] = useState(false);
+  const [profileVisibleEmployers, setProfileVisibleEmployers] = useState(false);
+
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
       setLoading(false);
@@ -131,13 +185,24 @@ export function EditBasicInfoPage() {
       // Load from profiles table (name, email)
       const { data: profileRow } = await supabase
         .from('profiles')
-        .select('full_name,email')
+        .select('full_name,email,avatar_url,notify_email_matches,notify_weekly_digest')
         .eq('id', uid)
         .maybeSingle();
 
       if (profileRow) {
         setFullName(profileRow.full_name ?? '');
         setEmail(profileRow.email ?? '');
+        setAvatarUrl(typeof profileRow.avatar_url === 'string' ? profileRow.avatar_url : null);
+        const row = profileRow as {
+          notify_email_matches?: boolean | null;
+          notify_weekly_digest?: boolean | null;
+        };
+        if (typeof row.notify_email_matches === 'boolean') {
+          setNotifyEmailMatches(row.notify_email_matches);
+        }
+        if (typeof row.notify_weekly_digest === 'boolean') {
+          setNotifyWeeklyDigest(row.notify_weekly_digest);
+        }
       }
 
       // Load from candidate_profiles
@@ -147,7 +212,9 @@ export function EditBasicInfoPage() {
       if (profileId) {
         const { data } = await supabase
           .from('candidate_profiles')
-          .select('location,experience_years,current_situation,education_summary,experience_narrative')
+          .select(
+            'location,experience_years,current_situation,education_summary,experience_narrative,age,job_title,current_company,phone,linkedin_url,gender,certifications,published',
+          )
           .eq('id', profileId)
           .maybeSingle();
 
@@ -157,6 +224,14 @@ export function EditBasicInfoPage() {
           setCurrentSituation(data.current_situation ?? '');
           setEducationSummary(data.education_summary ?? '');
           setBio(data.experience_narrative ?? '');
+          setAge(data.age != null ? String(data.age) : '');
+          setJobTitle(data.job_title ?? '');
+          setCurrentCompany(data.current_company ?? '');
+          setPhone(data.phone ?? '');
+          setLinkedin(data.linkedin_url ?? '');
+          setGender(data.gender ?? '');
+          setCertifications(data.certifications ?? '');
+          setProfileVisibleEmployers(data.published === true);
         }
       }
 
@@ -164,38 +239,127 @@ export function EditBasicInfoPage() {
     });
   }, []);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoPreview(URL.createObjectURL(file));
+  useEffect(() => {
+    if (!pendingPhotoFile) {
+      setLocalPreviewUrl(null);
+      return;
     }
+    const url = URL.createObjectURL(pendingPhotoFile);
+    setLocalPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pendingPhotoFile]);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSaveError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      setSaveError('Please choose a JPG or PNG image.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setSaveError('Photo must be 5MB or smaller.');
+      e.target.value = '';
+      return;
+    }
+    setPendingPhotoFile(file);
   };
 
   const handleSave = async () => {
+    setSaveError(null);
     setSaving(true);
+    try {
+      if (!isSupabaseConfigured || !supabase || !userId) {
+        setSaveError('Sign in to save changes.');
+        return;
+      }
 
-    // Update profiles.full_name
-    if (supabase && userId && fullName) {
-      await supabase
-        .from('profiles')
-        .update({ full_name: fullName })
-        .eq('id', userId);
-    }
+      let profileId = applicantProfileId;
+      if (!profileId) {
+        profileId = await ensureApplicantProfile(supabase, userId);
+        setApplicantProfileId(profileId);
+      }
+      if (!profileId) {
+        setSaveError('Could not load your profile. Try again in a moment.');
+        return;
+      }
 
-    // Update candidate_profiles fields
-    if (supabase && applicantProfileId) {
-      await updateApplicantBasicInfo(supabase, applicantProfileId, {
-        location: location || null,
-        experience_years: experienceYears !== '' ? Number(experienceYears) : null,
-        current_situation: currentSituation || null,
-        education_summary: educationSummary || null,
-        experience_narrative: bio || null,
+      const ageParsed = parseOptionalInt(age);
+      const expParsed = parseOptionalInt(experienceYears);
+      if (ageParsed.invalid || expParsed.invalid) {
+        setSaveError('Age and years of experience must be valid numbers (or left blank).');
+        return;
+      }
+
+      let newAvatarUrl: string | null | undefined;
+      if (pendingPhotoFile) {
+        const { publicUrl, error: avErr } = await uploadApplicantAvatar(supabase, userId, pendingPhotoFile);
+        if (avErr || !publicUrl) {
+          setSaveError(
+            avErr?.message?.includes('Bucket not found') || avErr?.message?.includes('not found')
+              ? 'Photo storage is not set up yet. Ask your admin to run the avatars storage migration.'
+              : avErr?.message ?? 'Could not upload photo.',
+          );
+          return;
+        }
+        newAvatarUrl = publicUrl;
+      }
+
+      const profilePayload: Record<string, unknown> = {
+        full_name: fullName.trim() || null,
+        ...(newAvatarUrl != null ? { avatar_url: newAvatarUrl } : {}),
+      };
+      if (showPreferencesSection) {
+        profilePayload.notify_email_matches = notifyEmailMatches;
+        profilePayload.notify_weekly_digest = notifyWeeklyDigest;
+      }
+
+      const { error: profileErr } = await supabase.from('profiles').update(profilePayload).eq('id', userId);
+
+      if (profileErr) {
+        setSaveError(profileErr.message);
+        return;
+      }
+
+      if (newAvatarUrl != null) {
+        setAvatarUrl(newAvatarUrl);
+        setPendingPhotoFile(null);
+        if (photoInputRef.current) photoInputRef.current.value = '';
+      }
+
+      const { error: candErr } = await updateApplicantBasicInfo(supabase, profileId, {
+        age: ageParsed.value,
+        job_title: jobTitle.trim() || null,
+        current_company: currentCompany.trim() || null,
+        phone: phone.trim() || null,
+        linkedin_url: linkedin.trim() || null,
+        gender: gender.trim() || null,
+        certifications: certifications.trim() || null,
+        location: location.trim() || null,
+        experience_years: expParsed.value,
+        current_situation: currentSituation.trim() || null,
+        education_summary: educationSummary.trim() || null,
+        experience_narrative: bio.trim() || null,
+        ...(showPreferencesSection ? { published: profileVisibleEmployers } : {}),
       });
-    }
 
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+      if (candErr) {
+        setSaveError(
+          candErr.message.includes('column')
+            ? 'Your database may need the latest migration (contact support).'
+            : candErr.message,
+        );
+        return;
+      }
+
+      await insertCandidateActivityEvent(supabase, userId, 'profile', 'Profile details updated');
+      onSaved?.();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -228,14 +392,23 @@ export function EditBasicInfoPage() {
   );
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6 font-dashboard text-[#111827] antialiased">
       {/* Page header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-[#111827]">Basic Information</h1>
+          {showPreferencesSection ? (
+            <h2 className="text-xl font-semibold text-[#111827]">Basic Information</h2>
+          ) : (
+            <h1 className="text-2xl font-semibold text-[#111827]">Basic Information</h1>
+          )}
           <p className="mt-1 text-sm text-[#6B7280]">
             Keep your details up to date so employers see the right fit.
           </p>
+          {saveError ? (
+            <p className="mt-2 text-sm text-red-600" role="alert">
+              {saveError}
+            </p>
+          ) : null}
         </div>
         <SaveButton />
       </div>
@@ -247,8 +420,12 @@ export function EditBasicInfoPage() {
           <div
             className="w-20 h-20 rounded-full bg-[#7dbbff]/10 border-2 border-[#7dbbff]/20 flex items-center justify-center overflow-hidden shrink-0"
           >
-            {photoPreview ? (
-              <img src={photoPreview} alt="Profile" className="w-full h-full object-cover" />
+            {localPreviewUrl || avatarUrl ? (
+              <img
+                src={localPreviewUrl ?? avatarUrl ?? ''}
+                alt=""
+                className="w-full h-full object-cover"
+              />
             ) : (
               <Camera className="w-7 h-7 text-[#7dbbff]" strokeWidth={1.5} />
             )}
@@ -419,6 +596,34 @@ export function EditBasicInfoPage() {
           />
         </div>
       </div>
+
+      {showPreferencesSection ? (
+        <div>
+          <div className="mb-5 flex items-center gap-3.5" style={{ marginTop: 8 }}>
+            <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]">
+              Preferences
+            </span>
+            <div className="h-px flex-1 bg-black/[0.08]" />
+          </div>
+          <div className="max-w-xl rounded-[20px] border border-black/[0.08] bg-white px-5 py-1">
+            <PreferenceToggle
+              label="Email notifications for new matches"
+              checked={notifyEmailMatches}
+              onChange={setNotifyEmailMatches}
+            />
+            <PreferenceToggle
+              label="Profile visible to employers"
+              checked={profileVisibleEmployers}
+              onChange={setProfileVisibleEmployers}
+            />
+            <PreferenceToggle
+              label="Weekly digest summary"
+              checked={notifyWeeklyDigest}
+              onChange={setNotifyWeeklyDigest}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {/* Bottom save */}
       <div className="flex justify-end pb-8">

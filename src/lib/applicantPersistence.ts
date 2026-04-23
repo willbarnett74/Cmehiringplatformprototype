@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { computeIntakeScores, type DimensionScores } from '../utils/intakeScoring';
 import type { IntakeData, UserProfileData } from '../contexts/UserProfileContext';
-import type { IntakeFormat } from '../types/supabase';
+import type { CandidateActivityEventType, IntakeFormat } from '../types/supabase';
 
 function inferIntakeFormat(payload: Record<string, unknown>): IntakeFormat {
   if (typeof payload.narrative === 'string' && payload.narrative.trim().length > 0) return 'free_text';
@@ -268,10 +268,51 @@ function buildIntakeDataFromRows(rows: IntakeRow[]): IntakeData {
   return intakeData;
 }
 
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Upload a profile photo to the public `avatars` bucket; path is avatars/{userId}/profile.{ext}.
+ * Requires matching Storage RLS (see migration avatars_storage).
+ */
+export async function uploadApplicantAvatar(
+  client: SupabaseClient,
+  userId: string,
+  file: File,
+): Promise<{ publicUrl: string | null; error: Error | null }> {
+  if (file.size > AVATAR_MAX_BYTES) {
+    return { publicUrl: null, error: new Error('Image must be 5MB or smaller.') };
+  }
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
+    return { publicUrl: null, error: new Error('Use a JPG or PNG image.') };
+  }
+  const ext = file.type === 'image/png' ? 'png' : 'jpg';
+  const path = `${userId}/profile.${ext}`;
+
+  const { error: upErr } = await client.storage.from('avatars').upload(path, file, {
+    upsert: true,
+    contentType: file.type,
+  });
+
+  if (upErr) {
+    console.warn('[CMe] avatar upload failed:', upErr.message);
+    return { publicUrl: null, error: new Error(upErr.message) };
+  }
+
+  const { data } = client.storage.from('avatars').getPublicUrl(path);
+  return { publicUrl: data.publicUrl, error: null };
+}
+
 export async function updateApplicantBasicInfo(
   client: SupabaseClient,
   applicantProfileId: string,
   fields: Partial<{
+    age: number | null;
+    job_title: string | null;
+    current_company: string | null;
+    phone: string | null;
+    linkedin_url: string | null;
+    gender: string | null;
+    certifications: string | null;
     location: string | null;
     experience_years: number | null;
     current_situation: string | null;
@@ -287,8 +328,9 @@ export async function updateApplicantBasicInfo(
     org_size_preference: string | null;
     open_to_contract: string | null;
     open_to_industries: boolean;
+    published: boolean;
   }>,
-): Promise<void> {
+): Promise<{ error: Error | null }> {
   const { error } = await client
     .from('candidate_profiles')
     .update({ ...fields, updated_at: new Date().toISOString() })
@@ -296,7 +338,9 @@ export async function updateApplicantBasicInfo(
 
   if (error) {
     console.warn('[CMe] candidate_profiles basic info update failed:', error.message);
+    return { error: new Error(error.message) };
   }
+  return { error: null };
 }
 
 /**
@@ -335,6 +379,59 @@ export async function saveBaseDetails(
   }
 }
 
+/**
+ * Maps Profile Builder Section 7 (Career Direction) into candidate_profiles columns
+ * so the dashboard and employers can filter without re-parsing intake JSON.
+ */
+export async function syncSection7ToCandidateProfile(
+  client: SupabaseClient,
+  candidateProfileId: string,
+  responses: Record<string, unknown>,
+): Promise<void> {
+  const S7Q4 = responses.S7Q4 as { role_type_preferences?: string[] } | undefined;
+  const S7Q5 = responses.S7Q5 as {
+    work_location?: string;
+    org_size?: string;
+    part_time_openness?: string;
+    minimum_salary?: string;
+  } | undefined;
+
+  const roleTypes = Array.isArray(S7Q4?.role_type_preferences) ? S7Q4.role_type_preferences : null;
+  const workParts: string[] = [];
+  if (S7Q5?.work_location) workParts.push(S7Q5.work_location);
+  if (S7Q5?.part_time_openness) workParts.push(S7Q5.part_time_openness);
+
+  const { error } = await client
+    .from('candidate_profiles')
+    .update({
+      preferred_role_types: roleTypes,
+      preferred_work_type: workParts.length > 0 ? workParts : null,
+      org_size_preference: S7Q5?.org_size ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', candidateProfileId);
+
+  if (error) {
+    console.warn('[CMe] syncSection7ToCandidateProfile failed:', error.message);
+  }
+}
+
+export async function insertCandidateActivityEvent(
+  client: SupabaseClient,
+  userId: string,
+  eventType: CandidateActivityEventType,
+  body: string,
+): Promise<void> {
+  const { error } = await client.from('candidate_activity_events').insert({
+    user_id: userId,
+    event_type: eventType,
+    body,
+  });
+  if (error) {
+    console.warn('[CMe] candidate_activity_events insert failed:', error.message);
+  }
+}
+
 export async function markApplicantIntakeComplete(
   client: SupabaseClient,
   applicantProfileId: string,
@@ -350,5 +447,16 @@ export async function markApplicantIntakeComplete(
 
   if (error) {
     console.warn('[CMe] candidate_profiles intake complete failed:', error.message);
+    return;
+  }
+
+  const { data: row } = await client
+    .from('candidate_profiles')
+    .select('user_id')
+    .eq('id', applicantProfileId)
+    .maybeSingle();
+  const uid = row?.user_id as string | undefined;
+  if (uid) {
+    await insertCandidateActivityEvent(client, uid, 'profile', 'Trait profile marked complete');
   }
 }

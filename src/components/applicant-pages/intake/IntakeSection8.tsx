@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { MutableRefObject } from 'react';
 
 interface IntakeSection8Props {
   onComplete: (data: { 
@@ -30,9 +31,16 @@ interface IntakeSection8Props {
     optional_fields_completed: boolean;
   }) => void;
   initialData?: any;
+  submitRef?: MutableRefObject<(() => void) | null>;
+  hideFooterButton?: boolean;
 }
 
-export function IntakeSection8({ onComplete, initialData: _initialData }: IntakeSection8Props) {
+export function IntakeSection8({
+  onComplete,
+  initialData: _initialData,
+  submitRef,
+  hideFooterButton = false,
+}: IntakeSection8Props) {
   // S8Q1 - Strengths (required - 3 entries, max 80 words each)
   const [q1Strength1, setQ1Strength1] = useState('');
   const [q1Strength2, setQ1Strength2] = useState('');
@@ -120,28 +128,42 @@ export function IntakeSection8({ onComplete, initialData: _initialData }: Intake
     });
   };
 
+  useEffect(() => {
+    return () => {
+      if (submitRef) submitRef.current = null;
+    };
+  }, [submitRef]);
+
+  if (hideFooterButton && submitRef) {
+    submitRef.current = handleNext;
+  }
+
   return (
     <div>
-      {/* Section Header */}
-      <div className="mb-8">
-        <h2 className="text-2xl text-[#111827] mb-2">
-          SECTION 8 — Your Profile
-        </h2>
-        <div className="flex items-center gap-2 text-sm text-[#6B7280] mb-4">
-          <span className="text-[#7DBBFF] font-medium">
-            Dimensions scored: No trait scoring — qualitative human context for employer display
-          </span>
-          <span className="text-[#9CA3AF]">•</span>
-          <span>Est. time: 3–5 min</span>
-        </div>
-      </div>
+      {!hideFooterButton ? (
+        <>
+          {/* Section Header */}
+          <div className="mb-8">
+            <h2 className="text-2xl text-[#111827] mb-2">
+              SECTION 8 — Your Profile
+            </h2>
+            <div className="flex items-center gap-2 text-sm text-[#6B7280] mb-4">
+              <span className="text-[#7DBBFF] font-medium">
+                Dimensions scored: No trait scoring — qualitative human context for employer display
+              </span>
+              <span className="text-[#9CA3AF]">•</span>
+              <span>Est. time: 3–5 min</span>
+            </div>
+          </div>
 
-      {/* Framing */}
-      <div className="bg-white border border-[#7DBBFF]/30 p-6 mb-8" style={{ borderRadius: '16px' }}>
-        <p className="text-sm text-[#111827] leading-relaxed italic">
-          "Last section. This is your chance to add the human layer on top of everything you've shared — the things that don't fit neatly into questions but matter to who you are."
-        </p>
-      </div>
+          {/* Framing */}
+          <div className="bg-white border border-[#7DBBFF]/30 p-6 mb-8" style={{ borderRadius: '16px' }}>
+            <p className="text-sm text-[#111827] leading-relaxed italic">
+              "Last section. This is your chance to add the human layer on top of everything you've shared — the things that don't fit neatly into questions but matter to who you are."
+            </p>
+          </div>
+        </>
+      ) : null}
 
       {/* S8Q1 - Strengths (required) */}
       <div className="bg-white border border-black/[0.08] p-8 mb-8" style={{ borderRadius: '20px' }}>
@@ -349,20 +371,23 @@ export function IntakeSection8({ onComplete, initialData: _initialData }: Intake
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleNext}
-          disabled={!canProceed}
-          className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-            canProceed
-              ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
-              : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
-          }`}
-          style={{ borderRadius: '12px' }}
-        >
-          Complete Intake Flow →
-        </button>
-      </div>
+      {!hideFooterButton ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!canProceed}
+            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
+              canProceed
+                ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
+                : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+            }`}
+            style={{ borderRadius: '12px' }}
+          >
+            Complete Intake Flow →
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
