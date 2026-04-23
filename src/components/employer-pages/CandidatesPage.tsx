@@ -1,7 +1,7 @@
 import { GripVertical, X } from 'lucide-react';
-import { Candidate } from '../types/employer';
+import type { Candidate } from '../types/employer';
 import { useState } from 'react';
-import { getTraitHealthColor } from '../../src/lib/matchScoring';
+import { getTraitHealthColor } from '../../lib/matchScoring';
 import { ReviewDueBanner } from './ReviewDueBanner';
 
 interface CandidatesPageProps {
@@ -231,7 +231,7 @@ function DropZone({
   );
 }
 
-export function CandidatesPage({ candidates, onCandidateClick, onMoveToNextStage, onMoveToStage, daysSinceHire, completedSnapshotDays, onOpenReview }: CandidatesPageProps) {
+export function CandidatesPage({ candidates, onCandidateClick, onMoveToNextStage: _onMoveToNextStage, onMoveToStage, daysSinceHire, completedSnapshotDays, onOpenReview }: CandidatesPageProps) {
   const [draggedCandidateId, setDraggedCandidateId] = useState<number | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 

@@ -28,10 +28,11 @@ import {
   MapPin,
   Info,
 } from 'lucide-react';
-import { DSSectionHeader, DSSurfaceCard } from '../ds/DSComponents';
+import { DSSurfaceCard } from '../ds/DSComponents';
 import { useUserProfile } from '../../contexts/UserProfileContext';
-import { roleTemplates, RoleTemplate } from '../../lib/roleTemplates';
-import { DimensionScores } from '../../utils/intakeScoring';
+import { roleTemplates } from '../../lib/roleTemplates';
+import type { RoleTemplate } from '../../lib/roleTemplates';
+import type { DimensionScores } from '../../utils/intakeScoring';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

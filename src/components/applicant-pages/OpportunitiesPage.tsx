@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
-  Building2, Briefcase, MapPin, MessageSquare, Eye, Star, Calendar, ArrowUpRight,
-  Clock, TrendingUp, Send, X, ChevronRight, Sparkles, Users, Zap, Globe,
-  Layers, Target, Heart, ArrowRight, Search, Filter, CheckCircle2,
-  MessageCircle, Video, Phone, Bookmark, ExternalLink, BarChart3, Compass,
-  Lightbulb, GraduationCap, DollarSign, ChevronDown, ChevronUp, Info
+  Building2, Briefcase, MapPin, MessageSquare, Eye, Calendar, ArrowUpRight,
+  Clock, TrendingUp, Send, ChevronRight, Sparkles, Users, Globe,
+  Layers, Target, Search, CheckCircle2,
+  MessageCircle, Video, Phone, Bookmark, BarChart3, Compass,
+  Lightbulb, DollarSign, ChevronDown, ChevronUp, Info
 } from 'lucide-react';
 
 // ─── Types ─────────────────────────────────────────────────────────────

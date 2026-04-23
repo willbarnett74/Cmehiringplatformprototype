@@ -10,15 +10,17 @@ import { IntakeSection8 } from './applicant-pages/intake/IntakeSection8';
 import { ProfileBuilderLayout } from './applicant-pages/ProfileBuilderLayout';
 import { OpportunitiesPage } from './applicant-pages/OpportunitiesPage';
 import { TraitScoresDisplay } from './applicant-pages/TraitScoresDisplay';
-import { LayoutDashboard, User, Settings, Compass, ArrowRight, Layers, LogOut } from 'lucide-react';
+import { LayoutDashboard, User, Settings, Compass, Layers, LogOut } from 'lucide-react';
 import { NotificationBell } from './shared/NotificationBell';
 import { DashboardContent } from './applicant-pages/DashboardContent';
 import { EditBasicInfoPage } from './applicant-pages/EditBasicInfoPage';
+import { ApplicantWelcomePage } from './applicant-pages/ApplicantWelcomePage';
 import { useUserProfile } from '../contexts/UserProfileContext';
-import { computeIntakeScores } from '../utils/intakeScoring';
+import { computeIntakeScores, computeMotivationalFitAverage } from '../utils/intakeScoring';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   ensureApplicantProfile,
+  loadApplicantProfileFromSupabase,
   upsertIntakeSectionResponses,
   markApplicantIntakeComplete,
 } from '../lib/applicantPersistence';
@@ -39,39 +41,53 @@ import {
  */
 
 export function ApplicantScreen() {
-  const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete } = useUserProfile();
+  const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, replaceProfileData } =
+    useUserProfile();
   const [activeSection, setActiveSection] = useState<'dashboard' | 'profileBuilder' | 'companies' | 'settings' | 'intake'>('dashboard');
   const [activeStep, setActiveStep] = useState<number>(1);
-  const [cognitiveScore, setCognitiveScore] = useState<number | null>(null);
   const [applicantProfileId, setApplicantProfileId] = useState<string | null>(null);
   const [dbTraitScores, setDbTraitScores] = useState<import('../utils/intakeScoring').DimensionScores | null>(null);
-  const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [userName, setUserName] = useState<string>('');
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
     void supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user?.id) return;
-      const { data: profileRow } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', session.user.id)
-        .maybeSingle();
+      const uid = session.user.id;
+      setUserId(uid);
+      const { data: profileRow } = await supabase.from('profiles').select('full_name').eq('id', uid).maybeSingle();
       if (profileRow?.full_name) setUserName(profileRow.full_name as string);
-      const id = await ensureApplicantProfile(supabase, session.user.id);
+      const id = await ensureApplicantProfile(supabase, uid);
       setApplicantProfileId(id);
       if (!id) return;
-      const { data: scores } = await supabase
-        .from('candidate_profiles')
-        .select('learning_velocity,ownership_follow_through,resilience,communication_confidence,relational_intelligence,motivational_fit_mastery,motivational_fit_impact,motivational_fit_recognition,motivational_fit_autonomy')
-        .eq('id', id)
-        .maybeSingle();
-      if (scores) setDbTraitScores(scores as import('../utils/intakeScoring').DimensionScores);
+      const loaded = await loadApplicantProfileFromSupabase(supabase, id);
+      if (loaded) {
+        replaceProfileData(loaded.profile);
+        setDbTraitScores(loaded.traitScores);
+        if (!loaded.profile.intakeData.isComplete && !localStorage.getItem(`cme_welcomed_${uid}`)) {
+          setShowWelcome(true);
+        }
+      }
     });
   }, []);
   
   const handleSignOut = async () => {
     if (supabase) await supabase.auth.signOut();
   };
+
+  // First-login welcome flow
+  if (showWelcome && userId && applicantProfileId) {
+    return (
+      <ApplicantWelcomePage
+        userId={userId}
+        profileId={applicantProfileId}
+        onComplete={() => setShowWelcome(false)}
+      />
+    );
+  }
 
   // Safety check - ensure profileData is available
   if (!profileData) {
@@ -100,18 +116,6 @@ export function ApplicantScreen() {
     7: getStepStatus(7),
     8: getStepStatus(8),
   };
-
-  // Profile Builder Steps
-  const profileBuilderSteps = [
-    { id: 1, label: 'Section 1 – Background Narrative', component: 'IntakeSection1', time: '5–7 min' },
-    { id: 2, label: 'Section 2 – How You Work', component: 'IntakeSection2', time: '7–9 min' },
-    { id: 3, label: 'Section 3 – How You Think', component: 'IntakeSection3', time: '10–12 min' },
-    { id: 4, label: 'Section 4 – How You Handle Difficulty', component: 'IntakeSection4', time: '8–10 min' },
-    { id: 5, label: 'Section 5 – How You Relate to Others', component: 'IntakeSection5', time: '8–10 min' },
-    { id: 6, label: 'Section 6 – What Drives You', component: 'IntakeSection6', time: '8–10 min' },
-    { id: 7, label: 'Section 7 – Career Direction', component: 'IntakeSection7', time: '4–5 min' },
-    { id: 8, label: 'Section 8 – Your Profile', component: 'IntakeSection8', time: '3–5 min' },
-  ];
 
   // Handle navigation to Profile Builder
   const handleProfileBuilderClick = (stepId?: number) => {
@@ -149,6 +153,25 @@ export function ApplicantScreen() {
 
           const scores = computeIntakeScores(intakeResponses);
           updateTraitScores(scores);
+          if (supabase && applicantProfileId) {
+            const motivational_fit = computeMotivationalFitAverage(scores);
+            await supabase
+              .from('candidate_profiles')
+              .update({
+                learning_velocity: scores.learning_velocity,
+                ownership_follow_through: scores.ownership_follow_through,
+                resilience: scores.resilience,
+                communication_confidence: scores.communication_confidence,
+                relational_intelligence: scores.relational_intelligence,
+                motivational_fit_mastery: scores.motivational_fit_mastery,
+                motivational_fit_impact: scores.motivational_fit_impact,
+                motivational_fit_recognition: scores.motivational_fit_recognition,
+                motivational_fit_autonomy: scores.motivational_fit_autonomy,
+                motivational_fit,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', applicantProfileId);
+          }
           markIntakeComplete();
 
           if (supabase && applicantProfileId) {
@@ -167,8 +190,20 @@ export function ApplicantScreen() {
     // Render the appropriate intake section
     const renderSection = () => {
       switch (activeStep) {
-        case 1:
-          return <IntakeSection1 onComplete={(data) => void handleNext(data)} />;
+        case 1: {
+          const s1 = profileData.intakeData.section1 as
+            | { S1Q1?: { narrative?: string }; S1Q2?: { narrative?: string } }
+            | undefined;
+          return (
+            <IntakeSection1
+              onComplete={(data) => void handleNext(data)}
+              initialData={{
+                S1Q1: s1?.S1Q1?.narrative != null ? { narrative: s1.S1Q1.narrative } : undefined,
+                S1Q2: s1?.S1Q2?.narrative != null ? { narrative: s1.S1Q2.narrative } : undefined,
+              }}
+            />
+          );
+        }
         case 2:
           return <IntakeSection2 onComplete={(data) => void handleNext(data)} />;
         case 3:
@@ -205,6 +240,14 @@ export function ApplicantScreen() {
   if (activeSection === 'companies') {
     return (
       <div className="relative bg-[#fafafa] min-h-screen">
+        {showProfileEdit && userId && applicantProfileId && (
+          <ApplicantWelcomePage
+            editMode
+            userId={userId}
+            profileId={applicantProfileId}
+            onComplete={() => setShowProfileEdit(false)}
+          />
+        )}
         <div className="relative flex min-h-screen">
           {/* Left Sidebar Navigation */}
           <aside className="w-[240px] bg-white border-r border-black/[0.08] sticky top-0 h-screen overflow-y-auto">
@@ -294,12 +337,16 @@ export function ApplicantScreen() {
                 </div>
                 
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-3 px-4 py-2 bg-[#fafafa]" style={{ borderRadius: '10px' }}>
+                  <button
+                    onClick={() => setShowProfileEdit(true)}
+                    className="flex items-center gap-3 px-4 py-2 bg-[#fafafa] hover:bg-[#F3F4F6] transition-colors"
+                    style={{ borderRadius: '10px' }}
+                  >
                     <div className="w-8 h-8 rounded-full bg-[#7dbbff] flex items-center justify-center">
                       <User className="w-4 h-4 text-white" strokeWidth={2} />
                     </div>
                     <span className="text-sm text-[#111827] font-medium">{userName || 'Account'}</span>
-                  </div>
+                  </button>
 
                   <button className="relative p-2 hover:bg-[#fafafa] transition-colors" style={{ borderRadius: '10px' }}>
                     <svg className="w-5 h-5 text-[#6B7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -325,6 +372,14 @@ export function ApplicantScreen() {
   if (activeSection === 'settings') {
     return (
       <div className="relative bg-[#fafafa] min-h-screen">
+        {showProfileEdit && userId && applicantProfileId && (
+          <ApplicantWelcomePage
+            editMode
+            userId={userId}
+            profileId={applicantProfileId}
+            onComplete={() => setShowProfileEdit(false)}
+          />
+        )}
         <div className="relative flex min-h-screen">
           {/* Left Sidebar Navigation */}
           <aside className="w-[240px] bg-white border-r border-black/[0.08] sticky top-0 h-screen overflow-y-auto">
@@ -405,12 +460,16 @@ export function ApplicantScreen() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-3 px-4 py-2 bg-[#fafafa]" style={{ borderRadius: '10px' }}>
+                  <button
+                    onClick={() => setShowProfileEdit(true)}
+                    className="flex items-center gap-3 px-4 py-2 bg-[#fafafa] hover:bg-[#F3F4F6] transition-colors"
+                    style={{ borderRadius: '10px' }}
+                  >
                     <div className="w-8 h-8 rounded-full bg-[#7dbbff] flex items-center justify-center">
                       <User className="w-4 h-4 text-white" strokeWidth={2} />
                     </div>
                     <span className="text-sm text-[#111827] font-medium">{userName || 'Account'}</span>
-                  </div>
+                  </button>
                 </div>
               </div>
             </div>
@@ -541,10 +600,24 @@ export function ApplicantScreen() {
               <h1 className="text-2xl text-[#111827] font-semibold">Dashboard</h1>
             </div>
 
-            <DashboardContent onProfileBuilderClick={handleProfileBuilderClick} />
-            {(dbTraitScores || profileData.traitScores) && (
+            <DashboardContent
+              onProfileBuilderClick={handleProfileBuilderClick}
+              traitScores={dbTraitScores ?? profileData.trait_scores}
+              intakeComplete={profileData.intakeData.isComplete}
+              section1={(() => {
+                const s1 = profileData.intakeData.section1 as
+                  | { S1Q1?: { narrative?: string }; S1Q2?: { narrative?: string } }
+                  | undefined;
+                if (!s1) return null;
+                return {
+                  backgroundNarrative: s1.S1Q1?.narrative,
+                  proudMoment: s1.S1Q2?.narrative,
+                };
+              })()}
+            />
+            {(dbTraitScores || profileData.trait_scores) && (
               <div className="mt-6">
-                <TraitScoresDisplay scores={dbTraitScores ?? profileData.traitScores} showAll />
+                <TraitScoresDisplay scores={dbTraitScores ?? profileData.trait_scores} showAll />
               </div>
             )}
           </div>

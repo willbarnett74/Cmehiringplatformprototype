@@ -80,19 +80,6 @@ export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBac
     onComplete();
   };
 
-  const getSection8ProfileData = () => {
-    const s1 = sectionData[1] as { narrative?: string } | undefined;
-    const s2 = sectionData[2] as { responses?: { S2Q6?: { work_preferences?: string[] } } } | undefined;
-    return {
-      narrative: s1?.narrative ?? '',
-      workStyle: s2?.responses?.S2Q6?.work_preferences?.join(', ') ?? '',
-      thinkingStyle: 50,
-      difficultyScore: 50,
-      motivationFit: 50,
-      careerAlignment: 50,
-    };
-  };
-
   const renderSection = () => {
     switch (currentSection) {
       case 1:
@@ -110,7 +97,9 @@ export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBac
       case 7:
         return <IntakeSection7 onComplete={handleSectionComplete} initialData={sectionData[7]} />;
       case 8:
-        return <IntakeSection8 onComplete={handleSection8Complete} profileData={getSection8ProfileData()} />;
+        return (
+          <IntakeSection8 onComplete={handleSection8Complete} initialData={sectionData[8]} />
+        );
       default:
         return null;
     }

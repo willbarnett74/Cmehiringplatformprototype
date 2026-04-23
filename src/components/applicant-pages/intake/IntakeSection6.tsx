@@ -1,20 +1,6 @@
 import { useState, useEffect } from 'react';
 import { RankedPreference, type RankItem } from './RankedPreference';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-const S6Q6_SYSTEM_PROMPT = `You are scoring a candidate's reflective narrative about what genuinely motivates them at work.
-Score the response on FOUR dimensions, each from 1 (very low) to 5 (very high).
-Return ONLY a valid JSON object with exactly these keys:
-{
-  "intrinsic_vs_extrinsic_language": <1-5>,
-  "self_awareness_quality": <1-5>
-}
-Rubric:
-- intrinsic_vs_extrinsic_language: Score 5 if primarily intrinsic language (internal satisfaction, mastery), 1 if primarily extrinsic (recognition, status, money). Mixed = 3.
-- self_awareness_quality: Does the candidate show genuine insight into their own motivational pattern, or describe it in generic/vague terms?`;
-
 const RANK_ITEMS: RankItem[] = [
   { id: 'mastery', label: 'Mastery', description: 'Getting genuinely good at something. The craft, the depth, the feeling of knowing a subject or skill at a real level.' },
   { id: 'impact', label: 'Impact', description: 'Making a real difference. Knowing that what you do changes something meaningful for the people or outcomes being worked toward.' },
@@ -43,14 +29,8 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
   const [q5Choice, setQ5Choice] = useState<string | null>(null);
   const [q5ShuffledOptions, setQ5ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q6Narrative, setQ6Narrative] = useState('');
-  const q6WordCount = q6Narrative.trim().split(/\s+/).filter(w => w.length > 0).length;
-  const q6MinWords = 60;
-  const q6MaxWords = 120;
-  const q6IsValid = q6WordCount >= q6MinWords && q6WordCount <= q6MaxWords;
-  const q6IsOverMax = q6WordCount > q6MaxWords;
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [q6Choice, setQ6Choice] = useState<string | null>(null);
+  const [q6ShuffledOptions, setQ6ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
   useEffect(() => {
     const q1Options = [
@@ -59,7 +39,11 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
       { id: 'sat-c', text: 'From both equally. Needs to know the work was good and that it mattered to someone — quality without impact feels hollow and impact without quality feels accidental.', scores: { motivational_fit_mastery: 3, motivational_fit_impact: 4 } },
       { id: 'sat-d', text: 'From having figured something out that was genuinely hard. The satisfaction is in the problem-solving — the effect on others is important but it\'s the challenge itself that is most energising.', scores: { motivational_fit_mastery: 5, motivational_fit_impact: 1, learning_velocity: 5 } },
     ];
-    setQ1ShuffledOptions([...q1Options].sort(() => Math.random() - 0.5));
+    setQ1ShuffledOptions(
+      [...q1Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
 
     const q2Options = [
       { id: 'keep-a', text: 'Knowing that people they respect can see the effort and the progress. When external recognition is present it significantly helps push through difficult patches — it confirms the effort is worth it.', scores: { motivational_fit_recognition: 5, motivational_fit_mastery: 1 } },
@@ -67,7 +51,11 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
       { id: 'keep-c', text: 'The knowledge that it matters to someone. Connecting the difficult work to a real outcome for a real person or team gives enough purpose to push through even when it\'s unrewarding.', scores: { motivational_fit_impact: 5, motivational_fit_mastery: 2, motivational_fit_recognition: 2 } },
       { id: 'keep-d', text: 'A mix of internal drive and external signal. Has own standards but also finds that recognition from the right people at the right moments meaningfully sustains motivation through difficult patches.', scores: { motivational_fit_mastery: 3, motivational_fit_recognition: 4 } },
     ];
-    setQ2ShuffledOptions([...q2Options].sort(() => Math.random() - 0.5));
+    setQ2ShuffledOptions(
+      [...q2Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
 
     const q4Options = [
       { id: 'rel-a', text: 'Genuinely motivated by external outcomes — career progression, financial reward, recognition, status. These aren\'t superficial drivers — they\'re real and meaningful motivators that shape how hard the work is pursued.', scores: { motivational_fit_recognition: 5, motivational_fit_mastery: 1 } },
@@ -75,7 +63,11 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
       { id: 'rel-c', text: 'The work itself is the primary thing. Most engaged when learning, solving something genuinely hard, or producing something to be proud of — external recognition matters but it doesn\'t drive them.', scores: { motivational_fit_mastery: 5, motivational_fit_recognition: 1 } },
       { id: 'rel-d', text: 'Motivated by impact more than recognition or craft. What matters most is whether the work matters — whether it\'s changing something real for the people or outcomes being worked toward.', scores: { motivational_fit_impact: 5, motivational_fit_mastery: 2, motivational_fit_recognition: 1 } },
     ];
-    setQ4ShuffledOptions([...q4Options].sort(() => Math.random() - 0.5));
+    setQ4ShuffledOptions(
+      [...q4Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
 
     const q5Options = [
       { id: 'worth-a', text: 'Being part of something that matters beyond their own contribution. Work is most meaningful when contributing to a shared goal or a larger purpose — individual autonomy matters less than whether the collective outcome is significant.', scores: { motivational_fit_impact: 5, motivational_fit_autonomy: 1 } },
@@ -83,7 +75,23 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
       { id: 'worth-c', text: 'A combination of meaningful work and genuine independence. Contributing to something that matters while having the freedom to pursue it in their own way — either without the other feels incomplete.', scores: { motivational_fit_impact: 3, motivational_fit_autonomy: 4 } },
       { id: 'worth-d', text: 'Knowing that the people they\'re working with and for value what they bring. The relationships and the recognition within the work matter as much as the independence or the collective outcome.', scores: { motivational_fit_recognition: 4, motivational_fit_impact: 2, motivational_fit_autonomy: 2 } },
     ];
-    setQ5ShuffledOptions([...q5Options].sort(() => Math.random() - 0.5));
+    setQ5ShuffledOptions(
+      [...q5Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
+
+    const q6Options = [
+      { id: 'drive-a', text: 'Mainly internal — the quality of the output, getting better, solving something hard. External recognition matters, but it\'s not where the energy actually comes from.', scores: { motivational_fit_mastery: 5, motivational_fit_recognition: 1, learning_velocity: 4 } },
+      { id: 'drive-b', text: 'More external than is always comfortable to admit — recognition, progression, the visible markers of success. These aren\'t superficial drivers, but they\'re more prominent than pure craft.', scores: { motivational_fit_mastery: 1, motivational_fit_recognition: 5, learning_velocity: 3 } },
+      { id: 'drive-c', text: 'A genuine mix — internal standards around quality, but the external signals matter more than they probably should. Hard to fully separate the two when being honest.', scores: { motivational_fit_mastery: 3, motivational_fit_recognition: 4, learning_velocity: 4 } },
+      { id: 'drive-d', text: 'Impact-driven more than either. What creates energy isn\'t recognition or craft for its own sake — it\'s knowing the work actually changed something real for someone.', scores: { motivational_fit_mastery: 2, motivational_fit_recognition: 1, motivational_fit_impact: 5, learning_velocity: 3 } },
+    ];
+    setQ6ShuffledOptions(
+      [...q6Options]
+        .sort(() => Math.random() - 0.5)
+        .map((o) => ({ ...o, scores: o.scores as unknown as Record<string, number> }))
+    );
   }, []);
 
   const handleRankChange = (orderedIds: string[], scores: Record<string, number>) => {
@@ -93,40 +101,22 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
 
   const canProceed =
     q1Choice && q2Choice && q3OrderedIds.length === RANK_ITEMS.length &&
-    q4Choice && q5Choice && q6IsValid && !isSubmitting;
+    q4Choice && q5Choice && q6Choice;
 
-  const handleNext = async () => {
+  const handleNext = () => {
     if (!canProceed) return;
-    setIsSubmitting(true);
 
     const q1Option = q1ShuffledOptions.find(o => o.id === q1Choice)!;
     const q2Option = q2ShuffledOptions.find(o => o.id === q2Choice)!;
     const q4Option = q4ShuffledOptions.find(o => o.id === q4Choice)!;
     const q5Option = q5ShuffledOptions.find(o => o.id === q5Choice)!;
+    const q6Option = q6ShuffledOptions.find(o => o.id === q6Choice)!;
 
     // Build motivational_fit_* scores from ranking
     const q3MotiScores: Record<string, number> = {};
     q3OrderedIds.forEach((id, idx) => {
       q3MotiScores[`motivational_fit_${id}`] = q3Scores[id] ?? (4 - idx);
     });
-
-    let llmScores: Record<string, number> | undefined;
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/score-behavioural-task`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ narrative: q6Narrative, system_prompt: S6Q6_SYSTEM_PROMPT }),
-      });
-      if (res.ok) {
-        llmScores = await res.json();
-      }
-    } catch {
-      // Non-blocking: proceed without LLM scores
-    }
 
     onComplete({
       section: 6,
@@ -136,11 +126,9 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
         S6Q3: { question_key: 'S6Q3', ordered_ids: q3OrderedIds, scores: q3MotiScores },
         S6Q4: { question_key: 'S6Q4', option_id: q4Choice, scores: q4Option.scores },
         S6Q5: { question_key: 'S6Q5', option_id: q5Choice, scores: q5Option.scores },
-        S6Q6: { question_key: 'S6Q6', narrative: q6Narrative, word_count: q6WordCount, llm_scores: llmScores },
+        S6Q6: { question_key: 'S6Q6', option_id: q6Choice, scores: q6Option.scores },
       },
     });
-
-    setIsSubmitting(false);
   };
 
   return (
@@ -242,58 +230,19 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
         </div>
       </div>
 
-      {/* S6Q6 — LLM scored */}
+      {/* S6Q6 */}
       <div className="bg-white border border-black/[0.08] p-8 mb-8" style={{ borderRadius: '20px' }}>
-        <h3 className="text-base text-[#111827] font-medium mb-4">
-          Reflective narrative <span className="text-[#EF4444]">*</span>
+        <h3 className="text-base text-[#111827] font-medium mb-6">
+          When you reflect honestly on what's actually driven your best work — not what sounds good, but what's genuinely true — which most accurately describes what you find? <span className="text-[#EF4444]">*</span>
         </h3>
-        <div className="space-y-3 mb-4">
-          <div className="bg-[#F9FAFB] border border-black/[0.06] p-4" style={{ borderRadius: '10px' }}>
-            <div className="text-xs font-semibold text-[#7DBBFF] mb-2">EXPERIENCED PROFESSIONAL</div>
-            <p className="text-sm text-[#111827] leading-relaxed">
-              Describe a role or project where you felt genuinely motivated — not just engaged, but actually energised by the work itself. What was it about that situation that produced that feeling?
-            </p>
-          </div>
-          <div className="bg-[#F9FAFB] border border-black/[0.06] p-4" style={{ borderRadius: '10px' }}>
-            <div className="text-xs font-semibold text-[#7DBBFF] mb-2">EARLY CAREER</div>
-            <p className="text-sm text-[#111827] leading-relaxed">
-              Describe something you've done where you felt genuinely energised. What was it about that situation that produced that feeling?
-            </p>
-          </div>
-        </div>
-        <details className="mb-4 bg-[#F0F9FF] border border-[#7DBBFF]/20 p-3 text-xs text-[#6B7280]" style={{ borderRadius: '8px' }}>
-          <summary className="font-medium cursor-pointer select-none">How this response is scored (LLM rubric)</summary>
-          <div className="mt-3 space-y-2 leading-relaxed">
-            <p><span className="font-semibold text-[#111827]">Intrinsic vs extrinsic language</span> → Mastery vs Recognition</p>
-            <p><span className="font-semibold text-[#111827]">Self-awareness quality</span> → Learning Velocity</p>
-          </div>
-        </details>
-        <textarea
-          value={q6Narrative}
-          onChange={e => setQ6Narrative(e.target.value)}
-          placeholder="Example: Most energised when building a new product feature from scratch — owned the full cycle, talked directly to users, saw the impact in real-time..."
-          className="w-full h-64 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all"
-          style={{ borderRadius: '12px' }}
-        />
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-4">
-              <span className="text-[#6B7280]">Required: {q6MinWords}–{q6MaxWords} words</span>
-              {q6IsOverMax && <span className="text-[#EF4444] font-medium">Maximum exceeded</span>}
-            </div>
-            <div className={`font-medium tabular-nums ${q6WordCount < q6MinWords ? 'text-[#9CA3AF]' : q6IsValid ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-              {q6WordCount} / {q6MaxWords} words
-            </div>
-          </div>
-          <div className="w-full h-1.5 bg-[#F3F4F6] overflow-hidden" style={{ borderRadius: '4px' }}>
-            <div
-              className={`h-full transition-all duration-200 ${q6WordCount < q6MinWords ? 'bg-[#9CA3AF]' : q6IsValid ? 'bg-[#10B981]' : 'bg-[#EF4444]'}`}
-              style={{ width: `${Math.min((q6WordCount / q6MaxWords) * 100, 100)}%` }}
-            />
-          </div>
-          {q6WordCount < q6MinWords && (
-            <p className="text-xs text-[#6B7280]">{q6MinWords - q6WordCount} more {q6MinWords - q6WordCount === 1 ? 'word' : 'words'} required</p>
-          )}
+        <div className="space-y-3">
+          {q6ShuffledOptions.map(option => (
+            <button key={option.id} onClick={() => setQ6Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${q6Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              style={{ borderRadius: '12px' }}>
+              <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -306,7 +255,7 @@ export function IntakeSection6({ onComplete }: IntakeSection6Props) {
           }`}
           style={{ borderRadius: '12px' }}
         >
-          {isSubmitting ? 'Scoring response…' : 'Continue to Next Section →'}
+          Continue to Next Section →
         </button>
       </div>
     </div>

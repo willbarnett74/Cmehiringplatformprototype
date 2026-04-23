@@ -1,5 +1,5 @@
-import { X, MapPin, Briefcase, Mail, Phone, Linkedin, ArrowRight, FileText, MessageSquare, Copy, Building2, Star, Plus } from 'lucide-react';
-import { Candidate } from '../types/employer';
+import { X, MapPin, Briefcase, Mail, Phone, Linkedin, ArrowRight, FileText, Copy, Building2, Star } from 'lucide-react';
+import type { Candidate } from '../types/employer';
 import { useState } from 'react';
 
 interface CandidateModalProps {
@@ -10,7 +10,7 @@ interface CandidateModalProps {
   onViewFullProfile: () => void;
 }
 
-export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNote, onViewFullProfile }: CandidateModalProps) {
+export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNote: _onAddNote, onViewFullProfile }: CandidateModalProps) {
   const [isShortlisted, setIsShortlisted] = useState(false);
 
   const getFitLevel = (score: number): { label: string; color: string } => {
@@ -35,19 +35,6 @@ export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNot
       'Strategic Thinking': 2,
     };
     return intensityMap[trait] || 2;
-  };
-
-  const getNextStageText = (stage: string): string => {
-    switch (stage) {
-      case 'newSignals':
-        return 'Send Assessment';
-      case 'assessmentSent':
-        return 'Move to Final Round';
-      case 'finalRound':
-        return 'Mark as Hired';
-      default:
-        return 'Next Stage';
-    }
   };
 
   const fitLevel = getFitLevel(candidate.score);
@@ -221,7 +208,7 @@ export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNot
           </div>
 
           {/* Assessment Results (if applicable) */}
-          {candidate.stage !== 'newSignals' && (
+          {candidate.stage !== 'discovered' && (
             <div className="mb-6">
               <h3 className="text-sm text-[#111827] font-semibold mb-3">Assessment Results</h3>
               <div className="bg-[#F9F9FA] p-5" style={{ borderRadius: '16px' }}>

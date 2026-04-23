@@ -32,7 +32,7 @@ interface IntakeSection8Props {
   initialData?: any;
 }
 
-export function IntakeSection8({ onComplete, initialData }: IntakeSection8Props) {
+export function IntakeSection8({ onComplete, initialData: _initialData }: IntakeSection8Props) {
   // S8Q1 - Strengths (required - 3 entries, max 80 words each)
   const [q1Strength1, setQ1Strength1] = useState('');
   const [q1Strength2, setQ1Strength2] = useState('');
@@ -70,10 +70,13 @@ export function IntakeSection8({ onComplete, initialData }: IntakeSection8Props)
     if (!canProceed) return;
 
     // Check if any optional fields were completed
-    const optionalFieldsCompleted = 
-      q2Context.trim().length > 0 || 
-      (q3Name.trim() && q3Relationship.trim() && q3Quote.trim()) || 
-      q4Anything.trim().length > 0;
+    const optionalFieldsCompleted = Boolean(
+      q2Context.trim().length > 0 ||
+        (q3Name.trim().length > 0 &&
+          q3Relationship.trim().length > 0 &&
+          q3Quote.trim().length > 0) ||
+        q4Anything.trim().length > 0
+    );
 
     const responseData: any = {
       S8Q1: {

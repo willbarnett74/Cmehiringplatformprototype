@@ -1,5 +1,5 @@
 import { X, MapPin, Briefcase, Mail, Phone, Linkedin, Star, MessageSquare, FileText, ArrowRight, Copy, Sparkles, Building2, Download, Share2, Calendar, Award, TrendingUp, Target, Users, Zap, Brain, Heart, Palette, CheckCircle2, ArrowUpRight, ExternalLink } from 'lucide-react';
-import { Candidate } from '../types/employer';
+import type { Candidate } from '../types/employer';
 import { useState } from 'react';
 
 interface CandidateProfileViewProps {

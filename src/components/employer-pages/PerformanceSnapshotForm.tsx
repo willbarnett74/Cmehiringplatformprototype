@@ -132,7 +132,7 @@ function RatingScale({
 
 export function PerformanceSnapshotForm({
   candidateName,
-  engagementId,
+  engagementId: _engagementId,
   snapshotDay,
   existingSnapshot,
   existingPulseCheck,

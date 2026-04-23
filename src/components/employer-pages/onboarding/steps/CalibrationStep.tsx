@@ -35,7 +35,7 @@ export function CalibrationStep({
 
   const handleSave = () => {
     // Save to performance_calibrations_versions with version tracking
-    const savedVersion = upsertCalibration(roleTemplateId, criteria);
+    void upsertCalibration(roleTemplateId, criteria);
     
     // Show brief success message
     setShowSuccessMessage(true);

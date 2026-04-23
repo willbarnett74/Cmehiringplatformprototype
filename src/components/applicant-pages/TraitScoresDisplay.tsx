@@ -1,9 +1,17 @@
-import { DimensionScores } from '../../utils/intakeScoring';
+import type { DimensionScores } from '../../utils/intakeScoring';
 import { Brain, Target, Zap, MessageSquare, Users, Trophy, TrendingUp, Star, Compass } from 'lucide-react';
 
 interface TraitScoresDisplayProps {
   scores: DimensionScores | null;
   showAll?: boolean;
+}
+
+function normalizedTraitScore(
+  scores: DimensionScores,
+  key: keyof DimensionScores,
+): number {
+  const v = scores[key];
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
 export function TraitScoresDisplay({ scores, showAll = false }: TraitScoresDisplayProps) {
@@ -111,7 +119,8 @@ export function TraitScoresDisplay({ scores, showAll = false }: TraitScoresDispl
 
       <div className="space-y-5">
         {displayTraits.map((trait) => {
-          const score = scores[trait.key as keyof DimensionScores];
+          const key = trait.key as keyof DimensionScores;
+          const score = normalizedTraitScore(scores, key);
           const Icon = trait.icon;
           
           return (

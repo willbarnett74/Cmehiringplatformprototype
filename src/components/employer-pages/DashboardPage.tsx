@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import {
-  TrendingUp, Award, Zap, Users, ChevronRight, Clock,
-  ArrowUp, ArrowDown, Send, CheckCircle2,
-  Sparkles, Star, Info, Eye, CalendarDays, Activity,
+  Users, ChevronRight, Clock,
+  ArrowUp, Send, CheckCircle2,
+  Sparkles, Star,
   Briefcase, ArrowRight
 } from 'lucide-react';
-import { Candidate } from '../types/employer';
+import type { Candidate } from '../types/employer';
 
 interface DashboardPageProps {
   hasActiveFilters: boolean;
@@ -27,7 +26,7 @@ const stageConfig = {
 };
 
 export function DashboardPage({
-  candidateCount,
+  candidateCount: _candidateCount,
   candidates,
   onNavigateToSearch,
   onNavigateToCandidates,

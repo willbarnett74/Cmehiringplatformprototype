@@ -11,7 +11,7 @@ import {
   computeMatchScoreSimple,
   getDimensionFlags,
   type DimensionFlag,
-} from '../../src/lib/matchScoring';
+} from '../../lib/matchScoring';
 
 // ─── Types ──────────────────────────────────────────────────
 

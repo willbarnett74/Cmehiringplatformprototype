@@ -1,4 +1,18 @@
-import { Target, Zap, MessageSquare, Lightbulb, Brain, Users, TrendingUp, Briefcase, BookOpen, Award, CheckCircle2, Save } from 'lucide-react';
+import {
+  Target,
+  Zap,
+  MessageSquare,
+  Lightbulb,
+  Brain,
+  Users,
+  TrendingUp,
+  Briefcase,
+  BookOpen,
+  Award,
+  CheckCircle2,
+  Save,
+  type LucideIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 import { DSSectionHeader, DSTraitCard, DSTag, DSSurfaceCard, DSMetricCard } from '../ds/DSComponents';
 import { useUserProfile } from '../../contexts/UserProfileContext';
@@ -12,7 +26,7 @@ type TraitVariant = {
   name: string;
   score: number;
   color: 'purple' | 'blue' | 'teal';
-  icon: React.ElementType;
+  icon: LucideIcon;
   context: string;
 };
 
@@ -212,7 +226,7 @@ function getDynamicInferences(profileData: any) {
   return inferences;
 }
 
-export function SignatureTraitsPageDynamic({ cognitiveScore }: SignatureTraitsPageProps = {}) {
+export function SignatureTraitsPageDynamic({ cognitiveScore: _cognitiveScore }: SignatureTraitsPageProps = {}) {
   const { profileData, updateProfileData } = useUserProfile();
   const [expandedTrait, setExpandedTrait] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);

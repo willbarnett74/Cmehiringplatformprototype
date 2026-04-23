@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface ProfileBuilderLayoutProps {
   currentStep: number;
@@ -53,7 +53,6 @@ export function ProfileBuilderLayout({
   const upToDateCount = Object.values(stepStatuses).filter(status => status === 'upToDate').length;
   const readinessPercentage = Math.round((upToDateCount / steps.length) * 100);
   
-  const currentStepData = steps.find(s => s.id === currentStep);
   const nextStepData = steps.find(s => s.id === currentStep + 1);
 
   const getStepStatus = (stepId: number): 'active' | 'needsReview' | 'upToDate' => {

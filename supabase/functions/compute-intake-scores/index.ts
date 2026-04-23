@@ -1,58 +1,25 @@
 /**
  * Supabase Edge Function: compute-intake-scores — Spec 4
  *
- * Trigger when applicant_profiles.intake_complete becomes true (Database Webhook on UPDATE).
- * Reads intake_responses for that applicant, aggregates scores, writes applicant_trait_scores
- * and optional_fields_completed on applicant_profiles.
- *
- * Request body (from webhook):
- *   { type: 'UPDATE'; record: { id: string; user_id: string; intake_complete?: boolean; ... } }
+ * Trigger when candidate_profiles intake is completed (Database Webhook on UPDATE).
+ * Reads intake_responses for that candidate, aggregates scores (same rules as client
+ * computeIntakeScores), writes dimensions + motivational_fit + optional_fields_completed.
  */
 
 declare const Deno: {
   env: { get(key: string): string | undefined };
 };
 
+import {
+  emptyDimensionInputs,
+  ingestPayloadIntoBuckets,
+  dimensionScoresFromInputs,
+  computeMotivationalFitAverage,
+} from '../_shared/intakeScoreAggregate.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-function normalise(rawScore: number): number {
-  return Math.round(((rawScore - 1) / 4) * 100 * 100) / 100;
-}
-
-function computeDimensionScore(inputs: number[]): number | null {
-  if (inputs.length === 0) return null;
-  const mean = inputs.reduce((a, b) => a + b, 0) / inputs.length;
-  return normalise(mean);
-}
-
-const DIMENSION_KEYS = [
-  'learning_velocity',
-  'ownership_follow_through',
-  'resilience',
-  'communication_confidence',
-  'relational_intelligence',
-  'motivational_fit_mastery',
-  'motivational_fit_impact',
-  'motivational_fit_recognition',
-  'motivational_fit_autonomy',
-] as const;
-
-type DimensionKey = (typeof DIMENSION_KEYS)[number];
-
-const LLM_SCORE_DIMENSION_MAP: Record<string, DimensionKey> = {
-  clarity_of_reasoning: 'learning_velocity',
-  handling_ambiguity: 'learning_velocity',
-  initiative_and_ownership: 'ownership_follow_through',
-  communication_intent: 'communication_confidence',
-  empathy_perspective_taking: 'relational_intelligence',
-  outcome_orientation: 'ownership_follow_through',
-  self_awareness: 'relational_intelligence',
-  communication_approach: 'communication_confidence',
-  intrinsic_vs_extrinsic_language: 'motivational_fit_mastery',
-  self_awareness_quality: 'learning_velocity',
 };
 
 Deno.serve(async (req: Request) => {
@@ -62,17 +29,24 @@ Deno.serve(async (req: Request) => {
 
   try {
     const payload = (await req.json()) as {
-      record?: { id?: string; user_id?: string; intake_complete?: boolean };
-      old_record?: { intake_complete?: boolean };
+      record?: {
+        id?: string;
+        user_id?: string;
+        intake_complete?: boolean;
+        intake_status?: string;
+      };
+      old_record?: { intake_complete?: boolean; intake_status?: string };
     };
 
     const applicantProfileId = payload?.record?.id;
     const userId = payload?.record?.user_id;
-    const nowComplete = payload?.record?.intake_complete === true;
-    const wasComplete = payload?.old_record?.intake_complete === true;
+    const nowComplete =
+      payload?.record?.intake_complete === true || payload?.record?.intake_status === 'complete';
+    const wasComplete =
+      payload?.old_record?.intake_complete === true || payload?.old_record?.intake_status === 'complete';
 
     if (!applicantProfileId || !userId) {
-      return new Response(JSON.stringify({ error: 'applicant profile id or user_id missing' }), {
+      return new Response(JSON.stringify({ error: 'candidate profile id or user_id missing' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -94,15 +68,12 @@ Deno.serve(async (req: Request) => {
     };
 
     const responsesRes = await fetch(
-      `${supabaseUrl}/rest/v1/intake_responses?applicant_id=eq.${applicantProfileId}&select=question_id,response_value`,
+      `${supabaseUrl}/rest/v1/intake_responses?candidate_id=eq.${applicantProfileId}&select=question_key,response_value`,
       { headers },
     );
-    const rows = (await responsesRes.json()) as Array<{ question_id: string; response_value: string | null }>;
+    const rows = (await responsesRes.json()) as Array<{ question_key: string; response_value: string | null }>;
 
-    const inputs: Record<DimensionKey, number[]> = Object.fromEntries(
-      DIMENSION_KEYS.map((k) => [k, []]),
-    ) as Record<DimensionKey, number[]>;
-
+    const inputs = emptyDimensionInputs();
     let optionalFieldsCompleted = false;
 
     for (const row of rows) {
@@ -114,26 +85,9 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      const scores = parsed.scores as Record<string, number> | undefined;
-      if (scores) {
-        for (const [dim, val] of Object.entries(scores)) {
-          if (DIMENSION_KEYS.includes(dim as DimensionKey) && typeof val === 'number') {
-            inputs[dim as DimensionKey].push(val);
-          }
-        }
-      }
+      ingestPayloadIntoBuckets(parsed, inputs);
 
-      const llmScores = parsed.llm_scores as Record<string, number> | undefined;
-      if (llmScores) {
-        for (const [rubricKey, val] of Object.entries(llmScores)) {
-          const dim = LLM_SCORE_DIMENSION_MAP[rubricKey];
-          if (dim && typeof val === 'number') {
-            inputs[dim].push(val);
-          }
-        }
-      }
-
-      if (['S8Q2', 'S8Q3', 'S8Q4'].includes(row.question_id)) {
+      if (['S8Q2', 'S8Q3', 'S8Q4'].includes(row.question_key)) {
         const narrative = parsed.narrative as string | undefined;
         const working_context = parsed.working_context as string | undefined;
         const testimonial = parsed.testimonial as unknown;
@@ -144,48 +98,36 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const computed: Partial<Record<DimensionKey, number>> = {};
-    for (const dim of DIMENSION_KEYS) {
-      const score = computeDimensionScore(inputs[dim]);
-      if (score !== null) computed[dim] = score;
-    }
+    const dimensionScores = dimensionScoresFromInputs(inputs);
+    const motivational_fit = computeMotivationalFitAverage(dimensionScores);
 
-    const mfSubs = [
-      computed.motivational_fit_mastery,
-      computed.motivational_fit_impact,
-      computed.motivational_fit_recognition,
-      computed.motivational_fit_autonomy,
-    ].filter((v): v is number => typeof v === 'number');
-    const motivational_fit =
-      mfSubs.length > 0 ? Math.round(mfSubs.reduce((a, b) => a + b, 0) / mfSubs.length) : null;
-
-    await fetch(`${supabaseUrl}/rest/v1/applicant_profiles?id=eq.${applicantProfileId}`, {
-      method: 'PATCH',
-      headers: { ...headers, Prefer: 'return=minimal' },
-      body: JSON.stringify({
-        optional_fields_completed: optionalFieldsCompleted,
-        updated_at: new Date().toISOString(),
-      }),
-    });
-
-    const traitPayload = {
-      applicant_id: applicantProfileId,
-      ...computed,
-      motivational_fit,
-      sections_complete: 8,
-      score_version: 'v1',
+    const traitPayload: Record<string, unknown> = {
+      optional_fields_completed: optionalFieldsCompleted,
       updated_at: new Date().toISOString(),
+      learning_velocity: dimensionScores.learning_velocity,
+      ownership_follow_through: dimensionScores.ownership_follow_through,
+      resilience: dimensionScores.resilience,
+      communication_confidence: dimensionScores.communication_confidence,
+      relational_intelligence: dimensionScores.relational_intelligence,
+      motivational_fit_mastery: dimensionScores.motivational_fit_mastery,
+      motivational_fit_impact: dimensionScores.motivational_fit_impact,
+      motivational_fit_recognition: dimensionScores.motivational_fit_recognition,
+      motivational_fit_autonomy: dimensionScores.motivational_fit_autonomy,
+      motivational_fit,
     };
 
-    await fetch(`${supabaseUrl}/rest/v1/applicant_trait_scores`, {
-      method: 'POST',
-      headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
+    await fetch(`${supabaseUrl}/rest/v1/candidate_profiles?id=eq.${applicantProfileId}`, {
+      method: 'PATCH',
+      headers: { ...headers, Prefer: 'return=minimal' },
       body: JSON.stringify(traitPayload),
     });
 
-    return new Response(JSON.stringify({ success: true, scores: { ...computed, motivational_fit } }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ success: true, scores: { ...dimensionScores, motivational_fit } }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    );
   } catch (err) {
     console.error('compute-intake-scores error:', err);
     return new Response(JSON.stringify({ error: String(err) }), {

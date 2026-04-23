@@ -2,7 +2,7 @@ import {
   Sparkles, Target, Zap, Brain, Users, MessageSquare, Lightbulb, 
   TrendingUp, Award, Compass, Lock, Upload, Settings, Edit3, 
   ExternalLink, Plus, ChevronRight, CheckCircle2, User, Briefcase,
-  MapPin, GraduationCap, FileText, Video, Link as LinkIcon
+  MapPin, GraduationCap, Video, Link as LinkIcon
 } from 'lucide-react';
 import { useState } from 'react';
 

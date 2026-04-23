@@ -1,5 +1,5 @@
-import { MapPin, Briefcase, Zap, ChevronDown, X, TrendingUp, UserPlus, FileText, Star, User, Sparkles } from 'lucide-react';
-import { Candidate } from '../types/employer';
+import { MapPin, Briefcase, Zap, ChevronDown, X, UserPlus, FileText, Star, Sparkles } from 'lucide-react';
+import type { Candidate } from '../types/employer';
 import { useState } from 'react';
 
 interface SearchPageProps {
@@ -54,18 +54,18 @@ const allTraits = [
 export function SearchPage({
   candidates,
   selectedLocation,
-  selectedLevel,
+  selectedLevel: _selectedLevel,
   selectedTraits,
   showLocationDropdown,
-  showLevelDropdown,
-  showTraitsDropdown,
+  showLevelDropdown: _showLevelDropdown,
+  showTraitsDropdown: _showTraitsDropdown,
   onLocationChange,
-  onLevelChange,
+  onLevelChange: _onLevelChange,
   onTraitToggle,
   onClearFilters,
   onLocationDropdownToggle,
-  onLevelDropdownToggle,
-  onTraitsDropdownToggle,
+  onLevelDropdownToggle: _onLevelDropdownToggle,
+  onTraitsDropdownToggle: _onTraitsDropdownToggle,
   onCandidateClick,
 }: SearchPageProps) {
   // Filter states
@@ -73,13 +73,6 @@ export function SearchPage({
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [selectedCareerStage, setSelectedCareerStage] = useState<string | null>(null);
   const [selectedReadinessTags, setSelectedReadinessTags] = useState<string[]>([]);
-
-  const hasActiveFilters =
-    selectedLocation ||
-    selectedCareerStage ||
-    selectedTraits.length > 0 ||
-    selectedRole ||
-    selectedReadinessTags.length > 0;
 
   // Filter candidates based on selections
   const filteredCandidates = candidates.filter((candidate) => {

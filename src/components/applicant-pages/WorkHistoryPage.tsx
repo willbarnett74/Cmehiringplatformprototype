@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Briefcase, GraduationCap, FileText, Upload, Plus, Edit3, Heart, Users, Lightbulb, Trash2, Save, File, X, Sparkles, TrendingUp } from 'lucide-react';
-import { DSSectionHeader, DSSurfaceCard, DSTag } from '../ds/DSComponents';
-import { toast } from 'sonner@2.0.3';
+import { Briefcase, GraduationCap, FileText, Upload, Plus, Edit3, Heart, Users, Lightbulb, Trash2, Save, File, Sparkles } from 'lucide-react';
+import { DSSectionHeader, DSSurfaceCard } from '../ds/DSComponents';
+import { toast } from 'sonner';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 
 interface ExperienceEntry {
@@ -98,7 +98,7 @@ const formatDate = (date: string) => {
 // Experience card component - MOVED OUTSIDE
 const ExperienceCard = ({ 
   entry, 
-  type,
+  type: _type,
   isEditing,
   onEdit,
   onSave,
@@ -201,7 +201,7 @@ const ExperienceCard = ({
 // Project card component - MOVED OUTSIDE  
 const ProjectCard = ({ 
   entry, 
-  type,
+  type: _type,
   isEditing,
   onEdit,
   onSave,
@@ -505,7 +505,7 @@ export function WorkHistoryPage() {
   const [isDragging, setIsDragging] = useState<boolean>(false);
   
   // Handle save
-  const handleSave = (type: string) => {
+  const handleSave = (_type: string) => {
     setEditingId(null);
     toast.success('Changes saved ✅', {
       duration: 1500,
@@ -865,7 +865,7 @@ export function WorkHistoryPage() {
             Total Work Experience <span className="text-[#9CA3AF]">(Years)</span>
           </label>
           <select
-            value={profileData.total_experience ?? ''}
+            value={profileData.total_experience != null ? String(profileData.total_experience) : ''}
             onChange={(e) => updateProfileData({ total_experience: e.target.value ? Number(e.target.value) : null })}
             className="w-full px-3 py-2.5 bg-white border border-[#D1D9E6] text-[#111827] placeholder-[#9CA3AF] transition-all focus:outline-none focus:border-[#7DBBFF] focus:shadow-[0_0_0_3px_rgba(125,187,255,0.12)]"
             style={{ borderRadius: '10px' }}

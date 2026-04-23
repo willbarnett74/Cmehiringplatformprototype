@@ -1,14 +1,7 @@
-import { Settings as SettingsIcon, Bell, User, Lock, CreditCard, Building2, Users, Upload, Sliders } from 'lucide-react';
+import { Bell, User, Lock, CreditCard, Building2, Users, Upload, Sliders } from 'lucide-react';
 
 export function SettingsPage() {
   
-import { Bell, User, Lock, CreditCard, Building2, Users, Upload, Sliders } from 'lucide-react';
-import { TraitWeightingUI } from './TraitWeightingUI';
-
-// Prototype placeholder — replace with real auth session businessId
-const MOCK_BUSINESS_ID = 'demo-business-001';
-
-export function SettingsPage() {
   const teamMembers = [
     { id: 1, name: 'Sarah Johnson', email: 'sarah@techcorp.com', role: 'Admin', avatar: 'SJ' },
     { id: 2, name: 'Michael Chen', email: 'michael@techcorp.com', role: 'Recruiter', avatar: 'MC' },
@@ -236,16 +229,17 @@ export function SettingsPage() {
           </button>
         </div>
 
-        <div className="col-span-2 bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          <div className="flex items-center gap-3 mb-6">
-            <Sliders className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
+        <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-[#7DBBFF]/10 flex items-center justify-center">
+              <Sliders className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
+            </div>
             <h3 className="text-base text-[#111827] font-semibold">Trait Weighting</h3>
           </div>
           <p className="text-sm text-[#6B7280] mb-4">Adjust the importance of different traits in the hiring process</p>
           <button type="button" className="text-sm text-[#7DBBFF] hover:text-[#6aabef] transition-colors font-medium">
             Configure Trait Weighting
           </button>
-          <TraitWeightingUI businessId={MOCK_BUSINESS_ID} />
         </div>
       </div>
 

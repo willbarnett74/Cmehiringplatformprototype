@@ -10,7 +10,7 @@ import { CandidateModal } from './employer-pages/CandidateModal';
 import { CandidateProfileView } from './employer-pages/ApplicantProfileView';
 import { PerformanceSnapshotForm, type PerformanceSnapshotData } from './employer-pages/PerformanceSnapshotForm';
 import type { ManagerObservationData } from './employer-pages/ManagerObservationForm';
-import { Candidate, Section, PerformanceSnapshot, MotivationalPulseCheck } from './types/employer';
+import type { Candidate, Section, PerformanceSnapshot, MotivationalPulseCheck } from './types/employer';
 import { EmployerOnboarding } from './employer-pages/onboarding/EmployerOnboarding';
 import { NotificationBell } from './shared/NotificationBell';
 
@@ -420,7 +420,9 @@ export function EmployerScreen() {
     console.log('Add note for candidate:', candidateId);
   };
 
-  const hasActiveFilters = selectedLocation || selectedLevel || selectedTraits.length > 0;
+  const hasActiveFilters = Boolean(
+    selectedLocation || selectedLevel || selectedTraits.length > 0,
+  );
 
   return (
     <div className="relative bg-[#fafafa] min-h-screen">

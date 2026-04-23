@@ -1,10 +1,10 @@
 import { User, MapPin, Briefcase, Link as LinkIcon, Video, Check, Upload, Camera, Play, X } from 'lucide-react';
-import { DSSectionHeader, DSElevatedCard, DSTag, DSSurfaceCard } from '../ds/DSComponents';
+import { DSSectionHeader, DSElevatedCard, DSSurfaceCard } from '../ds/DSComponents';
 import { useState, useEffect } from 'react';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 
 export function ProfileOverviewPage() {
-  const { profileData, updateProfileData } = useUserProfile();
+  const { profileData: _profileData, updateProfileData } = useUserProfile();
   
   // State for Identity Header
   const [identityEdit, setIdentityEdit] = useState(false);
