@@ -1,31 +1,18 @@
 import { useState, useEffect } from 'react';
 import {
-  Building2, Briefcase, MapPin, MessageSquare, Eye, Calendar, ArrowUpRight,
-  Clock, TrendingUp, Send, ChevronRight, Sparkles, Users, Globe,
-  Layers, Target, Search, CheckCircle2,
-  MessageCircle, Video, Phone, Bookmark, BarChart3, Compass,
-  Lightbulb, DollarSign, ChevronDown, ChevronUp, Info
+  MessageSquare, Eye, ArrowUpRight,
+  Clock, TrendingUp, Send, Users,
+  Layers, Search, CheckCircle2,
+  MessageCircle, Video, Phone, Bookmark, Compass,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
+
+import { applicantPipelineMockData } from '../../lib/applicantOpportunitiesMock';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
 type SubTab = 'pipeline' | 'explore' | 'messages';
 type PipelineStage = 'discovered' | 'applied' | 'interviewing' | 'offer';
-
-interface PipelineItem {
-  id: number;
-  company: string;
-  role: string;
-  location: string;
-  matchScore: number;
-  stage: PipelineStage;
-  lastUpdate: string;
-  nextAction?: string;
-  interviewDate?: string;
-  contactPerson?: string;
-  unreadMessages?: number;
-  saved: boolean;
-}
 
 interface Industry {
   id: string;
@@ -54,16 +41,7 @@ interface Conversation {
 
 // ─── Data ──────────────────────────────────────────────────────────────
 
-const pipelineData: PipelineItem[] = [
-  { id: 1, company: 'TechFlow Inc.', role: 'Senior Product Designer', location: 'San Francisco, CA', matchScore: 94, stage: 'interviewing', lastUpdate: '2 hours ago', nextAction: 'Final round — Feb 18', interviewDate: 'Feb 18, 2:00 PM PST', contactPerson: 'Sarah Chen', unreadMessages: 2, saved: true },
-  { id: 2, company: 'DesignHub', role: 'Lead UX Designer', location: 'New York, NY', matchScore: 89, stage: 'interviewing', lastUpdate: '1 day ago', nextAction: 'Technical interview — Feb 20', interviewDate: 'Feb 20, 10:00 AM EST', contactPerson: 'Marcus Lee', unreadMessages: 0, saved: false },
-  { id: 3, company: 'Notion', role: 'Product Designer', location: 'San Francisco, CA', matchScore: 96, stage: 'applied', lastUpdate: '3 days ago', nextAction: 'Application in review', unreadMessages: 1, saved: true },
-  { id: 4, company: 'Linear', role: 'Design Engineer', location: 'Remote', matchScore: 93, stage: 'discovered', lastUpdate: '1 week ago', nextAction: 'Strong match — consider applying', unreadMessages: 0, saved: false },
-  { id: 5, company: 'InnovateCo', role: 'Product Designer', location: 'Austin, TX', matchScore: 87, stage: 'applied', lastUpdate: '5 days ago', nextAction: 'Shortlisted by hiring manager', unreadMessages: 0, saved: false },
-  { id: 6, company: 'Figma', role: 'Senior Product Designer', location: 'San Francisco, CA', matchScore: 91, stage: 'applied', lastUpdate: '1 week ago', nextAction: 'Application in review', unreadMessages: 0, saved: true },
-  { id: 7, company: 'CreativeMinds', role: 'Senior Designer', location: 'Remote', matchScore: 85, stage: 'discovered', lastUpdate: '2 weeks ago', nextAction: 'Viewed your profile', unreadMessages: 0, saved: false },
-  { id: 8, company: 'Stripe', role: 'Product Design Lead', location: 'Remote', matchScore: 88, stage: 'offer', lastUpdate: '1 day ago', nextAction: 'Offer received — review terms', unreadMessages: 3, saved: true },
-];
+const pipelineData = applicantPipelineMockData;
 
 const industries: Industry[] = [
   {
@@ -153,6 +131,8 @@ const industries: Industry[] = [
   },
 ];
 
+export const exploreIndustriesMatchedCount = industries.length;
+
 const conversations: Conversation[] = [
   {
     id: 1,
@@ -202,26 +182,87 @@ const conversations: Conversation[] = [
   },
 ];
 
+export const applicantMessagingUnreadMockCount = conversations.filter((c) => c.unread).length;
+
+// ─── Flat list helpers (handoff / HTML reference) ────────────────────────
+
+function rowInitials(companyName: string): string {
+  const parts = companyName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return companyName.slice(0, 2).toUpperCase() || '—';
+}
+
+function matchAccent(score: number): { color: string; bar: string } {
+  if (score >= 85) return { color: '#22C55E', bar: '#22C55E' };
+  if (score >= 70) return { color: '#3B82F6', bar: '#3B82F6' };
+  return { color: '#F59E0B', bar: '#F59E0B' };
+}
+
+function industryMatchPercentColor(p: number): string {
+  if (p >= 90) return '#22C55E';
+  if (p >= 85) return '#3B82F6';
+  if (p >= 80) return '#60A5FA';
+  return '#F59E0B';
+}
+
+function growthBarWidthPercent(growthLabel: string): number {
+  const n = parseInt(growthLabel.replace(/[^0-9-]/g, ''), 10);
+  if (Number.isFinite(n) && n > 0) return Math.min(100, n * 4);
+  return 40;
+}
+
 // ─── Stage Config ──────────────────────────────────────────────────────
 
 const stageConfig: Record<PipelineStage, { label: string; color: string; bg: string; icon: typeof Eye }> = {
-  discovered: { label: 'Discovered', color: '#9CA3AF', bg: 'rgba(156,163,175,0.1)', icon: Eye },
-  applied: { label: 'Applied', color: '#7DBBFF', bg: 'rgba(125,187,255,0.1)', icon: Send },
-  interviewing: { label: 'Interviewing', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)', icon: Users },
-  offer: { label: 'Offer', color: '#10B981', bg: 'rgba(16,185,129,0.1)', icon: CheckCircle2 },
+  discovered: { label: 'Discovered', color: '#64748B', bg: 'rgba(100,116,139,0.12)', icon: Eye },
+  applied: { label: 'Applied', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Send },
+  interviewing: { label: 'Interviewing', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)', icon: Users },
+  offer: { label: 'Offer', color: '#22C55E', bg: 'rgba(34,197,94,0.12)', icon: CheckCircle2 },
 };
+
+const PIPELINE_FILTER_ORDER = ['all', 'offer', 'interviewing', 'applied', 'discovered'] as const;
+type PipelineFilterStage = (typeof PIPELINE_FILTER_ORDER)[number];
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-export function OpportunitiesPage() {
-  const [activeTab, setActiveTab] = useState<SubTab>('pipeline');
+export type OpportunitiesEmbeddedMode = 'pipeline' | 'explore' | 'messages';
+
+export type OpportunitiesPageProps = {
+  /** When set, show only this tab (no sub-tab strip or Opportunities header). Used by applicant shell nav. */
+  mode?: OpportunitiesEmbeddedMode;
+  /** After navigating to Messaging, select the conversation for this company name. */
+  focusCompanyName?: string | null;
+  /** Pipeline only: user clicked Message on a row — parent switches to Messaging. */
+  onRequestSwitchToMessaging?: (company: string) => void;
+};
+
+function subTabFromMode(mode: OpportunitiesEmbeddedMode | undefined): SubTab {
+  if (mode === 'explore') return 'explore';
+  if (mode === 'messages') return 'messages';
+  return 'pipeline';
+}
+
+export function OpportunitiesPage({ mode, focusCompanyName, onRequestSwitchToMessaging }: OpportunitiesPageProps = {}) {
+  const embedded = mode != null;
+  const [activeTab, setActiveTab] = useState<SubTab>(() => subTabFromMode(mode));
   const [expandedIndustry, setExpandedIndustry] = useState<string | null>('saas');
   const [activeConversation, setActiveConversation] = useState<number>(1);
   const [chatInput, setChatInput] = useState('');
   const [savedItems, setSavedItems] = useState<Set<number>>(new Set([1, 3, 6, 8]));
-  const [pipelineFilter, setPipelineFilter] = useState<PipelineStage | 'all'>('all');
+  const [pipelineFilter, setPipelineFilter] = useState<PipelineFilterStage>('all');
   const [industrySort, setIndustrySort] = useState<'match' | 'growth' | 'roles'>('match');
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
+
+  useEffect(() => {
+    if (mode == null) return;
+    setActiveTab(subTabFromMode(mode));
+  }, [mode]);
+
+  useEffect(() => {
+    if (!focusCompanyName) return;
+    const c = conversations.find((x) => x.company === focusCompanyName);
+    if (c) setActiveConversation(c.id);
+  }, [focusCompanyName]);
 
   const showToast = (message: string) => setToast({ message, visible: true });
 
@@ -262,21 +303,23 @@ export function OpportunitiesPage() {
   const totalUnread = conversations.filter(c => c.unread).length;
 
   return (
-    <div>
-      {/* Header */}
+    <div className="font-dashboard text-[#111827] antialiased">
+      {/* Header + stats — full Opportunities hub only */}
+      {!embedded ? (
       <div className="mb-6">
         <h1 className="text-2xl text-[#111827] font-semibold mb-2">Opportunities</h1>
         <p className="text-sm text-[#6B7280]">Explore industries, track your pipeline, and connect with companies that match your profile</p>
       </div>
+      ) : null}
 
-      {/* Summary Stats Row */}
+      {!embedded ? (
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-4 border border-black/[0.08]" style={{ borderRadius: '14px' }}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[#6B7280]">Active Pipeline</span>
             <Layers className="w-4 h-4 text-[#7DBBFF]" strokeWidth={2} />
           </div>
-          <p className="text-2xl text-[#111827] font-semibold">{pipelineData.length}</p>
+          <p className="font-dashboard-mono text-2xl font-semibold text-[#111827] tabular-nums">{pipelineData.length}</p>
           <p className="text-xs text-[#10B981] mt-1 flex items-center gap-1">
             <TrendingUp className="w-3 h-3" strokeWidth={2} />
             <span>3 new this week</span>
@@ -287,7 +330,7 @@ export function OpportunitiesPage() {
             <span className="text-xs text-[#6B7280]">Interviews</span>
             <Video className="w-4 h-4 text-[#F59E0B]" strokeWidth={2} />
           </div>
-          <p className="text-2xl text-[#111827] font-semibold">{stageCounts.interviewing}</p>
+          <p className="font-dashboard-mono text-2xl font-semibold text-[#111827] tabular-nums">{stageCounts.interviewing}</p>
           <p className="text-xs text-[#F59E0B] mt-1">Next: Feb 18</p>
         </div>
         <div className="bg-white p-4 border border-black/[0.08]" style={{ borderRadius: '14px' }}>
@@ -295,7 +338,7 @@ export function OpportunitiesPage() {
             <span className="text-xs text-[#6B7280]">Offers</span>
             <CheckCircle2 className="w-4 h-4 text-[#10B981]" strokeWidth={2} />
           </div>
-          <p className="text-2xl text-[#111827] font-semibold">{stageCounts.offer}</p>
+          <p className="font-dashboard-mono text-2xl font-semibold text-[#111827] tabular-nums">{stageCounts.offer}</p>
           <p className="text-xs text-[#10B981] mt-1">Review pending</p>
         </div>
         <div className="bg-white p-4 border border-black/[0.08]" style={{ borderRadius: '14px' }}>
@@ -303,12 +346,13 @@ export function OpportunitiesPage() {
             <span className="text-xs text-[#6B7280]">Industries Matched</span>
             <Compass className="w-4 h-4 text-[#8B5CF6]" strokeWidth={2} />
           </div>
-          <p className="text-2xl text-[#111827] font-semibold">{industries.length}</p>
+          <p className="font-dashboard-mono text-2xl font-semibold text-[#111827] tabular-nums">{industries.length}</p>
           <p className="text-xs text-[#8B5CF6] mt-1">Based on your traits</p>
         </div>
       </div>
+      ) : null}
 
-      {/* Sub-Tab Navigation */}
+      {!embedded ? (
       <div className="flex gap-1 mb-6 p-1 bg-[#F9F9FA] border border-black/[0.08] inline-flex" style={{ borderRadius: '12px' }}>
         {([
           { key: 'pipeline' as SubTab, label: 'Pipeline', icon: Layers, count: pipelineData.length },
@@ -339,158 +383,154 @@ export function OpportunitiesPage() {
           </button>
         ))}
       </div>
+      ) : null}
 
       {/* ═══════════ PIPELINE TAB ═══════════ */}
       {activeTab === 'pipeline' && (
-        <div>
-          {/* Pipeline Stage Filters */}
-          <div className="flex items-center gap-3 mb-6">
-            {(['all', 'discovered', 'applied', 'interviewing', 'offer'] as const).map(stage => {
-              const config = stage === 'all' ? { label: 'All', color: '#7DBBFF', bg: 'rgba(125,187,255,0.1)', icon: Sparkles } : stageConfig[stage];
+        <div className="bg-white">
+          {embedded ? (
+            <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2 pb-4 mb-4 border-b border-[#EDEDED]">
+              <div className="flex items-baseline gap-2">
+                <span className="font-dashboard-mono text-xl font-semibold tabular-nums text-[#111827]">{stageCounts.all}</span>
+                <span className="text-sm text-[#9CA3AF]">Total</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-dashboard-mono text-xl font-semibold tabular-nums" style={{ color: '#F59E0B' }}>{stageCounts.interviewing}</span>
+                <span className="text-sm text-[#9CA3AF]">Interviewing</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-dashboard-mono text-xl font-semibold tabular-nums" style={{ color: '#22C55E' }}>{stageCounts.offer}</span>
+                <span className="text-sm text-[#9CA3AF]">Offers</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-dashboard-mono text-xl font-semibold tabular-nums" style={{ color: '#3B82F6' }}>{stageCounts.applied}</span>
+                <span className="text-sm text-[#9CA3AF]">Applied</span>
+              </div>
+              <span className="w-full sm:w-auto sm:ml-auto text-sm text-[#22C55E]">3 new this week</span>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap gap-2 mb-1">
+            {PIPELINE_FILTER_ORDER.map((stage) => {
+              const config = stage === 'all' ? { label: 'All' } : stageConfig[stage];
               const count = stageCounts[stage];
+              const active = pipelineFilter === stage;
               return (
                 <button
                   key={stage}
+                  type="button"
                   onClick={() => setPipelineFilter(stage)}
-                  className={`flex items-center gap-2 px-4 py-2 text-xs font-medium border transition-all ${
-                    pipelineFilter === stage
-                      ? 'bg-white shadow-sm'
-                      : 'bg-transparent hover:bg-white/60'
+                  className={`px-3.5 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                    active ? 'bg-[#F3F4F6] text-[#111827]' : 'bg-transparent text-[#9CA3AF] hover:text-[#6B7280]'
                   }`}
-                  style={{
-                    borderRadius: '10px',
-                    borderColor: pipelineFilter === stage ? config.color : 'rgba(0,0,0,0.08)',
-                    color: pipelineFilter === stage ? config.color : '#6B7280',
-                  }}
                 >
-                  <config.icon className="w-3.5 h-3.5" strokeWidth={2} />
-                  <span>{config.label}</span>
-                  <span className="px-1.5 py-0.5 text-[10px] font-semibold" style={{
-                    borderRadius: '4px',
-                    backgroundColor: pipelineFilter === stage ? config.bg : '#F3F4F6',
-                    color: pipelineFilter === stage ? config.color : '#9CA3AF',
-                  }}>{count}</span>
+                  {config.label} ({count})
                 </button>
               );
             })}
           </div>
 
-          {/* Pipeline Stage Visual */}
-          <div className="bg-white p-5 border border-black/[0.08] mb-6" style={{ borderRadius: '16px' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <BarChart3 className="w-4 h-4 text-[#7DBBFF]" strokeWidth={2} />
-              <span className="text-sm text-[#111827] font-medium">Pipeline Overview</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {(['discovered', 'applied', 'interviewing', 'offer'] as PipelineStage[]).map((stage, idx) => {
-                const config = stageConfig[stage];
-                const count = stageCounts[stage];
-                const total = pipelineData.length;
-                return (
-                  <div key={stage} className="flex items-center flex-1 gap-2">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <config.icon className="w-3.5 h-3.5" style={{ color: config.color }} strokeWidth={2} />
-                          <span className="text-xs text-[#6B7280]">{config.label}</span>
-                        </div>
-                        <span className="text-xs font-semibold" style={{ color: config.color }}>{count}</span>
-                      </div>
-                      <div className="w-full h-2 bg-[#F3F4F6] overflow-hidden" style={{ borderRadius: '4px' }}>
-                        <div className="h-full transition-all duration-500" style={{
-                          width: `${(count / total) * 100}%`,
-                          backgroundColor: config.color,
-                          borderRadius: '4px',
-                        }} />
-                      </div>
-                    </div>
-                    {idx < 3 && <ChevronRight className="w-4 h-4 text-[#D1D5DB] shrink-0" strokeWidth={2} />}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Pipeline Cards */}
-          <div className="space-y-3">
-            {filteredPipeline.map(item => {
+          <div className="border-t border-[#EDEDED] divide-y divide-[#EDEDED]">
+            {filteredPipeline.map((item) => {
               const config = stageConfig[item.stage];
+              const accent = matchAccent(item.matchScore);
+              const initials = rowInitials(item.company);
+              const subline = [item.location, item.employmentType, item.sector, item.nextAction].filter(Boolean).join(' · ');
               return (
-                <div key={item.id} className="bg-white border border-black/[0.08] hover:border-[#7DBBFF]/30 hover:shadow-md transition-all group" style={{ borderRadius: '16px' }}>
-                  <div className="p-5">
-                    <div className="flex items-start gap-4">
-                      {/* Company Logo */}
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border border-black/[0.06] group-hover:scale-105 transition-transform" style={{ background: `linear-gradient(135deg, ${config.bg}, rgba(139,92,246,0.08))` }}>
-                        <Building2 className="w-6 h-6" style={{ color: config.color }} strokeWidth={1.5} />
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-1">
-                          <div>
-                            <h3 className="text-base text-[#111827] font-semibold">{item.company}</h3>
-                            <p className="text-sm text-[#6B7280]">{item.role}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium" style={{ borderRadius: '8px', color: config.color, backgroundColor: config.bg }}>
-                              <config.icon className="w-3 h-3" strokeWidth={2} />
-                              <span>{config.label}</span>
-                            </div>
-                            <button onClick={() => toggleSave(item.id)} className={`p-1.5 transition-all ${savedItems.has(item.id) ? 'text-[#F59E0B]' : 'text-[#D1D5DB] hover:text-[#F59E0B]'}`} style={{ borderRadius: '6px' }}>
-                              <Bookmark className="w-4 h-4" strokeWidth={2} fill={savedItems.has(item.id) ? 'currentColor' : 'none'} />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-4 mt-2 text-xs text-[#9CA3AF]">
-                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" strokeWidth={2} />{item.location}</span>
-                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" strokeWidth={2} />{item.lastUpdate}</span>
-                          <div className="flex items-center gap-1 px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] font-semibold" style={{ borderRadius: '6px' }}>
-                            <Sparkles className="w-2.5 h-2.5" strokeWidth={2} />
-                            <span>{item.matchScore}% match</span>
-                          </div>
-                          {item.unreadMessages && item.unreadMessages > 0 && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/10 text-red-500 font-semibold" style={{ borderRadius: '6px' }}>
-                              <MessageCircle className="w-2.5 h-2.5" strokeWidth={2} />
-                              <span>{item.unreadMessages} new</span>
+                <div key={item.id} className="py-4">
+                  <div className="flex gap-4">
+                    <div
+                      className="w-9 h-9 rounded-full bg-[#F3F4F6] flex items-center justify-center shrink-0 text-[11px] font-semibold text-[#9CA3AF]"
+                      aria-hidden
+                    >
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="text-sm font-semibold text-[#111827]">{item.role}</span>
+                            <span className="text-sm text-[#6B7280]">{item.company}</span>
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full"
+                              style={{ color: config.color, backgroundColor: config.bg }}
+                            >
+                              {config.label}
                             </span>
-                          )}
-                        </div>
-
-                        {/* Next Action */}
-                        {item.nextAction && (
-                          <div className="mt-3 flex items-center justify-between">
-                            <div className="flex items-center gap-2 px-3 py-2 bg-[#F9FAFB] border border-black/[0.05] flex-1 mr-3" style={{ borderRadius: '10px' }}>
-                              {item.stage === 'interviewing' && <Calendar className="w-3.5 h-3.5 text-[#F59E0B]" strokeWidth={2} />}
-                              {item.stage === 'offer' && <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" strokeWidth={2} />}
-                              {item.stage === 'applied' && <Clock className="w-3.5 h-3.5 text-[#7DBBFF]" strokeWidth={2} />}
-                              {item.stage === 'discovered' && <Lightbulb className="w-3.5 h-3.5 text-[#9CA3AF]" strokeWidth={2} />}
-                              <span className="text-xs text-[#111827]">{item.nextAction}</span>
-                            </div>
-                            <div className="flex gap-2">
+                          </div>
+                          {subline ? (
+                            <p className="text-xs text-[#9CA3AF] mt-1 leading-snug">{subline}</p>
+                          ) : null}
+                          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#9CA3AF]">
+                            {item.unreadMessages != null && item.unreadMessages > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-[#EF4444]">
+                                <MessageCircle className="w-3 h-3 shrink-0" strokeWidth={2} />
+                                {item.unreadMessages} new
+                              </span>
+                            ) : null}
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="w-3 h-3 shrink-0" strokeWidth={2} />
+                              {item.lastUpdate}
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onRequestSwitchToMessaging) {
+                                  onRequestSwitchToMessaging(item.company);
+                                } else {
+                                  setActiveTab('messages');
+                                  setActiveConversation(conversations.find((c) => c.company === item.company)?.id || 1);
+                                }
+                              }}
+                              className="text-xs font-medium text-[#7DBBFF] hover:underline inline-flex items-center gap-1"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
+                              Message
+                            </button>
+                            {item.stage === 'discovered' ? (
                               <button
-                                onClick={() => { setActiveTab('messages'); setActiveConversation(conversations.find(c => c.company === item.company)?.id || 1); }}
-                                className="px-3 py-2 text-xs font-medium text-[#7DBBFF] border border-[#7DBBFF]/30 hover:bg-[#7DBBFF]/5 transition-all flex items-center gap-1.5"
-                                style={{ borderRadius: '8px' }}
+                                type="button"
+                                className="text-xs font-medium text-[#7DBBFF] hover:underline inline-flex items-center gap-1"
                               >
-                                <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
-                                Message
+                                <ArrowUpRight className="w-3.5 h-3.5" strokeWidth={2} />
+                                Apply
                               </button>
-                              {item.stage === 'discovered' && (
-                                <button className="px-3 py-2 text-xs font-medium text-white bg-[#7DBBFF] hover:bg-[#6aabef] transition-all flex items-center gap-1.5" style={{ borderRadius: '8px' }}>
-                                  <ArrowUpRight className="w-3.5 h-3.5" strokeWidth={2} />
-                                  Apply
-                                </button>
-                              )}
-                              {item.stage === 'offer' && (
-                                <button className="px-3 py-2 text-xs font-medium text-white bg-[#10B981] hover:bg-[#059669] transition-all flex items-center gap-1.5" style={{ borderRadius: '8px' }}>
-                                  <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2} />
-                                  Review Offer
-                                </button>
-                              )}
+                            ) : null}
+                            {item.stage === 'offer' ? (
+                              <button
+                                type="button"
+                                className="text-xs font-semibold text-[#22C55E] hover:underline inline-flex items-center gap-1"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2} />
+                                Review offer
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-start gap-3 sm:pt-0">
+                          <div className="text-right">
+                            <p className="font-dashboard-mono text-sm font-semibold tabular-nums" style={{ color: accent.color }}>
+                              {item.matchScore}
+                              <span className="font-normal text-[#9CA3AF]">/100</span>
+                            </p>
+                            <div className="mt-1.5 w-20 h-1 rounded-full bg-[#F3F4F6] overflow-hidden ml-auto">
+                              <div
+                                className="h-full rounded-full"
+                                style={{ width: `${Math.min(100, item.matchScore)}%`, backgroundColor: accent.bar }}
+                              />
                             </div>
                           </div>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() => toggleSave(item.id)}
+                            className={`p-1 transition-colors mt-0.5 ${savedItems.has(item.id) ? 'text-[#F59E0B]' : 'text-[#D1D5DB] hover:text-[#F59E0B]'}`}
+                            aria-label={savedItems.has(item.id) ? 'Remove bookmark' : 'Save'}
+                          >
+                            <Bookmark className="w-4 h-4" strokeWidth={2} fill={savedItems.has(item.id) ? 'currentColor' : 'none'} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -503,154 +543,133 @@ export function OpportunitiesPage() {
 
       {/* ═══════════ EXPLORE INDUSTRIES TAB ═══════════ */}
       {activeTab === 'explore' && (
-        <div>
-          {/* Intro Card */}
-          <div className="bg-gradient-to-r from-[#7DBBFF]/[0.06] to-[#8B5CF6]/[0.04] border border-[#7DBBFF]/10 p-5 mb-6" style={{ borderRadius: '16px' }}>
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#7DBBFF]/10 flex items-center justify-center shrink-0">
-                <Compass className="w-5 h-5 text-[#7DBBFF]" strokeWidth={2} />
-              </div>
-              <div>
-                <p className="text-sm text-[#111827] font-medium mb-1">Industries matched to your trait profile</p>
-                <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Based on your ownership drive, problem-structuring approach, and preference for autonomy-driven environments, we've identified industries where people with similar profiles tend to thrive. This isn't just about job titles — it's about where your natural strengths create the most impact.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Sort Controls */}
-          <div className="flex items-center justify-between mb-5">
-            <p className="text-sm text-[#6B7280]">
-              <span className="font-semibold text-[#111827]">{industries.length}</span> industries matched to your profile
+        <div className="bg-white">
+          {embedded ? (
+            <p className="text-sm text-[#6B7280] pb-4 mb-4 border-b border-[#EDEDED] leading-relaxed">
+              Industries matched to your trait profile — where your strengths tend to have the most impact.
             </p>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[#9CA3AF]">Sort by</span>
-              {(['match', 'growth', 'roles'] as const).map(s => (
+          ) : (
+            <div className="pb-4 mb-4 border-b border-[#EDEDED]">
+              <p className="text-sm text-[#111827] font-medium mb-1">Industries matched to your trait profile</p>
+              <p className="text-xs text-[#6B7280] leading-relaxed">
+                Based on your profile, these are sectors where similar people often thrive — focused on fit, not only job titles.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <p className="text-sm text-[#6B7280]">
+              <span className="font-semibold text-[#111827]">{industries.length}</span> industries matched
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-[#9CA3AF]">Sort</span>
+              {(['match', 'growth', 'roles'] as const).map((s) => (
                 <button
                   key={s}
+                  type="button"
                   onClick={() => setIndustrySort(s)}
-                  className={`px-3 py-1.5 text-xs font-medium transition-all ${
-                    industrySort === s ? 'bg-white text-[#111827] shadow-sm border border-black/[0.08]' : 'text-[#6B7280] hover:text-[#111827]'
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                    industrySort === s ? 'bg-[#F3F4F6] text-[#111827]' : 'text-[#9CA3AF] hover:text-[#6B7280]'
                   }`}
-                  style={{ borderRadius: '8px' }}
                 >
-                  {s === 'match' ? 'Best Match' : s === 'growth' ? 'Growth Rate' : 'Open Roles'}
+                  {s === 'match' ? 'Best match' : s === 'growth' ? 'Growth' : 'Open roles'}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Industry Cards */}
-          <div className="space-y-4">
-            {sortedIndustries.map(industry => {
+          <div className="border-t border-[#EDEDED]">
+            {sortedIndustries.map((industry) => {
               const isExpanded = expandedIndustry === industry.id;
-              const matchColor = industry.matchPercent >= 90 ? '#10B981' : industry.matchPercent >= 80 ? '#7DBBFF' : '#F59E0B';
+              const matchColor = industryMatchPercentColor(industry.matchPercent);
+              const barW = growthBarWidthPercent(industry.growth);
               return (
-                <div key={industry.id} className="bg-white border border-black/[0.08] overflow-hidden transition-all" style={{ borderRadius: '16px' }}>
-                  {/* Header - Always Visible */}
+                <div key={industry.id} className="border-b border-[#EDEDED] last:border-b-0">
                   <button
+                    type="button"
                     onClick={() => setExpandedIndustry(isExpanded ? null : industry.id)}
-                    className="w-full p-5 text-left hover:bg-[#FAFBFC] transition-colors"
+                    className="w-full py-4 text-left hover:bg-[#FAFAFA]/80 transition-colors"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${matchColor}12` }}>
-                        <Globe className="w-6 h-6" style={{ color: matchColor }} strokeWidth={1.5} />
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                          <h3 className="text-sm font-semibold text-[#111827]">{industry.name}</h3>
+                          <span className="font-dashboard-mono text-sm font-semibold tabular-nums" style={{ color: matchColor }}>
+                            {industry.matchPercent}%
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          {industry.topTraits.slice(0, 2).map((t) => (
+                            <span
+                              key={t}
+                              className="text-[11px] text-[#6B7280] px-2 py-0.5 rounded-full border border-[#E5E7EB] bg-[#FAFAFA]"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <h3 className="text-base text-[#111827] font-semibold">{industry.name}</h3>
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5 px-2.5 py-1" style={{ borderRadius: '8px', backgroundColor: `${matchColor}12`, color: matchColor }}>
-                              <Sparkles className="w-3 h-3" strokeWidth={2} />
-                              <span className="text-xs font-semibold">{industry.matchPercent}% match</span>
-                            </div>
-                            {isExpanded ? <ChevronUp className="w-5 h-5 text-[#9CA3AF]" strokeWidth={2} /> : <ChevronDown className="w-5 h-5 text-[#9CA3AF]" strokeWidth={2} />}
+                      <div className="flex shrink-0 items-center gap-3">
+                        <div className="flex flex-col items-end gap-1 text-right text-[11px] text-[#9CA3AF] sm:text-xs">
+                          <div>
+                            {industry.openRoles} roles · <span className="text-[#22C55E]">{industry.growth}</span>
+                          </div>
+                          <div className="w-14 sm:w-16 h-1 rounded-full bg-[#F3F4F6] overflow-hidden">
+                            <div className="h-full rounded-full bg-[#22C55E]" style={{ width: `${barW}%` }} />
                           </div>
                         </div>
-                        <p className="text-sm text-[#6B7280] line-clamp-1 pr-32">{industry.description}</p>
-                        <div className="flex items-center gap-4 mt-2">
-                          {industry.topTraits.map(t => (
-                            <span key={t} className="text-[11px] text-[#7DBBFF] font-medium px-2 py-0.5 bg-[#7DBBFF]/8" style={{ borderRadius: '6px' }}>{t}</span>
-                          ))}
-                          <span className="text-xs text-[#9CA3AF] flex items-center gap-1"><Briefcase className="w-3 h-3" strokeWidth={2} />{industry.openRoles} open roles</span>
-                          <span className="text-xs text-[#10B981] flex items-center gap-1"><TrendingUp className="w-3 h-3" strokeWidth={2} />{industry.growth}</span>
-                        </div>
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-[#9CA3AF] shrink-0" strokeWidth={2} />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-[#9CA3AF] shrink-0" strokeWidth={2} />
+                        )}
                       </div>
                     </div>
                   </button>
 
-                  {/* Expanded Content */}
-                  {isExpanded && (
-                    <div className="border-t border-black/[0.06] px-5 pb-5">
-                      <div className="grid grid-cols-3 gap-5 pt-5">
-                        {/* Why This Industry */}
-                        <div className="col-span-2">
-                          <div className="mb-5">
-                            <div className="flex items-center gap-2 mb-2.5">
-                              <Target className="w-4 h-4 text-[#7DBBFF]" strokeWidth={2} />
-                              <span className="text-sm text-[#111827] font-medium">Why this industry fits you</span>
-                            </div>
-                            <p className="text-sm text-[#6B7280] leading-relaxed">{industry.whyYou}</p>
-                          </div>
+                  {isExpanded ? (
+                    <div className="pb-6 pt-0 grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-[#EDEDED]">
+                      <div className="md:col-span-2 pt-5">
+                        <p className="text-[10px] tracking-[0.12em] uppercase text-[#9CA3AF] mb-2">Why this fits</p>
+                        <p className="text-sm text-[#6B7280] leading-relaxed">{industry.whyYou}</p>
 
-                          {/* Typical Roles */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-3">
-                              <Briefcase className="w-4 h-4 text-[#7DBBFF]" strokeWidth={2} />
-                              <span className="text-sm text-[#111827] font-medium">Typical Roles</span>
+                        <p className="text-[10px] tracking-[0.12em] uppercase text-[#9CA3AF] mt-6 mb-2">Typical roles</p>
+                        <div className="border-t border-[#EDEDED] divide-y divide-[#EDEDED]">
+                          {industry.typicalRoles.map((role) => (
+                            <div key={role.title} className="py-2.5 flex items-start justify-between gap-4 text-sm">
+                              <span className="text-[#111827] font-medium">{role.title}</span>
+                              <span className="shrink-0 font-dashboard-mono tabular-nums text-[#9CA3AF]">{role.avgSalary}</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-2.5">
-                              {industry.typicalRoles.map(role => (
-                                <div key={role.title} className="p-3 bg-[#F9FAFB] border border-black/[0.05] flex items-center justify-between" style={{ borderRadius: '10px' }}>
-                                  <div>
-                                    <p className="text-sm text-[#111827] font-medium">{role.title}</p>
-                                    <p className="text-xs text-[#9CA3AF]">{role.avgSalary}</p>
-                                  </div>
-                                  <span className={`text-[10px] font-semibold px-2 py-0.5 ${
-                                    role.demand === 'High' ? 'bg-[#10B981]/10 text-[#10B981]' :
-                                    role.demand === 'Medium' ? 'bg-[#F59E0B]/10 text-[#F59E0B]' :
-                                    'bg-[#9CA3AF]/10 text-[#9CA3AF]'
-                                  }`} style={{ borderRadius: '4px' }}>
-                                    {role.demand} demand
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Industry Stats */}
-                        <div className="space-y-3">
-                          <div className="p-4 bg-[#F9FAFB] border border-black/[0.05]" style={{ borderRadius: '12px' }}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <DollarSign className="w-4 h-4 text-[#10B981]" strokeWidth={2} />
-                              <span className="text-xs text-[#6B7280]">Salary Range</span>
-                            </div>
-                            <p className="text-base text-[#111827] font-semibold">{industry.avgSalary}</p>
-                          </div>
-                          <div className="p-4 bg-[#F9FAFB] border border-black/[0.05]" style={{ borderRadius: '12px' }}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <TrendingUp className="w-4 h-4 text-[#7DBBFF]" strokeWidth={2} />
-                              <span className="text-xs text-[#6B7280]">Industry Growth</span>
-                            </div>
-                            <p className="text-base text-[#111827] font-semibold">{industry.growth}</p>
-                          </div>
-                          <div className="p-4 bg-[#F9FAFB] border border-black/[0.05]" style={{ borderRadius: '12px' }}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Briefcase className="w-4 h-4 text-[#F59E0B]" strokeWidth={2} />
-                              <span className="text-xs text-[#6B7280]">Open Roles</span>
-                            </div>
-                            <p className="text-base text-[#111827] font-semibold">{industry.openRoles}</p>
-                          </div>
-                          <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7DBBFF] text-white hover:bg-[#6aabef] transition-all text-sm font-medium" style={{ borderRadius: '10px' }}>
-                            <Search className="w-4 h-4" strokeWidth={2} />
-                            <span>Browse Roles</span>
-                          </button>
+                          ))}
                         </div>
                       </div>
+
+                      <div className="pt-5 md:border-l md:border-[#EDEDED] md:pl-8">
+                        <p className="text-[10px] tracking-[0.12em] uppercase text-[#9CA3AF] mb-3">At a glance</p>
+                        <dl className="space-y-2 text-sm">
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-[#9CA3AF]">Salary</dt>
+                            <dd className="text-right font-dashboard-mono font-semibold text-[#111827]">{industry.avgSalary}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-[#9CA3AF]">Growth</dt>
+                            <dd className="text-right font-dashboard-mono font-semibold text-[#111827]">{industry.growth}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-[#9CA3AF]">Roles</dt>
+                            <dd className="text-right font-dashboard-mono font-semibold tabular-nums text-[#111827]">{industry.openRoles}</dd>
+                          </div>
+                        </dl>
+                        <button
+                          type="button"
+                          className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7BB9FA] text-white hover:bg-[#6aabef] transition-colors text-sm font-medium rounded-md"
+                        >
+                          <Search className="w-4 h-4" strokeWidth={2} />
+                          Browse roles
+                        </button>
+                      </div>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               );
             })}
@@ -660,41 +679,52 @@ export function OpportunitiesPage() {
 
       {/* ═══════════ MESSAGES TAB ═══════════ */}
       {activeTab === 'messages' && (
-        <div className="bg-white border border-black/[0.08] overflow-hidden flex" style={{ borderRadius: '16px', height: '600px' }}>
+        <div className="bg-white border border-[#E5E7EB] overflow-hidden flex h-[min(600px,calc(100vh-200px))] rounded-sm">
           {/* Conversation List */}
-          <div className="w-[320px] border-r border-black/[0.06] flex flex-col">
-            <div className="p-4 border-b border-black/[0.06]">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search conversations..."
-                  className="w-full px-4 py-2 pl-9 bg-[#F9FAFB] border border-black/[0.06] text-sm text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#7DBBFF]"
-                  style={{ borderRadius: '10px' }}
-                />
-                <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2" strokeWidth={2} />
-              </div>
+          <div className="w-[300px] sm:w-[320px] border-r border-[#EDEDED] flex flex-col shrink-0">
+            <div className="px-4 py-3 border-b border-[#EDEDED]">
+              <p className="text-[10px] font-medium tracking-[0.14em] text-[#9CA3AF] uppercase">Conversations</p>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {conversations.map(convo => (
+              {conversations.map((convo) => (
                 <button
                   key={convo.id}
+                  type="button"
                   onClick={() => setActiveConversation(convo.id)}
-                  className={`w-full p-4 text-left border-b border-black/[0.04] transition-all ${
-                    activeConversation === convo.id ? 'bg-[#7DBBFF]/5 border-l-2 border-l-[#7DBBFF]' : 'hover:bg-[#FAFBFC]'
+                  className={`w-full px-4 py-3.5 text-left border-b border-[#EDEDED] transition-colors ${
+                    activeConversation === convo.id
+                      ? 'bg-[#7DBBFF]/10'
+                      : 'hover:bg-[#FAFAFA]'
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7DBBFF]/20 to-[#8B5CF6]/20 flex items-center justify-center shrink-0 border border-black/[0.06]">
-                      <Building2 className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
+                    <div className="w-9 h-9 rounded-full bg-[#F3F4F6] flex items-center justify-center shrink-0 text-[10px] font-semibold text-[#9CA3AF]">
+                      {rowInitials(convo.company)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <p className={`text-sm truncate ${convo.unread ? 'text-[#111827] font-semibold' : 'text-[#111827] font-medium'}`}>{convo.company}</p>
-                        {convo.unread && <div className="w-2 h-2 rounded-full bg-[#7DBBFF] shrink-0" />}
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <p
+                          className={`text-sm truncate ${
+                            convo.unread ? 'text-[#111827] font-semibold' : 'text-[#111827] font-medium'
+                          }`}
+                        >
+                          {convo.company}
+                        </p>
+                        {convo.unread ? (
+                          <div className="w-2 h-2 rounded-full shrink-0 bg-[#7DBBFF]" aria-hidden />
+                        ) : null}
                       </div>
-                      <p className="text-xs text-[#6B7280] mb-1">{convo.contactName} · {convo.contactRole}</p>
-                      <p className={`text-xs truncate ${convo.unread ? 'text-[#111827]' : 'text-[#9CA3AF]'}`}>{convo.lastMessage}</p>
-                      <p className="text-[10px] text-[#9CA3AF] mt-1">{convo.lastMessageTime}</p>
+                      <p className="text-xs text-[#6B7280] mb-1 truncate">
+                        {convo.contactName} · {convo.contactRole}
+                      </p>
+                      <p
+                        className={`text-xs line-clamp-2 ${
+                          convo.unread ? 'text-[#111827]' : 'text-[#9CA3AF]'
+                        }`}
+                      >
+                        {convo.lastMessage}
+                      </p>
+                      <p className="mt-1 font-dashboard-mono text-[10px] text-[#9CA3AF]">{convo.lastMessageTime}</p>
                     </div>
                   </div>
                 </button>
@@ -704,58 +734,69 @@ export function OpportunitiesPage() {
 
           {/* Chat Area */}
           {activeConvo ? (
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col min-w-0">
               {/* Chat Header */}
-              <div className="p-4 border-b border-black/[0.06] flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7DBBFF]/20 to-[#8B5CF6]/20 flex items-center justify-center border border-black/[0.06]">
-                    <Building2 className="w-5 h-5 text-[#7DBBFF]" strokeWidth={1.5} />
+              <div className="px-4 py-3 border-b border-[#EDEDED] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-[#F3F4F6] flex items-center justify-center shrink-0 text-[10px] font-semibold text-[#9CA3AF]">
+                    {rowInitials(activeConvo.company)}
                   </div>
-                  <div>
-                    <p className="text-sm text-[#111827] font-semibold">{activeConvo.company}</p>
-                    <p className="text-xs text-[#6B7280]">{activeConvo.contactName} · {activeConvo.role}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm text-[#111827] font-semibold truncate">{activeConvo.company}</p>
+                    <p className="text-xs text-[#6B7280] truncate">
+                      {activeConvo.contactName} · {activeConvo.contactRole}
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button className="p-2 text-[#6B7280] hover:bg-[#F9F9FA] transition-all" style={{ borderRadius: '8px' }}>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    className="p-2 text-[#6B7280] hover:bg-[#F9FAFA] transition-colors rounded-md border border-transparent hover:border-[#E5E7EB]"
+                    aria-label="Call"
+                  >
                     <Phone className="w-4 h-4" strokeWidth={2} />
                   </button>
-                  <button className="p-2 text-[#6B7280] hover:bg-[#F9F9FA] transition-all" style={{ borderRadius: '8px' }}>
+                  <button
+                    type="button"
+                    className="p-2 text-[#6B7280] hover:bg-[#F9FAFA] transition-colors rounded-md border border-transparent hover:border-[#E5E7EB]"
+                    aria-label="Video"
+                  >
                     <Video className="w-4 h-4" strokeWidth={2} />
-                  </button>
-                  <button className="p-2 text-[#6B7280] hover:bg-[#F9F9FA] transition-all" style={{ borderRadius: '8px' }}>
-                    <Info className="w-4 h-4" strokeWidth={2} />
                   </button>
                 </div>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 bg-white">
                 {activeConvo.messages.map((msg, idx) => (
-                  <div key={idx} className={`flex ${msg.sender === 'you' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%] px-4 py-3 ${
-                      msg.sender === 'you'
-                        ? 'bg-[#7DBBFF] text-white'
-                        : 'bg-[#F3F4F6] text-[#111827]'
-                    }`} style={{ borderRadius: msg.sender === 'you' ? '14px 14px 4px 14px' : '14px 14px 14px 4px' }}>
-                      <p className="text-sm leading-relaxed">{msg.text}</p>
-                      <p className={`text-[10px] mt-1.5 ${msg.sender === 'you' ? 'text-white/60' : 'text-[#9CA3AF]'}`}>{msg.time}</p>
+                  <div
+                    key={idx}
+                    className={`flex flex-col max-w-[85%] sm:max-w-[72%] ${msg.sender === 'you' ? 'ml-auto items-end' : 'mr-auto items-start'}`}
+                  >
+                    <div
+                      className={`px-3 py-2 text-sm leading-relaxed rounded-md ${
+                        msg.sender === 'you'
+                          ? 'bg-[#82B7FB] text-white'
+                          : 'bg-white text-[#111827] border border-[#E5E7EB]'
+                      }`}
+                    >
+                      {msg.text}
                     </div>
+                    <p className="mt-1.5 px-0.5 font-dashboard-mono text-[10px] text-[#9CA3AF]">{msg.time}</p>
                   </div>
                 ))}
               </div>
 
               {/* Chat Input */}
-              <div className="p-4 border-t border-black/[0.06]">
-                <div className="flex items-center gap-3">
+              <div className="p-4 border-t border-[#EDEDED] bg-white">
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={chatInput}
-                    onChange={e => setChatInput(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 px-4 py-2.5 bg-[#F9FAFB] border border-black/[0.06] text-sm text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#7DBBFF]"
-                    style={{ borderRadius: '10px' }}
-                    onKeyDown={e => {
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Write a message..."
+                    className="flex-1 px-3 py-2.5 bg-white border border-[#E5E7EB] text-sm text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#7DBBFF] rounded-md"
+                    onKeyDown={(e) => {
                       if (e.key === 'Enter' && chatInput.trim()) {
                         showToast(`Message sent to ${activeConvo.company}`);
                         setChatInput('');
@@ -763,9 +804,15 @@ export function OpportunitiesPage() {
                     }}
                   />
                   <button
-                    onClick={() => { if (chatInput.trim()) { showToast(`Message sent to ${activeConvo.company}`); setChatInput(''); } }}
-                    className="p-2.5 bg-[#7DBBFF] text-white hover:bg-[#6aabef] transition-all"
-                    style={{ borderRadius: '10px' }}
+                    type="button"
+                    onClick={() => {
+                      if (chatInput.trim()) {
+                        showToast(`Message sent to ${activeConvo.company}`);
+                        setChatInput('');
+                      }
+                    }}
+                    className="p-2.5 bg-[#7DBBFF] text-white hover:bg-[#6aabef] transition-colors rounded-md shrink-0"
+                    aria-label="Send"
                   >
                     <Send className="w-4 h-4" strokeWidth={2} />
                   </button>
@@ -794,4 +841,16 @@ export function OpportunitiesPage() {
       )}
     </div>
   );
+}
+
+export function ApplicantPipelinePanel(props: Pick<OpportunitiesPageProps, 'onRequestSwitchToMessaging'>) {
+  return <OpportunitiesPage mode="pipeline" {...props} />;
+}
+
+export function ApplicantExploreIndustriesPanel() {
+  return <OpportunitiesPage mode="explore" />;
+}
+
+export function ApplicantMessagingPanel(props: Pick<OpportunitiesPageProps, 'focusCompanyName'>) {
+  return <OpportunitiesPage mode="messages" {...props} />;
 }

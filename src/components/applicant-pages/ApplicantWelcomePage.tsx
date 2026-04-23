@@ -217,9 +217,9 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
 
   if (editMode) {
     return (
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-6">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 font-dashboard text-[#111827] antialiased backdrop-blur-[2px]">
         <div
-          className="bg-white w-full max-w-[480px] max-h-[90vh] overflow-y-auto p-8 shadow-xl relative"
+          className="relative max-h-[90vh] w-full max-w-[480px] overflow-y-auto bg-white p-8 shadow-xl"
           style={{ borderRadius: '20px' }}
         >
           <button
@@ -239,19 +239,19 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
 
   if (step === 'welcome') {
     return (
-      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6">
+      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] p-6 font-dashboard text-[#111827] antialiased">
         <div className="w-full max-w-[480px]">
-          <div className="flex items-center gap-3 mb-14">
+          <div className="mb-14 flex items-center gap-3">
             <div
-              className="w-10 h-10 bg-[#7dbbff] flex items-center justify-center shrink-0"
+              className="flex h-10 w-10 shrink-0 items-center justify-center bg-[#7dbbff]"
               style={{ borderRadius: '12px' }}
             >
-              <Compass className="w-5 h-5 text-white" strokeWidth={2} />
+              <Compass className="h-5 w-5 text-white" strokeWidth={2} />
             </div>
-            <span className="text-lg text-[#111827] font-semibold">CMe</span>
+            <span className="text-lg font-semibold text-[#111827]">CMe</span>
           </div>
 
-          <h1 className="text-[32px] text-[#111827] font-semibold mb-4 leading-tight tracking-tight">
+          <h1 className="mb-4 text-[32px] font-semibold leading-tight tracking-tight text-[#111827]">
             {firstName ? `Welcome, ${firstName}.` : 'Welcome.'}
           </h1>
           <p className="text-[15px] text-[#6B7280] mb-10 leading-relaxed">
@@ -284,7 +284,7 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
                 className="flex items-start gap-4 p-4 bg-white border border-black/[0.06]"
                 style={{ borderRadius: '14px' }}
               >
-                <span className="text-xs font-semibold text-[#7dbbff] mt-0.5 w-6 shrink-0">
+                <span className="mt-0.5 w-6 shrink-0 font-dashboard-mono text-xs font-semibold text-[#7dbbff]">
                   {item.num}
                 </span>
                 <div>
@@ -309,16 +309,16 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6">
+    <div className="flex min-h-screen items-center justify-center bg-[#fafafa] p-6 font-dashboard text-[#111827] antialiased">
       <div className="w-full max-w-[480px]">
-        <div className="flex items-center gap-3 mb-14">
+        <div className="mb-14 flex items-center gap-3">
           <div
-            className="w-10 h-10 bg-[#7dbbff] flex items-center justify-center shrink-0"
+            className="flex h-10 w-10 shrink-0 items-center justify-center bg-[#7dbbff]"
             style={{ borderRadius: '12px' }}
           >
-            <Compass className="w-5 h-5 text-white" strokeWidth={2} />
+            <Compass className="h-5 w-5 text-white" strokeWidth={2} />
           </div>
-          <span className="text-lg text-[#111827] font-semibold">CMe</span>
+          <span className="text-lg font-semibold text-[#111827]">CMe</span>
         </div>
         {detailsForm}
       </div>

@@ -1,0 +1,85 @@
+---
+description: Git branching strategy and file scoping rules for CMe
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# CMe — Git Branching & File Scoping Rules
+
+## Branching Strategy
+
+This project uses **trunk-based development with short-lived feature branches**.
+
+- `main` is the stable trunk. It is always deployable.
+- Feature work happens on branches named `feat/<screen>-<feature>` (e.g. `feat/applicant-intake-sections`, `feat/employer-weighting-ui`).
+- Each branch targets **one** screen or **one** cross-cutting concern. Never mix applicant and employer work on the same branch.
+- Merge back to `main` when complete. Delete the branch after merge.
+
+### Branch naming
+
+```
+feat/applicant-<feature>      → Applicant view work
+feat/employer-<feature>       → Employer view work
+feat/shared-<feature>         → Shared components, contexts, types, auth
+feat/assessment-<feature>     → Assessment link / cold-start flow
+feat/pulsecheck-<feature>     → Post-hire pulse check flow
+fix/<description>             → Bug fixes
+chore/<description>           → Tooling, config, migrations
+```
+
+## Before starting any task
+
+1. Confirm which screen the task belongs to (applicant / employer / assessment / pulsecheck / shared).
+2. Check you are on the correct feature branch — if not, create or switch to one.
+3. List the files you expect to modify.
+4. If any file is outside that screen’s scope (see below), explain why before touching it.
+5. Proceed only after scoping is clear.
+
+## File scoping
+
+Only modify files within the current screen’s scope. Touching shared files requires explicit justification.
+
+### Applicant View
+
+```
+src/components/ApplicantScreen.tsx
+src/components/applicant-pages/**
+```
+
+### Employer View
+
+```
+src/components/EmployerScreen.tsx
+src/components/employer-pages/**
+```
+
+### Assessment Link
+
+```
+src/pages/AssessmentLink.tsx
+```
+
+### Pulse Check
+
+```
+src/pages/PulseCheckForm.tsx
+```
+
+### Shared (high-risk — justify before changing)
+
+```
+src/App.tsx
+src/contexts/**
+src/lib/**
+src/types/**
+src/styles/**
+supabase/**
+```
+
+## Hard rules
+
+- **Never** modify `App.tsx` navigation unless the task explicitly requires a new route or tab.
+- **Never** modify another screen’s components while working on a different screen’s feature.
+- **Never** change `UserProfileContext.tsx`, `supabaseClient.ts`, `authRouting.ts`, or type files without stating exactly what will change and why.
+- **Always** show the specific line you plan to change before making any change to an existing file (pre-confirmation step).
+- Keep shared file changes minimal and backwards-compatible.
