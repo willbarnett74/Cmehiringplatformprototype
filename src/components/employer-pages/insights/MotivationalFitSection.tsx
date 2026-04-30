@@ -32,7 +32,7 @@ const ALIGNMENT_STYLES: Record<string, { bg: string; border: string; text: strin
   aligned: { bg: '#F0FDF4', border: '#BBF7D0', text: '#16A34A', dotColor: '#10B981', avatarBg: '#F0FDF4', avatarBorder: '#BBF7D0', avatarText: '#16A34A' },
   watch: { bg: '#FFFBEB', border: '#FDE68A', text: '#D97706', dotColor: '#F59E0B', avatarBg: '#FFFBEB', avatarBorder: '#FDE68A', avatarText: '#D97706' },
   at_risk: { bg: '#FEF2F2', border: '#FECACA', text: '#DC2626', dotColor: '#EF4444', avatarBg: '#FEF2F2', avatarBorder: '#FECACA', avatarText: '#DC2626' },
-  departed: { bg: '#F9FAFB', border: '#E5E7EB', text: '#6B7280', dotColor: '#9CA3AF', avatarBg: '#F9FAFB', avatarBorder: '#E5E7EB', avatarText: '#6B7280' },
+  departed: { bg: '#F9FAFB', border: 'rgba(0,0,0,0.08)', text: '#6B7280', dotColor: '#9CA3AF', avatarBg: '#F9FAFB', avatarBorder: 'rgba(0,0,0,0.08)', avatarText: '#6B7280' },
 };
 
 export function MotivationalFitSection({ motivationalFitData, dataState, snapshotCount }: MotivationalFitSectionProps) {
@@ -111,7 +111,7 @@ export function MotivationalFitSection({ motivationalFitData, dataState, snapsho
             fontWeight: activeSubtab === 'active' ? 600 : 500,
             color: activeSubtab === 'active' ? '#2563EB' : '#6B7280',
             background: activeSubtab === 'active' ? '#EFF6FF' : 'transparent',
-            border: `1px solid ${activeSubtab === 'active' ? '#BFDBFE' : '#E5E7EB'}`,
+            border: `1px solid ${activeSubtab === 'active' ? '#BFDBFE' : 'rgba(0,0,0,0.08)'}`,
             cursor: 'pointer',
           }}
         >
@@ -126,7 +126,7 @@ export function MotivationalFitSection({ motivationalFitData, dataState, snapsho
             fontWeight: activeSubtab === 'departed' ? 600 : 500,
             color: activeSubtab === 'departed' ? '#2563EB' : '#6B7280',
             background: activeSubtab === 'departed' ? '#EFF6FF' : 'transparent',
-            border: `1px solid ${activeSubtab === 'departed' ? '#BFDBFE' : '#E5E7EB'}`,
+            border: `1px solid ${activeSubtab === 'departed' ? '#BFDBFE' : 'rgba(0,0,0,0.08)'}`,
             cursor: 'pointer',
           }}
         >

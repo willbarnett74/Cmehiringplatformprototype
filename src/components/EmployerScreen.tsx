@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, Settings, Building2, Search, BarChart3 } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  Settings,
+  Compass,
+  Search,
+  TrendingUp,
+  LogOut,
+} from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { DashboardPage } from './employer-pages/DashboardPage';
 import { SearchPage } from './employer-pages/SearchPage';
@@ -13,6 +21,32 @@ import type { ManagerObservationData } from './employer-pages/ManagerObservation
 import type { Candidate, Section, PerformanceSnapshot, MotivationalPulseCheck } from './types/employer';
 import { EmployerOnboarding } from './employer-pages/onboarding/EmployerOnboarding';
 import { NotificationBell } from './shared/NotificationBell';
+import { TRAIT_DIMENSION_KEYS, TRAIT_LABELS } from '../lib/traits';
+import type { DimensionScores } from '../utils/intakeScoreAggregate';
+import { toCandidateDimensionScores } from '../utils/intakeScoreAggregate';
+
+function topCoreTraitLabels(dimensionScores: NonNullable<Candidate['dimensionScores']>): string[] {
+  const pairs = TRAIT_DIMENSION_KEYS.map((k) => [k, dimensionScores[k]] as const).filter(
+    ([, v]) => typeof v === 'number' && !Number.isNaN(v),
+  );
+  pairs.sort((a, b) => b[1] - a[1]);
+  return pairs.slice(0, 3).map(([k]) => TRAIT_LABELS[k]);
+}
+
+type MockCandidateSeed = Omit<Candidate, 'traits' | 'dimensionScores' | 'trait_scores'> & {
+  trait_scores: DimensionScores;
+};
+
+function buildMockCandidate(row: MockCandidateSeed): Candidate {
+  const dimensionScores = toCandidateDimensionScores(row.trait_scores);
+  const { trait_scores, ...rest } = row;
+  return {
+    ...rest,
+    trait_scores,
+    dimensionScores,
+    traits: topCoreTraitLabels(dimensionScores),
+  };
+}
 
 export function EmployerScreen() {
   // Onboarding state - check if employer has completed onboarding
@@ -24,6 +58,8 @@ export function EmployerScreen() {
     }
   });
 
+  const [employerBusinessName, setEmployerBusinessName] = useState('TechCorp Inc.');
+
   // Check Supabase for existing business row on mount — skip onboarding if already done
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -31,18 +67,26 @@ export function EmployerScreen() {
       if (!session?.user?.id) return;
       const { data } = await supabase
         .from('businesses')
-        .select('id')
+        .select('id, name')
         .eq('owner_id', session.user.id)
         .maybeSingle();
       if (data?.id) {
         setHasCompletedOnboarding(true);
         try { localStorage.setItem('cme_employer_onboarding_complete', 'true'); } catch { /* ignore */ }
       }
+      if (data?.name && typeof data.name === 'string' && data.name.trim()) {
+        setEmployerBusinessName(data.name.trim());
+      }
     });
   }, []);
 
   // Navigation state
   const [currentSection, setCurrentSection] = useState<Section>('dashboard');
+  const [searchResultsCount, setSearchResultsCount] = useState(0);
+
+  useEffect(() => {
+    if (currentSection !== 'search') setSearchResultsCount(0);
+  }, [currentSection]);
 
   // Filter state
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
@@ -56,16 +100,15 @@ export function EmployerScreen() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showFullProfile, setShowFullProfile] = useState(false);
 
-  // Candidate data with stage management
+  // Candidate data with stage management (dimension scores align with applicant profile builder / Spec 1)
   const [candidates, setCandidates] = useState<Candidate[]>([
-    {
+    buildMockCandidate({
       candidate_id: 1,
       id: 1,
       name: 'Jordan Chen',
       role: 'Senior Product Designer',
       location: 'San Francisco, CA',
       level: 'Senior',
-      traits: ['Ownership', 'Learning Speed', 'Adaptability'],
       score: 94,
       stage: 'discovered' as const,
       daysInStage: 2,
@@ -75,16 +118,25 @@ export function EmployerScreen() {
       openToChange: false,
       readyToStepUp: true,
       retrained: false,
-      traitScores: { adaptability: 85, decisionMaking: 90, communication: 88, cognitiveAgility: 92, collaboration: 87, ownership: 94 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 91,
+        ownership_follow_through: 94,
+        resilience: 84,
+        communication_confidence: 86,
+        relational_intelligence: 82,
+        motivational_fit_mastery: 88,
+        motivational_fit_impact: 76,
+        motivational_fit_recognition: 72,
+        motivational_fit_autonomy: 84,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 2,
       id: 2,
       name: 'Riley Martinez',
       role: 'Lead UX Designer',
       location: 'New York, NY',
       level: 'Lead',
-      traits: ['Communication', 'Collaboration', 'Innovation'],
       score: 91,
       stage: 'discovered' as const,
       daysInStage: 9,
@@ -94,16 +146,25 @@ export function EmployerScreen() {
       openToChange: false,
       readyToStepUp: false,
       retrained: false,
-      traitScores: { adaptability: 80, decisionMaking: 85, communication: 92, cognitiveAgility: 86, collaboration: 91, ownership: 83 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 84,
+        ownership_follow_through: 83,
+        resilience: 79,
+        communication_confidence: 93,
+        relational_intelligence: 91,
+        motivational_fit_mastery: 80,
+        motivational_fit_impact: 90,
+        motivational_fit_recognition: 85,
+        motivational_fit_autonomy: 88,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 3,
       id: 3,
       name: 'Taylor Kim',
       role: 'Product Designer',
       location: 'Austin, TX',
       level: 'Mid-level',
-      traits: ['Problem Solving', 'Creativity', 'Ownership'],
       score: 88,
       stage: 'contacted' as const,
       daysInStage: 4,
@@ -113,16 +174,25 @@ export function EmployerScreen() {
       openToChange: true,
       readyToStepUp: true,
       retrained: false,
-      traitScores: { adaptability: 82, decisionMaking: 88, communication: 80, cognitiveAgility: 89, collaboration: 84, ownership: 90 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 86,
+        ownership_follow_through: 90,
+        resilience: 88,
+        communication_confidence: 78,
+        relational_intelligence: 81,
+        motivational_fit_mastery: 87,
+        motivational_fit_impact: 84,
+        motivational_fit_recognition: 80,
+        motivational_fit_autonomy: 89,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 4,
       id: 4,
       name: 'Morgan Lee',
       role: 'Senior Designer',
       location: 'San Francisco, CA',
       level: 'Senior',
-      traits: ['Learning Speed', 'Detail-oriented', 'Leadership'],
       score: 92,
       stage: 'contacted' as const,
       daysInStage: 12,
@@ -132,16 +202,25 @@ export function EmployerScreen() {
       openToChange: false,
       readyToStepUp: false,
       retrained: false,
-      traitScores: { adaptability: 78, decisionMaking: 92, communication: 85, cognitiveAgility: 91, collaboration: 80, ownership: 88 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 93,
+        ownership_follow_through: 88,
+        resilience: 80,
+        communication_confidence: 84,
+        relational_intelligence: 77,
+        motivational_fit_mastery: 91,
+        motivational_fit_impact: 78,
+        motivational_fit_recognition: 74,
+        motivational_fit_autonomy: 85,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 5,
       id: 5,
       name: 'Casey Wong',
       role: 'Lead Product Designer',
       location: 'Remote',
       level: 'Lead',
-      traits: ['Leadership', 'Strategic Thinking', 'Communication'],
       score: 96,
       stage: 'interviewing' as const,
       daysInStage: 3,
@@ -151,16 +230,25 @@ export function EmployerScreen() {
       openToChange: false,
       readyToStepUp: false,
       retrained: false,
-      traitScores: { adaptability: 88, decisionMaking: 94, communication: 93, cognitiveAgility: 90, collaboration: 92, ownership: 96 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 90,
+        ownership_follow_through: 96,
+        resilience: 88,
+        communication_confidence: 94,
+        relational_intelligence: 91,
+        motivational_fit_mastery: 86,
+        motivational_fit_impact: 94,
+        motivational_fit_recognition: 88,
+        motivational_fit_autonomy: 90,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 6,
       id: 6,
       name: 'Alex Rivera',
       role: 'Senior UX Designer',
       location: 'Remote',
       level: 'Senior',
-      traits: ['Adaptability', 'Innovation', 'Collaboration'],
       score: 89,
       stage: 'discovered' as const,
       daysInStage: 1,
@@ -170,16 +258,25 @@ export function EmployerScreen() {
       openToChange: true,
       readyToStepUp: false,
       retrained: true,
-      traitScores: { adaptability: 91, decisionMaking: 82, communication: 86, cognitiveAgility: 84, collaboration: 89, ownership: 80 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 88,
+        ownership_follow_through: 80,
+        resilience: 91,
+        communication_confidence: 85,
+        relational_intelligence: 89,
+        motivational_fit_mastery: 82,
+        motivational_fit_impact: 88,
+        motivational_fit_recognition: 80,
+        motivational_fit_autonomy: 86,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 7,
       id: 7,
       name: 'Sam Patel',
       role: 'Product Designer',
       location: 'Austin, TX',
       level: 'Mid-level',
-      traits: ['Creativity', 'Learning Speed', 'Problem Solving'],
       score: 85,
       stage: 'contacted' as const,
       daysInStage: 8,
@@ -189,16 +286,25 @@ export function EmployerScreen() {
       openToChange: false,
       readyToStepUp: true,
       retrained: false,
-      traitScores: { adaptability: 79, decisionMaking: 83, communication: 81, cognitiveAgility: 87, collaboration: 82, ownership: 85 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 89,
+        ownership_follow_through: 84,
+        resilience: 76,
+        communication_confidence: 80,
+        relational_intelligence: 87,
+        motivational_fit_mastery: 85,
+        motivational_fit_impact: 80,
+        motivational_fit_recognition: 82,
+        motivational_fit_autonomy: 84,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 8,
       id: 8,
       name: 'Jamie Foster',
       role: 'Lead Designer',
       location: 'New York, NY',
       level: 'Lead',
-      traits: ['Strategic Thinking', 'Leadership', 'Ownership'],
       score: 93,
       stage: 'decision' as const,
       daysInStage: 5,
@@ -208,16 +314,25 @@ export function EmployerScreen() {
       openToChange: true,
       readyToStepUp: false,
       retrained: false,
-      traitScores: { adaptability: 84, decisionMaking: 91, communication: 90, cognitiveAgility: 88, collaboration: 86, ownership: 93 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 90,
+        ownership_follow_through: 93,
+        resilience: 85,
+        communication_confidence: 89,
+        relational_intelligence: 86,
+        motivational_fit_mastery: 90,
+        motivational_fit_impact: 86,
+        motivational_fit_recognition: 84,
+        motivational_fit_autonomy: 92,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 9,
       id: 9,
       name: 'Drew Anderson',
       role: 'Junior Designer',
       location: 'Chicago, IL',
       level: 'Entry',
-      traits: ['Growing', 'Eager', 'Creative'],
       score: 68,
       stage: 'discovered' as const,
       daysInStage: 0,
@@ -227,19 +342,27 @@ export function EmployerScreen() {
       openToChange: true,
       readyToStepUp: false,
       retrained: true,
-      traitScores: { adaptability: 72, decisionMaking: 55, communication: 78, cognitiveAgility: 48, collaboration: 82, ownership: 52 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 62,
+        ownership_follow_through: 55,
+        resilience: 58,
+        communication_confidence: 72,
+        relational_intelligence: 68,
+        motivational_fit_mastery: 65,
+        motivational_fit_impact: 72,
+        motivational_fit_recognition: 68,
+        motivational_fit_autonomy: 74,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 10,
       id: 10,
       name: 'Priya Nair',
       role: 'Product Designer',
       location: 'Austin, TX',
       level: 'Mid-level',
-      traits: ['Ownership', 'Communication', 'Learning Speed'],
       score: 87,
       stage: 'hired' as const,
-      // 35 days ago — 30-day review due
       hired_date: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
       aiMatchPercent: 85,
       totalExperience: 5,
@@ -247,19 +370,27 @@ export function EmployerScreen() {
       openToChange: false,
       readyToStepUp: true,
       retrained: false,
-      traitScores: { adaptability: 83, decisionMaking: 87, communication: 90, cognitiveAgility: 85, collaboration: 80, ownership: 88 },
-    },
-    {
+      trait_scores: {
+        learning_velocity: 86,
+        ownership_follow_through: 88,
+        resilience: 80,
+        communication_confidence: 90,
+        relational_intelligence: 82,
+        motivational_fit_mastery: 83,
+        motivational_fit_impact: 85,
+        motivational_fit_recognition: 82,
+        motivational_fit_autonomy: 86,
+      },
+    }),
+    buildMockCandidate({
       candidate_id: 11,
       id: 11,
       name: 'Marcus Webb',
       role: 'Senior Designer',
       location: 'Remote',
       level: 'Senior',
-      traits: ['Leadership', 'Resilience', 'Strategic Thinking'],
       score: 91,
       stage: 'hired' as const,
-      // 95 days ago — 90-day review due
       hired_date: new Date(Date.now() - 95 * 24 * 60 * 60 * 1000).toISOString(),
       aiMatchPercent: 89,
       totalExperience: 9,
@@ -267,8 +398,18 @@ export function EmployerScreen() {
       openToChange: false,
       readyToStepUp: false,
       retrained: false,
-      traitScores: { adaptability: 86, decisionMaking: 91, communication: 88, cognitiveAgility: 89, collaboration: 85, ownership: 92 },
-    },
+      trait_scores: {
+        learning_velocity: 87,
+        ownership_follow_through: 92,
+        resilience: 91,
+        communication_confidence: 87,
+        relational_intelligence: 84,
+        motivational_fit_mastery: 88,
+        motivational_fit_impact: 84,
+        motivational_fit_recognition: 80,
+        motivational_fit_autonomy: 90,
+      },
+    }),
   ]);
 
   // ── Post-hire data state ───────────────────────────────────────────────────
@@ -424,143 +565,188 @@ export function EmployerScreen() {
     selectedLocation || selectedLevel || selectedTraits.length > 0,
   );
 
+  const portalMonthYear = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const employerInitials =
+    employerBusinessName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'TC';
+
+  const handleSignOut = async () => {
+    if (supabase) await supabase.auth.signOut();
+  };
+
+  const EmployerNavBtn = ({
+    active,
+    icon: Icon,
+    label,
+    onClick,
+  }: {
+    active: boolean;
+    icon: typeof LayoutDashboard;
+    label: string;
+    onClick: () => void;
+  }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 py-2 pl-2.5 pr-2.5 transition-colors"
+      style={{ borderRadius: 7, background: active ? 'rgba(125,187,255,0.12)' : 'transparent' }}
+    >
+      <Icon
+        className="shrink-0"
+        style={{
+          width: 15,
+          height: 15,
+          color: active ? '#7dbbff' : 'rgba(255,255,255,0.35)',
+        }}
+        strokeWidth={2}
+      />
+      <span
+        className="min-w-0 truncate text-left text-[13px]"
+        style={{
+          fontWeight: active ? 500 : 400,
+          color: active ? '#7dbbff' : 'rgba(255,255,255,0.82)',
+        }}
+      >
+        {label}
+      </span>
+    </button>
+  );
+
+  const topBarTitle =
+    currentSection === 'dashboard'
+      ? 'Dashboard'
+      : currentSection === 'search'
+        ? 'Search Candidates'
+        : currentSection === 'candidates'
+          ? 'Candidate Pipeline'
+          : currentSection === 'insights'
+            ? 'Insights & Analytics'
+            : 'Settings';
+
+  const topBarSubtitle =
+    currentSection === 'dashboard'
+      ? portalMonthYear
+      : currentSection === 'search'
+        ? `${searchResultsCount} result${searchResultsCount !== 1 ? 's' : ''}`
+        : currentSection === 'candidates'
+          ? `${candidates.length} total`
+          : employerBusinessName;
+
   return (
-    <div className="relative bg-[#fafafa] min-h-screen">
-      <div className="relative flex min-h-screen">
-        {/* Left Sidebar Navigation */}
-        <aside className="w-[240px] bg-white border-r border-black/[0.08] sticky top-0 h-screen overflow-y-auto">
-          <div className="p-6">
-            {/* Logo / Brand */}
-            <div className="flex items-center gap-3 mb-8">
+    <div className="relative min-h-screen bg-[#fafafa] font-dashboard text-[#111827] antialiased">
+      <div className="flex min-h-screen">
+        {/* Left sidebar — CMe Portal v2 handoff (dark rail, same language as applicant) */}
+        <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col overflow-y-auto border-r border-white/[0.05] bg-[#030213]">
+          <div className="flex flex-1 flex-col px-[18px] pb-4 pt-[22px]">
+            <div className="mb-[18px] flex items-center gap-2.5">
               <div
-                className="w-10 h-10 bg-[#7dbbff] flex items-center justify-center shrink-0"
-                style={{ borderRadius: '12px' }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center bg-[#7dbbff]"
+                style={{ borderRadius: 7 }}
               >
-                <Building2 className="w-5 h-5 text-white" strokeWidth={2} />
+                <Compass className="h-[15px] w-[15px] text-white" strokeWidth={2} />
               </div>
-              <span className="text-lg text-[#111827] font-semibold">CMe</span>
+              <span className="text-[15px] font-semibold tracking-[-0.01em] text-white">CMe</span>
             </div>
 
-            {/* Menu Header */}
-            <div className="mb-4">
-              <p className="text-xs text-[#6B7280] uppercase tracking-wider px-3">Menu</p>
-            </div>
-
-            {/* Navigation Items */}
-            <nav className="space-y-1 mb-8">
-              <button
+            <p className="mb-1.5 px-0.5 text-[10px] uppercase tracking-[0.1em] text-white/35">Menu</p>
+            <nav className="flex flex-col gap-0.5">
+              <EmployerNavBtn
+                active={currentSection === 'dashboard'}
+                icon={LayoutDashboard}
+                label="Dashboard"
                 onClick={() => setCurrentSection('dashboard')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 transition-all ${
-                  currentSection === 'dashboard'
-                    ? 'bg-[#7dbbff]/10 text-[#7dbbff]'
-                    : 'text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827]'
-                }`}
-                style={{ borderRadius: '10px' }}
-              >
-                <LayoutDashboard className="w-5 h-5" strokeWidth={2} />
-                <span className="text-sm font-medium">Dashboard</span>
-              </button>
-
-              <button
+              />
+              <EmployerNavBtn
+                active={currentSection === 'search'}
+                icon={Search}
+                label="Search"
                 onClick={() => setCurrentSection('search')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 transition-all ${
-                  currentSection === 'search'
-                    ? 'bg-[#7dbbff]/10 text-[#7dbbff]'
-                    : 'text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827]'
-                }`}
-                style={{ borderRadius: '10px' }}
-              >
-                <Search className="w-5 h-5" strokeWidth={2} />
-                <span className="text-sm font-medium">Search</span>
-              </button>
-
-              <button
+              />
+              <EmployerNavBtn
+                active={currentSection === 'candidates'}
+                icon={Users}
+                label="Candidates"
                 onClick={() => setCurrentSection('candidates')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 transition-all ${
-                  currentSection === 'candidates'
-                    ? 'bg-[#7dbbff]/10 text-[#7dbbff]'
-                    : 'text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827]'
-                }`}
-                style={{ borderRadius: '10px' }}
-              >
-                <Users className="w-5 h-5" strokeWidth={2} />
-                <span className="text-sm font-medium">Candidates</span>
-              </button>
-
-              <button
+              />
+              <EmployerNavBtn
+                active={currentSection === 'insights'}
+                icon={TrendingUp}
+                label="Insights & Analytics"
                 onClick={() => setCurrentSection('insights')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 transition-all ${
-                  currentSection === 'insights'
-                    ? 'bg-[#7dbbff]/10 text-[#7dbbff]'
-                    : 'text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827]'
-                }`}
-                style={{ borderRadius: '10px' }}
-              >
-                <BarChart3 className="w-5 h-5" strokeWidth={2} />
-                <span className="text-sm font-medium">Insights & Analytics</span>
-              </button>
-
-              <button
+              />
+              <EmployerNavBtn
+                active={currentSection === 'settings'}
+                icon={Settings}
+                label="Settings"
                 onClick={() => setCurrentSection('settings')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 transition-all ${
-                  currentSection === 'settings'
-                    ? 'bg-[#7dbbff]/10 text-[#7dbbff]'
-                    : 'text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827]'
-                }`}
-                style={{ borderRadius: '10px' }}
-              >
-                <Settings className="w-5 h-5" strokeWidth={2} />
-                <span className="text-sm font-medium">Settings</span>
-              </button>
+              />
             </nav>
+
+            <div className="mt-auto border-t border-white/[0.05] pt-4">
+              <div className="mb-3.5 flex items-center gap-2.5 px-0.5">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#7dbbff] text-[10px] font-semibold text-white">
+                  {employerInitials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-white/80">{employerBusinessName}</p>
+                  <p className="truncate text-[10.5px] text-white/35">Employer account</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                className="flex w-full items-center gap-2 px-0.5 py-1.5 text-white/35 transition-colors hover:text-white/55"
+              >
+                <LogOut className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                <span className="text-xs">Sign out</span>
+              </button>
+            </div>
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto">
-          {/* Top Header Bar */}
-          <div className="bg-white border-b border-black/[0.08] px-8 py-4 sticky top-0 z-10">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 max-w-md">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search candidates"
-                    className="w-full px-4 py-2 pl-10 bg-[#fafafa] border border-black/[0.08] text-sm text-[#111827] placeholder:text-[#6B7280] focus:outline-none focus:border-[#7dbbff]"
-                    style={{ borderRadius: '10px' }}
-                  />
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                    <Search className="w-4 h-4 text-[#6B7280]" strokeWidth={2} />
-                  </div>
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#fafafa]">
+          <div className="sticky top-0 z-10 flex h-[52px] shrink-0 items-center justify-between border-b border-black/[0.08] bg-[#fafafa] px-9">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-[13px] font-medium text-[#111827]">{topBarTitle}</span>
+              <span className="h-[3px] w-[3px] shrink-0 rounded-full bg-[#D1D5DB]" />
+              <span className="truncate text-[12.5px] text-[#9CA3AF]">{topBarSubtitle}</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <NotificationBell
+                userId="employer-1"
+                onNavigate={(url) => {
+                  if (url === '#candidates') setCurrentSection('candidates');
+                  if (url === '#insights') setCurrentSection('insights');
+                }}
+              />
+              <div
+                className="flex items-center gap-1.5 border border-black/[0.08] bg-white px-2.5 py-1"
+                style={{ borderRadius: 5 }}
+              >
+                <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#7dbbff] text-[9px] font-semibold text-white">
+                  {employerInitials}
                 </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-3 px-4 py-2 bg-[#fafafa]" style={{ borderRadius: '10px' }}>
-                  <div className="w-8 h-8 rounded-full bg-[#7dbbff] flex items-center justify-center">
-                    <Building2 className="w-4 h-4 text-white" strokeWidth={2} />
-                  </div>
-                  <span className="text-sm text-[#111827] font-medium">TechCorp Inc.</span>
-                </div>
-
-                <NotificationBell
-                  userId="employer-1"
-                  onNavigate={(url) => {
-                    if (url === '#candidates') setCurrentSection('candidates');
-                    if (url === '#insights') setCurrentSection('insights');
-                  }}
-                />
+                <span className="max-w-[160px] truncate text-[12.5px] font-medium text-[#111827]">
+                  {employerBusinessName}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Content Area */}
-          <div className="p-8">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="px-9 pb-12 pt-7">
             {currentSection === 'dashboard' && (
               <DashboardPage
                 hasActiveFilters={hasActiveFilters}
                 candidateCount={candidates.length}
                 candidates={candidates}
+                businessName={employerBusinessName}
                 onNavigateToSearch={() => setCurrentSection('search')}
                 onNavigateToCandidates={() => setCurrentSection('candidates')}
                 onNavigateToInsights={() => setCurrentSection('insights')}
@@ -584,6 +770,7 @@ export function EmployerScreen() {
                 onLevelDropdownToggle={handleLevelDropdownToggle}
                 onTraitsDropdownToggle={handleTraitsDropdownToggle}
                 onCandidateClick={handleCandidateClick}
+                onFilteredCountChange={setSearchResultsCount}
               />
             )}
             {currentSection === 'candidates' && (
@@ -597,8 +784,11 @@ export function EmployerScreen() {
                 onOpenReview={handleOpenReview}
               />
             )}
-            {currentSection === 'insights' && <InsightsAnalyticsPage />}
+            {currentSection === 'insights' && (
+              <InsightsAnalyticsPage employerBusinessName={employerBusinessName} />
+            )}
             {currentSection === 'settings' && <SettingsPage />}
+            </div>
           </div>
         </main>
       </div>

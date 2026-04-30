@@ -5,7 +5,8 @@ import { ensureApplicantProfile } from '../../lib/applicantPersistence';
 import type { DimensionScores } from '../../utils/intakeScoring';
 import type { CandidateActivityEventType } from '../../types/supabase';
 import {
-  applicantPipelineMockData,
+  applicantLifecycleConfig,
+  applicantOpportunitiesMockData,
   fitLabelAndColor,
 } from '../../lib/applicantOpportunitiesMock';
 import { formatTimeAgo } from '../../lib/notificationService';
@@ -18,7 +19,7 @@ export interface DashboardSection1Narratives {
 export interface DashboardContentProps {
   onProfileBuilderClick: (stepId?: number) => void;
   onEditProfile: () => void;
-  onViewAllPipeline: () => void;
+  onViewAllOpportunities: (opportunityId?: number) => void;
   traitScores: DimensionScores | null;
   intakeComplete: boolean;
   section1: DashboardSection1Narratives | null;
@@ -152,7 +153,7 @@ function parseIntakeSection7(raw: Record<string, unknown> | undefined): Section7
 export function DashboardContent({
   onProfileBuilderClick,
   onEditProfile,
-  onViewAllPipeline,
+  onViewAllOpportunities,
   traitScores,
   intakeComplete,
   section1,
@@ -396,7 +397,14 @@ export function DashboardContent({
     ];
   }, [traitScores, proudMoment]);
 
-  const dashboardOpportunities = useMemo(() => applicantPipelineMockData.slice(0, 3), []);
+  const newestReachOut = useMemo(
+    () => applicantOpportunitiesMockData.find((opp) => opp.status === 'contacted' || opp.unread) ?? applicantOpportunitiesMockData[0],
+    [],
+  );
+  const dashboardOpportunities = useMemo(
+    () => applicantOpportunitiesMockData.filter((opp) => opp.id !== newestReachOut?.id).slice(0, 3),
+    [newestReachOut],
+  );
 
   const metaFieldsRow1: Array<{ label: string; value: string }> = [
     { label: 'Location', value: location || '—' },
@@ -704,7 +712,69 @@ export function DashboardContent({
         ))}
       </div>
 
-      <SectionRule>Matched Opportunities</SectionRule>
+      <SectionRule>Latest Reach-Out</SectionRule>
+
+      {newestReachOut ? (
+        <button
+          type="button"
+          onClick={() => onViewAllOpportunities(newestReachOut.id)}
+          className="w-full border border-[#DDEBFF] bg-[#F7FBFF] p-5 text-left transition-colors hover:bg-[#F2F8FF]"
+          style={{ borderRadius: 12 }}
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex gap-4">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#7dbbff] text-[13px] font-bold text-white"
+                style={{ borderRadius: 8 }}
+              >
+                {companyInitials(newestReachOut.company)}
+              </div>
+              <div className="min-w-0">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span
+                    className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    style={{
+                      color: applicantLifecycleConfig[newestReachOut.status].color,
+                      backgroundColor: applicantLifecycleConfig[newestReachOut.status].bg,
+                    }}
+                  >
+                    {applicantLifecycleConfig[newestReachOut.status].label}
+                  </span>
+                  {newestReachOut.unread ? (
+                    <span className="rounded-full bg-[#EF4444]/10 px-2 py-0.5 text-[11px] font-semibold text-[#EF4444]">
+                      Unread
+                    </span>
+                  ) : null}
+                </div>
+                <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">
+                  {newestReachOut.company} reached out about {newestReachOut.role.title}
+                </h3>
+                <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-[#6B7280]">
+                  {newestReachOut.reachOutMessage}
+                </p>
+                <p className="mt-3 text-[12px] font-medium text-[#374151]">
+                  {newestReachOut.whyMatches[0]}
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-4 lg:pt-1">
+              <div>
+                <p className="text-[10px] font-medium uppercase text-[#9CA3AF]">Fit</p>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="font-dashboard-mono text-xl font-bold text-[#10B981]">{newestReachOut.matchScore}</span>
+                  <span className="font-dashboard-mono text-[10px] text-[#9CA3AF]">/100</span>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-[#7dbbff] px-3.5 py-2 text-[12px] font-semibold text-white">
+                View opportunity
+                <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
+              </span>
+            </div>
+          </div>
+        </button>
+      ) : null}
+
+      <SectionRule>Opportunities Preview</SectionRule>
 
       <div>
         {dashboardOpportunities.map((opp, idx) => {
@@ -716,7 +786,7 @@ export function DashboardContent({
             <button
               key={opp.id}
               type="button"
-              onClick={onViewAllPipeline}
+              onClick={() => onViewAllOpportunities(opp.id)}
               className="grid w-full grid-cols-[1fr_auto] gap-4 py-3.5 text-left transition-colors hover:bg-black/[0.02]"
               style={{
                 borderBottom: isLast ? undefined : '1px solid rgba(0,0,0,0.07)',
@@ -732,7 +802,7 @@ export function DashboardContent({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-baseline gap-2.5">
                     <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-[#111827]">
-                      {opp.role}
+                      {opp.role.title}
                     </span>
                     <span className="text-[11px] text-[#9CA3AF]">{opp.company}</span>
                   </div>
@@ -771,7 +841,7 @@ export function DashboardContent({
         })}
         <button
           type="button"
-          onClick={onViewAllPipeline}
+          onClick={() => onViewAllOpportunities()}
           className="mt-3 flex items-center gap-1.5 text-[12px] font-medium text-[#7dbbff]"
         >
           View all opportunities

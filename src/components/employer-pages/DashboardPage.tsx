@@ -1,15 +1,23 @@
 import {
-  Users, ChevronRight, Clock,
-  ArrowUp, Send, CheckCircle2,
-  Sparkles, Star,
-  Briefcase, ArrowRight
+  Users,
+  ChevronRight,
+  Clock,
+  ArrowUp,
+  Send,
+  CheckCircle2,
+  Star,
+  Briefcase,
+  ArrowRight,
+  Target,
 } from 'lucide-react';
 import type { Candidate } from '../types/employer';
+import { SectionRule } from './insights/shared';
 
 interface DashboardPageProps {
   hasActiveFilters: boolean;
   candidateCount: number;
   candidates: Candidate[];
+  businessName?: string;
   onNavigateToSearch: () => void;
   onNavigateToCandidates: () => void;
   onNavigateToInsights: () => void;
@@ -18,7 +26,7 @@ interface DashboardPageProps {
 
 const stageConfig = {
   discovered: { label: 'New Signals', color: '#7DBBFF' },
-  contacted: { label: 'In Review', color: '#F59E0B' },
+  contacted: { label: 'Assessment Sent', color: '#F59E0B' },
   interviewing: { label: 'Interviewing', color: '#8B5CF6' },
   decision: { label: 'Final Round', color: '#8B5CF6' },
   hired: { label: 'Hired', color: '#10B981' },
@@ -28,6 +36,7 @@ const stageConfig = {
 export function DashboardPage({
   candidateCount: _candidateCount,
   candidates,
+  businessName = 'TechCorp Inc.',
   onNavigateToSearch,
   onNavigateToCandidates,
   onNavigateToInsights,
@@ -59,42 +68,72 @@ export function DashboardPage({
 
   return (
     <div>
-      {/* ─── Header ─── */}
-      <div className="mb-8">
-        <h1 className="text-2xl text-[#111827] font-semibold mb-1">Good morning</h1>
-        <p className="text-sm text-[#6B7280]">Here's where things stand at TechCorp Inc.</p>
+      <div className="mb-6">
+        <h1 className="mb-1 text-xl font-semibold tracking-[-0.02em] text-[#111827]">Good morning</h1>
+        <p className="text-[13px] text-[#9CA3AF]">Here&apos;s where things stand at {businessName}.</p>
       </div>
 
-      {/* ─── Stats Row ─── */}
-      <div className="grid grid-cols-4 gap-5 mb-8">
+      <div className="mb-6 grid grid-cols-4 gap-4">
         {[
-          { label: 'Active Pipeline', value: pipelineTotal, sub: '+3 this week', subColor: '#10B981', icon: <Users className="w-[18px] h-[18px] text-[#7DBBFF]" strokeWidth={1.5} /> },
-          { label: 'Avg Match Score', value: `${avgScore}%`, sub: '+5 vs last month', subColor: '#10B981', icon: <Sparkles className="w-[18px] h-[18px] text-[#7DBBFF]" strokeWidth={1.5} /> },
-          { label: 'Final Round', value: pipeline.finalRound, sub: 'Decision pending', subColor: '#8B5CF6', icon: <Star className="w-[18px] h-[18px] text-[#8B5CF6]" strokeWidth={1.5} /> },
-          { label: 'Time to Hire', value: '18d', sub: '-3d vs last month', subColor: '#10B981', icon: <Clock className="w-[18px] h-[18px] text-[#7DBBFF]" strokeWidth={1.5} /> },
+          {
+            label: 'Active Pipeline',
+            value: pipelineTotal,
+            sub: '+3 this week',
+            subColor: '#10B981',
+            icon: <Users className="h-3.5 w-3.5 text-[#7DBBFF]" strokeWidth={1.75} />,
+          },
+          {
+            label: 'Avg Match Score',
+            value: `${avgScore}%`,
+            sub: '+5 vs last month',
+            subColor: '#10B981',
+            icon: <Target className="h-3.5 w-3.5 text-[#7DBBFF]" strokeWidth={1.75} />,
+          },
+          {
+            label: 'Final Round',
+            value: pipeline.finalRound,
+            sub: 'Decision pending',
+            subColor: '#8B5CF6',
+            icon: <Star className="h-3.5 w-3.5 text-[#8B5CF6]" strokeWidth={1.75} />,
+          },
+          {
+            label: 'Time to Hire',
+            value: '18d',
+            sub: '-3d vs last month',
+            subColor: '#10B981',
+            icon: <Clock className="h-3.5 w-3.5 text-[#7DBBFF]" strokeWidth={1.75} />,
+          },
         ].map((stat, i) => (
-          <div key={i} className="bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-[#9CA3AF]">{stat.label}</span>
+          <div key={i} className="rounded-md border border-black/[0.08] bg-white px-[18px] py-4">
+            <div className="mb-2.5 flex items-center justify-between">
+              <span className="text-[10px] font-normal uppercase tracking-[0.08em] text-[#9CA3AF]">
+                {stat.label}
+              </span>
               {stat.icon}
             </div>
-            <p className="text-[28px] text-[#111827] font-semibold tracking-tight leading-none mb-1">{stat.value}</p>
-            <p className="text-xs mt-2" style={{ color: stat.subColor }}>{stat.sub}</p>
+            <p className="font-dashboard-mono text-[26px] font-semibold leading-none tracking-[-0.03em] text-[#111827]">
+              {stat.value}
+            </p>
+            <p className="mt-1.5 text-[11px] font-medium" style={{ color: stat.subColor }}>
+              {stat.sub}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* ─── Pipeline Bar ─── */}
-      <div className="bg-white p-5 border border-black/[0.06] mb-8" style={{ borderRadius: '16px' }}>
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm text-[#111827] font-semibold">Pipeline</span>
-          <button onClick={onNavigateToCandidates} className="text-xs text-[#7DBBFF] hover:text-[#5BA3E8] font-medium flex items-center gap-1 transition-colors">
-            View all <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+      <div className="mb-6 rounded-md border border-black/[0.08] bg-white px-5 py-4">
+        <div className="mb-3.5 flex items-center justify-between">
+          <span className="text-xs font-semibold text-[#111827]">Pipeline</span>
+          <button
+            type="button"
+            onClick={onNavigateToCandidates}
+            className="flex items-center gap-1 text-[11.5px] font-medium text-[#7DBBFF] transition-colors hover:text-[#5BA3E8]"
+          >
+            View all <ChevronRight className="h-3 w-3" strokeWidth={2} />
           </button>
         </div>
 
-        {/* Visual bar */}
-        <div className="flex h-3 overflow-hidden mb-4" style={{ borderRadius: '6px' }}>
+        <div className="mb-3 flex h-1 overflow-hidden rounded-sm">
           {pipelineTotal > 0 && (
             <>
               <div style={{ width: `${(pipeline.newSignals / pipelineTotal) * 100}%`, backgroundColor: '#7DBBFF' }} />
@@ -104,96 +143,110 @@ export function DashboardPage({
           )}
         </div>
 
-        {/* Stage counts */}
-        <div className="flex items-center gap-6">
-          {([
-            { key: 'newSignals', label: 'New Signals', color: '#7DBBFF', count: pipeline.newSignals },
-            { key: 'assessmentSent', label: 'In Review', color: '#F59E0B', count: pipeline.assessmentSent },
-            { key: 'finalRound', label: 'Final Round', color: '#8B5CF6', count: pipeline.finalRound },
-            { key: 'hired', label: 'Hired', color: '#10B981', count: pipeline.hired },
-          ]).map(s => (
-            <div key={s.key} className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-              <span className="text-xs text-[#6B7280]">{s.label}</span>
-              <span className="text-xs text-[#111827] font-semibold">{s.count}</span>
+        <div className="flex flex-wrap items-center gap-6">
+          {(
+            [
+              { key: 'newSignals', label: 'New Signals', color: '#7DBBFF', count: pipeline.newSignals },
+              { key: 'assessmentSent', label: 'Assessment Sent', color: '#F59E0B', count: pipeline.assessmentSent },
+              { key: 'finalRound', label: 'Final Round', color: '#8B5CF6', count: pipeline.finalRound },
+              { key: 'hired', label: 'Hired', color: '#10B981', count: pipeline.hired },
+            ] as const
+          ).map((s) => (
+            <div key={s.key} className="flex items-center gap-1.5">
+              <div className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+              <span className="text-[11.5px] text-[#6B7280]">{s.label}</span>
+              <span className="font-dashboard-mono text-[11.5px] font-semibold text-[#111827]">{s.count}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ─── Two-Column: Candidates Needing Attention + Insights ─── */}
-      <div className="grid grid-cols-5 gap-6 mb-8">
-
-        {/* Candidates */}
-        <div className="col-span-3 bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-[#111827] font-semibold">Top Candidates</span>
-            <button onClick={onNavigateToSearch} className="text-xs text-[#7DBBFF] hover:text-[#5BA3E8] font-medium flex items-center gap-1 transition-colors">
-              Search <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <div className="rounded-md border border-black/[0.08] bg-white px-5 py-4 lg:col-span-3">
+          <div className="mb-3.5 flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#111827]">Top Candidates</span>
+            <button
+              type="button"
+              onClick={onNavigateToSearch}
+              className="flex items-center gap-1 text-[11.5px] font-medium text-[#7DBBFF] transition-colors hover:text-[#5BA3E8]"
+            >
+              Search <ChevronRight className="h-3 w-3" strokeWidth={2} />
             </button>
           </div>
 
-          <div className="space-y-2">
-            {needsAttention.map(c => {
+          <div className="flex flex-col gap-0.5">
+            {needsAttention.map((c) => {
               const cfg = stageConfig[c.stage];
+              const scoreColor = c.score >= 90 ? '#10B981' : c.score >= 85 ? '#7dbbff' : '#6B7280';
               return (
                 <button
                   key={c.id}
+                  type="button"
                   onClick={() => onCandidateClick(c)}
-                  className="w-full flex items-center gap-4 px-4 py-3 bg-[#FAFAFA] hover:bg-[#F3F4F6] transition-colors text-left"
-                  style={{ borderRadius: '12px' }}
+                  className="flex w-full items-center gap-3 rounded-[5px] bg-[#fafafa] px-3 py-2.5 text-left transition-colors hover:bg-[#F3F4F6]"
                 >
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#E0E7FF] flex items-center justify-center shrink-0">
-                    <span className="text-xs text-[#374151] font-semibold">
-                      {c.name.split(' ').map(n => n[0]).join('')}
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#E0E7FF]">
+                    <span className="text-[10.5px] font-semibold text-[#374151]">
+                      {c.name
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')}
                     </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[#111827] font-medium truncate">{c.name}</p>
-                    <p className="text-xs text-[#9CA3AF] truncate">{c.role}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-[#111827]">{c.name}</p>
+                    <p className="truncate text-[11px] text-[#9CA3AF]">{c.role}</p>
                   </div>
-                  <span className="text-xs font-medium px-2 py-0.5" style={{ color: cfg.color, backgroundColor: cfg.color + '12', borderRadius: '6px' }}>
+                  <span
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                    style={{ color: cfg.color, backgroundColor: `${cfg.color}14` }}
+                  >
                     {cfg.label}
                   </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-sm text-[#111827] font-semibold">{c.score}%</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-[#D1D5DB] shrink-0" strokeWidth={2} />
+                  <span
+                    className="shrink-0 font-dashboard-mono text-[13px] font-bold"
+                    style={{ color: scoreColor }}
+                  >
+                    {c.score}
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#D1D5DB]" strokeWidth={2} />
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Key Insights */}
-        <div className="col-span-2 bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-[#111827] font-semibold">Key Insights</span>
-            <button onClick={onNavigateToInsights} className="text-xs text-[#7DBBFF] hover:text-[#5BA3E8] font-medium flex items-center gap-1 transition-colors">
-              All insights <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+        <div className="rounded-md border border-black/[0.08] bg-white px-5 py-4 lg:col-span-2">
+          <div className="mb-3.5 flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#111827]">Key Insights</span>
+            <button
+              type="button"
+              onClick={onNavigateToInsights}
+              className="flex items-center gap-1 text-[11.5px] font-medium text-[#7DBBFF] transition-colors hover:text-[#5BA3E8]"
+            >
+              All insights <ChevronRight className="h-3 w-3" strokeWidth={2} />
             </button>
           </div>
 
-          <div className="space-y-3">
-            {/* Good insight */}
-            <div className="p-3.5 border border-[#BBF7D0] bg-[#F0FDF4]" style={{ borderRadius: '10px' }}>
-              <p className="text-[10px] text-[#166534] font-semibold uppercase tracking-wider mb-1.5">Strongest Predictor</p>
+          <div className="flex flex-col gap-2.5">
+            <div className="rounded-[5px] border border-[#BBF7D0] bg-[#F0FDF4] px-3.5 py-3">
+              <p className="mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[#166534]">
+                Strongest Predictor
+              </p>
               <p className="text-xs text-[#111827] leading-relaxed">
                 Candidates with high <span className="font-semibold text-[#166534]">Ownership</span> scores progress to final round 2.3x faster.
               </p>
             </div>
 
-            {/* Watch insight */}
-            <div className="p-3.5 border border-[#FDE68A] bg-[#FFFBEB]" style={{ borderRadius: '10px' }}>
-              <p className="text-[10px] text-[#92400E] font-semibold uppercase tracking-wider mb-1.5">Watch</p>
-              <p className="text-xs text-[#111827] leading-relaxed">
+            <div className="rounded-[5px] border border-[#FDE68A] bg-[#FFFBEB] px-3.5 py-3">
+              <p className="mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[#92400E]">Watch</p>
+              <p className="text-xs leading-relaxed text-[#111827]">
                 <span className="font-semibold text-[#92400E]">Recognition</span> gap trending at 26pts between intake and 90-day pulse for recent hires.
               </p>
             </div>
 
-            {/* Info insight */}
-            <div className="p-3.5 border border-[#BFDBFE] bg-[#EFF6FF]" style={{ borderRadius: '10px' }}>
-              <p className="text-[10px] text-[#1E40AF] font-semibold uppercase tracking-wider mb-1.5">Early Signal</p>
+            <div className="rounded-[5px] border border-[#BFDBFE] bg-[#EFF6FF] px-3.5 py-3">
+              <p className="mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[#1E40AF]">Early Signal</p>
               <p className="text-xs text-[#111827] leading-relaxed">
                 Remote candidates show <span className="font-semibold text-[#1E40AF]">89% retention</span> at 90 days — 12pts above on-site.
               </p>
@@ -204,72 +257,90 @@ export function DashboardPage({
         </div>
       </div>
 
-      {/* ─── Two-Column: Hiring Funnel + Open Roles ─── */}
-      <div className="grid grid-cols-2 gap-6 mb-8">
-
-        {/* Hiring Funnel */}
-        <div className="bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
-          <div className="flex items-center justify-between mb-5">
-            <span className="text-sm text-[#111827] font-semibold">Hiring Funnel</span>
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="rounded-md border border-black/[0.08] bg-white px-5 py-4">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#111827]">Hiring Funnel</span>
             <span className="text-[10px] text-[#9CA3AF]">Last 30 days</span>
           </div>
 
-          <div className="space-y-4">
-            {[
-              { from: 'New Signals', to: 'In Review', rate: 67, color: '#7DBBFF' },
-              { from: 'In Review', to: 'Final Round', rate: 38, color: '#F59E0B' },
-              { from: 'Final Round', to: 'Hired', rate: 50, color: '#8B5CF6' },
-            ].map((step, idx) => (
+          <div className="space-y-3.5">
+            {(
+              [
+                { from: 'New Signals', to: 'Assessment Sent', rate: 67, color: '#7DBBFF' },
+                { from: 'Assessment Sent', to: 'Final Round', rate: 38, color: '#F59E0B' },
+                { from: 'Final Round', to: 'Hired', rate: 50, color: '#8B5CF6' },
+              ] as const
+            ).map((step, idx) => (
               <div key={idx}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 text-xs text-[#6B7280]">
+                <div className="mb-1 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-[11.5px] text-[#6B7280]">
                     <span>{step.from}</span>
-                    <ArrowRight className="w-3 h-3 text-[#D1D5DB]" strokeWidth={2} />
+                    <ArrowRight className="h-3 w-3 text-[#D1D5DB]" strokeWidth={2} />
                     <span>{step.to}</span>
                   </div>
-                  <span className="text-xs text-[#111827] font-semibold">{step.rate}%</span>
+                  <span className="font-dashboard-mono text-[11.5px] font-semibold text-[#111827]">{step.rate}%</span>
                 </div>
-                <div className="h-2 bg-[#F3F4F6] overflow-hidden" style={{ borderRadius: '4px' }}>
-                  <div className="h-full transition-all duration-700" style={{ width: `${step.rate}%`, backgroundColor: step.color, borderRadius: '4px' }} />
+                <div className="h-[3px] overflow-hidden rounded-sm bg-[#EBEBEB]">
+                  <div
+                    className="h-full transition-all duration-700"
+                    style={{ width: `${step.rate}%`, backgroundColor: step.color }}
+                  />
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="mt-5 pt-4 border-t border-black/[0.05] flex items-center justify-between">
-            <span className="text-xs text-[#6B7280]">Overall conversion</span>
-            <span className="text-sm text-[#111827] font-semibold">12.7%</span>
+          <div className="mt-3 flex items-center justify-between border-t border-black/[0.06] pt-3">
+            <span className="text-[11.5px] text-[#9CA3AF]">Overall conversion</span>
+            <span className="font-dashboard-mono text-xs font-semibold text-[#111827]">12.7%</span>
           </div>
         </div>
 
-        {/* Open Roles */}
-        <div className="bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
-          <div className="flex items-center justify-between mb-5">
-            <span className="text-sm text-[#111827] font-semibold">Open Roles</span>
-            <span className="text-[10px] text-[#9CA3AF]">{4} active</span>
+        <div className="rounded-md border border-black/[0.08] bg-white px-5 py-4">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#111827]">Open Roles</span>
+            <span className="text-[10px] text-[#9CA3AF]">4 active</span>
           </div>
 
-          <div className="space-y-2">
+          <div className="flex flex-col gap-1.5">
             {[
               { title: 'Senior Product Designer', candidates: 4, avgMatch: 91, days: 14, priority: 'high' as const },
               { title: 'Lead UX Designer', candidates: 2, avgMatch: 89, days: 21, priority: 'high' as const },
               { title: 'Product Designer', candidates: 3, avgMatch: 84, days: 8, priority: 'medium' as const },
               { title: 'Design Engineer', candidates: 0, avgMatch: 0, days: 3, priority: 'low' as const },
             ].map((role, idx) => (
-              <div key={idx} className="flex items-center gap-3 px-4 py-3 bg-[#FAFAFA]" style={{ borderRadius: '10px' }}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{
-                  backgroundColor: role.priority === 'high' ? 'rgba(239,68,68,0.08)' : role.priority === 'medium' ? 'rgba(245,158,11,0.08)' : 'rgba(156,163,175,0.08)',
-                }}>
-                  <Briefcase className="w-3.5 h-3.5" style={{
-                    color: role.priority === 'high' ? '#EF4444' : role.priority === 'medium' ? '#F59E0B' : '#9CA3AF',
-                  }} strokeWidth={2} />
+              <div
+                key={idx}
+                className="flex items-center gap-3 rounded-[5px] bg-[#fafafa] px-3 py-2.5"
+              >
+                <div
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                  style={{
+                    backgroundColor:
+                      role.priority === 'high'
+                        ? 'rgba(239,68,68,0.08)'
+                        : role.priority === 'medium'
+                          ? 'rgba(245,158,11,0.08)'
+                          : 'rgba(156,163,175,0.08)',
+                  }}
+                >
+                  <Briefcase
+                    className="h-3.5 w-3.5"
+                    style={{
+                      color: role.priority === 'high' ? '#EF4444' : role.priority === 'medium' ? '#F59E0B' : '#9CA3AF',
+                    }}
+                    strokeWidth={2}
+                  />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#111827] font-medium truncate">{role.title}</p>
-                  <p className="text-[10px] text-[#9CA3AF]">{role.days}d open · {role.candidates} candidates</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12.5px] font-medium text-[#111827]">{role.title}</p>
+                  <p className="text-[10.5px] text-[#9CA3AF]">
+                    {role.days}d open · {role.candidates} candidates
+                  </p>
                 </div>
                 {role.avgMatch > 0 && (
-                  <span className="text-xs text-[#10B981] font-medium">{role.avgMatch}%</span>
+                  <span className="font-dashboard-mono text-[11.5px] font-semibold text-[#10B981]">{role.avgMatch}%</span>
                 )}
               </div>
             ))}
@@ -277,29 +348,29 @@ export function DashboardPage({
         </div>
       </div>
 
-      {/* ─── Recent Activity ─── */}
-      <div className="bg-white p-5 border border-black/[0.06]" style={{ borderRadius: '16px' }}>
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm text-[#111827] font-semibold">Recent Activity</span>
-        </div>
+      <SectionRule mt={0} mb={16}>
+        Recent Activity
+      </SectionRule>
 
-        <div className="flex items-center gap-4">
-          {recentItems.map((item, idx) => (
-            <div key={item.id} className={`flex-1 flex items-center gap-3 px-4 py-3 bg-[#FAFAFA] ${idx < recentItems.length - 1 ? '' : ''}`} style={{ borderRadius: '10px' }}>
-              <div className="w-8 h-8 rounded-full bg-[#7DBBFF] flex items-center justify-center shrink-0 text-white text-[10px] font-semibold">
-                {item.initials}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-[#111827] truncate">
-                  <span className="font-medium">{item.name}</span>{' '}
-                  <span className="text-[#6B7280]">{item.text}</span>
-                </p>
-                <p className="text-[10px] text-[#9CA3AF] mt-0.5">{item.time}</p>
-              </div>
-              {item.icon}
+      <div className="flex flex-col gap-3 sm:flex-row sm:gap-3">
+        {recentItems.map((item) => (
+          <div
+            key={item.id}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-md border border-black/[0.08] bg-white px-3.5 py-3"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#7DBBFF] text-[10px] font-semibold text-white">
+              {item.initials}
             </div>
-          ))}
-        </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12.5px] text-[#111827]">
+                <span className="font-medium">{item.name}</span>{' '}
+                <span className="text-[#6B7280]">{item.text}</span>
+              </p>
+              <p className="font-dashboard-mono mt-0.5 text-[10px] text-[#9CA3AF]">{item.time}</p>
+            </div>
+            <div className="shrink-0">{item.icon}</div>
+          </div>
+        ))}
       </div>
     </div>
   );

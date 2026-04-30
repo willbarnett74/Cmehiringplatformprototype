@@ -17,6 +17,29 @@ export function getDataState(snapshotCount: number): DataState {
   return 3;
 }
 
+// ─── Section rule (handoff: uppercase label + hairline) ───
+
+interface SectionRuleProps {
+  children: React.ReactNode;
+  className?: string;
+  mt?: number;
+  mb?: number;
+}
+
+export function SectionRule({ children, className = '', mt = 32, mb = 20 }: SectionRuleProps) {
+  return (
+    <div
+      className={['flex', 'items-center', 'gap-3.5', className].filter(Boolean).join(' ')}
+      style={{ marginTop: mt, marginBottom: mb }}
+    >
+      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]">
+        {children}
+      </span>
+      <div className="h-px flex-1 bg-black/[0.08]" />
+    </div>
+  );
+}
+
 // ─── Panel Intro Block ───
 
 interface PanelIntroBlockProps {
@@ -28,15 +51,9 @@ interface PanelIntroBlockProps {
 
 export function PanelIntroBlock({ sectionNumber, sectionLabel, heading, body }: PanelIntroBlockProps) {
   return (
-    <div className="pb-5 mb-5" style={{ borderBottom: '1px solid #E5E7EB' }}>
+    <div className="mb-5 border-b border-black/[0.08] pb-5">
       <p
-        className="mb-2 uppercase"
-        style={{
-          fontSize: '10px',
-          fontWeight: 600,
-          color: '#9CA3AF',
-          letterSpacing: '0.1em',
-        }}
+        className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]"
       >
         {sectionNumber} · {sectionLabel}
       </p>
@@ -124,7 +141,7 @@ export function GateScreen({ requiredSnapshots, currentSnapshots, sectionName, s
             fontFamily: '"DM Mono", monospace',
             fontSize: '64px',
             fontWeight: 700,
-            color: '#E5E7EB',
+            color: 'rgba(0,0,0,0.08)',
             lineHeight: 1,
             marginBottom: '12px',
           }}
@@ -147,11 +164,10 @@ export function GateScreen({ requiredSnapshots, currentSnapshots, sectionName, s
         </p>
         {/* Progress bar */}
         <div
-          className="mx-auto"
+          className="mx-auto bg-black/[0.08]"
           style={{
             width: '200px',
             height: '5px',
-            background: '#E5E7EB',
             borderRadius: '99px',
             overflow: 'hidden',
           }}

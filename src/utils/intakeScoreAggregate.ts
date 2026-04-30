@@ -146,6 +146,18 @@ export function computeMotivationalFitAverage(scores: DimensionScores): number {
   return Math.round(subs.reduce((a, b) => a + b, 0) / subs.length);
 }
 
+/** Full row used by employer match UI: intake `DimensionScores` plus aggregate `motivational_fit`. */
+export type CandidateDimensionScores = DimensionScores & {
+  motivational_fit: number;
+};
+
+export function toCandidateDimensionScores(scores: DimensionScores): CandidateDimensionScores {
+  return {
+    ...scores,
+    motivational_fit: computeMotivationalFitAverage(scores),
+  };
+}
+
 export function dimensionScoresFromInputs(inputs: Record<DimensionKey, number[]>): DimensionScores {
   const partial: Partial<Record<DimensionKey, number>> = {};
   for (const dim of DIMENSION_KEYS) {

@@ -9,14 +9,12 @@ import { IntakeSection7 } from './applicant-pages/intake/IntakeSection7';
 import { IntakeSection8 } from './applicant-pages/intake/IntakeSection8';
 import { ProfileBuilderLayout } from './applicant-pages/ProfileBuilderLayout';
 import {
-  ApplicantPipelinePanel,
+  ApplicantOpportunitiesPanel,
   ApplicantExploreIndustriesPanel,
-  ApplicantMessagingPanel,
   exploreIndustriesMatchedCount,
-  applicantMessagingUnreadMockCount,
 } from './applicant-pages/OpportunitiesPage';
-import { applicantPipelineMockData } from '../lib/applicantOpportunitiesMock';
-import { LayoutDashboard, User, Settings, Compass, Layers, LogOut, X, Globe, MessageSquare } from 'lucide-react';
+import { applicantOpportunitiesMockData } from '../lib/applicantOpportunitiesMock';
+import { LayoutDashboard, User, Settings, Compass, Layers, LogOut, X, Globe } from 'lucide-react';
 import { NotificationBell } from './shared/NotificationBell';
 import { DashboardContent } from './applicant-pages/DashboardContent';
 import { EditBasicInfoPage } from './applicant-pages/EditBasicInfoPage';
@@ -51,7 +49,7 @@ export function ApplicantScreen() {
   const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, replaceProfileData } =
     useUserProfile();
   const [activeSection, setActiveSection] = useState<
-    'dashboard' | 'profileBuilder' | 'pipeline' | 'explore' | 'messaging' | 'settings' | 'intake'
+    'dashboard' | 'profileBuilder' | 'opportunities' | 'explore' | 'settings' | 'intake'
   >('dashboard');
   const [activeStep, setActiveStep] = useState<number>(1);
   const [applicantProfileId, setApplicantProfileId] = useState<string | null>(null);
@@ -59,7 +57,8 @@ export function ApplicantScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showEditBasicInfo, setShowEditBasicInfo] = useState(false);
-  const [messagingFocusCompany, setMessagingFocusCompany] = useState<string | null>(null);
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState<number | null>(null);
+  const [selectedOpportunityEngagementId, setSelectedOpportunityEngagementId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [sidebarSituation, setSidebarSituation] = useState<string>('');
   const [dashboardProfileRefreshKey, setDashboardProfileRefreshKey] = useState(0);
@@ -346,18 +345,10 @@ export function ApplicantScreen() {
       ? { title: 'Dashboard', subtitle: dashboardMonthYear }
       : activeSection === 'profileBuilder'
         ? { title: 'Profile Builder', subtitle: 'Refine anytime' }
-      : activeSection === 'pipeline'
-        ? { title: 'Pipeline', subtitle: `${applicantPipelineMockData.length} active` }
+      : activeSection === 'opportunities'
+        ? { title: 'Opportunities', subtitle: `${applicantOpportunitiesMockData.length} active` }
         : activeSection === 'explore'
           ? { title: 'Explore Industries', subtitle: `${exploreIndustriesMatchedCount} matched` }
-          : activeSection === 'messaging'
-            ? {
-                title: 'Messaging',
-                subtitle:
-                  applicantMessagingUnreadMockCount > 0
-                    ? `${applicantMessagingUnreadMockCount} unread`
-                    : 'All caught up',
-              }
             : activeSection === 'settings'
               ? { title: 'Settings', subtitle: undefined as string | undefined }
               : { title: 'Dashboard', subtitle: dashboardMonthYear };
@@ -471,25 +462,16 @@ export function ApplicantScreen() {
                 onClick={() => handleProfileBuilderClick()}
               />
               <NavBtn
-                active={activeSection === 'pipeline'}
+                active={activeSection === 'opportunities'}
                 icon={Layers}
-                label="Pipeline"
-                onClick={() => setActiveSection('pipeline')}
+                label="Opportunities"
+                onClick={() => setActiveSection('opportunities')}
               />
               <NavBtn
                 active={activeSection === 'explore'}
                 icon={Globe}
                 label="Explore Industries"
                 onClick={() => setActiveSection('explore')}
-              />
-              <NavBtn
-                active={activeSection === 'messaging'}
-                icon={MessageSquare}
-                label="Messaging"
-                onClick={() => {
-                  setMessagingFocusCompany(null);
-                  setActiveSection('messaging');
-                }}
               />
               <NavBtn
                 active={activeSection === 'settings'}
@@ -547,7 +529,14 @@ export function ApplicantScreen() {
               <NotificationBell
                 userId={userId ?? ''}
                 onNavigate={(url) => {
-                  if (url === '#opportunities') setActiveSection('pipeline');
+                  if (url.startsWith('#opportunities')) {
+                    const params = new URLSearchParams(url.split('?')[1] ?? '');
+                    const engagementId = params.get('engagementId');
+                    const id = Number(params.get('opportunityId'));
+                    setSelectedOpportunityEngagementId(engagementId || null);
+                    setSelectedOpportunityId(!engagementId && Number.isFinite(id) ? id : null);
+                    setActiveSection('opportunities');
+                  }
                 }}
               />
               <div className="flex items-center gap-2">
@@ -577,7 +566,11 @@ export function ApplicantScreen() {
               <DashboardContent
                 onProfileBuilderClick={handleProfileBuilderClick}
                 onEditProfile={() => setShowEditBasicInfo(true)}
-                onViewAllPipeline={() => setActiveSection('pipeline')}
+                onViewAllOpportunities={(opportunityId) => {
+                  setSelectedOpportunityId(opportunityId ?? null);
+                  setSelectedOpportunityEngagementId(null);
+                  setActiveSection('opportunities');
+                }}
                 traitScores={dbTraitScores ?? profileData.trait_scores}
                 intakeComplete={profileData.intakeData.isComplete}
                 intakeSection7={profileData.intakeData.section7 as Record<string, unknown> | undefined}
@@ -594,18 +587,13 @@ export function ApplicantScreen() {
                 })()}
               />
             ) : null}
-            {activeSection === 'pipeline' ? (
-              <ApplicantPipelinePanel
-                onRequestSwitchToMessaging={(company) => {
-                  setMessagingFocusCompany(company);
-                  setActiveSection('messaging');
-                }}
+            {activeSection === 'opportunities' ? (
+              <ApplicantOpportunitiesPanel
+                selectedOpportunityId={selectedOpportunityId}
+                selectedOpportunityEngagementId={selectedOpportunityEngagementId}
               />
             ) : null}
             {activeSection === 'explore' ? <ApplicantExploreIndustriesPanel /> : null}
-            {activeSection === 'messaging' ? (
-              <ApplicantMessagingPanel focusCompanyName={messagingFocusCompany} />
-            ) : null}
             {activeSection === 'settings' ? (
               <div>
                 <div className="mb-6 border-b border-black/[0.08] pb-6">

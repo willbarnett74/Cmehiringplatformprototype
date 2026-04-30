@@ -2,6 +2,8 @@ import { GripVertical, X } from 'lucide-react';
 import type { Candidate } from '../types/employer';
 import { useState } from 'react';
 import { getTraitHealthColor } from '../../lib/matchScoring';
+import { TRAIT_DIMENSION_KEYS, TRAIT_LABELS } from '../../lib/traits';
+import { toCandidateDimensionScores } from '../../utils/intakeScoreAggregate';
 import { ReviewDueBanner } from './ReviewDueBanner';
 
 interface CandidatesPageProps {
@@ -39,33 +41,25 @@ function CandidateCard({
     return 'text-[#6B7280]';
   };
 
-  // Compute trait health indicators from candidate trait scores
+  // Spec 1 dimensions (same as profile builder / intake)
   const getTraitHealthIndicators = () => {
-    if (!candidate.traitScores) return [];
-    
+    const ds =
+      candidate.dimensionScores ??
+      (candidate.trait_scores ? toCandidateDimensionScores(candidate.trait_scores) : undefined);
+    if (!ds) return [];
+
     const indicators: { dimension: string; score: number; health: 'high' | 'medium' | 'low' }[] = [];
-    
-    // Map trait scores to health indicators
-    const traitMap: [string, number | undefined][] = [
-      ['Adaptability', candidate.traitScores.adaptability],
-      ['Decision Making', candidate.traitScores.decisionMaking],
-      ['Communication', candidate.traitScores.communication],
-      ['Cognitive Agility', candidate.traitScores.cognitiveAgility],
-      ['Collaboration', candidate.traitScores.collaboration],
-      ['Ownership', candidate.traitScores.ownership],
-    ];
-    
-    traitMap.forEach(([dimension, score]) => {
-      if (score !== undefined && score !== null) {
-        let health: 'high' | 'medium' | 'low';
-        if (score >= 75) health = 'high';
-        else if (score >= 50) health = 'medium';
-        else health = 'low';
-        
-        indicators.push({ dimension, score, health });
-      }
+
+    TRAIT_DIMENSION_KEYS.forEach((key) => {
+      const score = ds[key];
+      if (typeof score !== 'number' || Number.isNaN(score)) return;
+      let health: 'high' | 'medium' | 'low';
+      if (score >= 75) health = 'high';
+      else if (score >= 50) health = 'medium';
+      else health = 'low';
+      indicators.push({ dimension: TRAIT_LABELS[key], score, health });
     });
-    
+
     return indicators;
   };
 
@@ -271,11 +265,7 @@ export function CandidatesPage({ candidates, onCandidateClick, onMoveToNextStage
 
   return (
     <div>
-      {/* Page Title */}
-      <div className="mb-6">
-        <h1 className="text-2xl text-[#111827] font-semibold mb-1">Candidate Pipeline</h1>
-        <p className="text-sm text-[#6B7280]">Drag and drop candidates to move them through stages</p>
-      </div>
+      <p className="mb-4 text-xs text-[#9CA3AF]">Drag and drop candidates to move them through stages</p>
 
       {/* Kanban Board */}
       <div className="grid grid-cols-5 gap-5">

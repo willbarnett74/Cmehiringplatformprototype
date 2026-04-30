@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import {
-  MessageSquare, Eye, ArrowUpRight,
-  Clock, TrendingUp, Send, Users,
+  Clock, TrendingUp, Send,
   Layers, Search, CheckCircle2,
   MessageCircle, Video, Phone, Bookmark, Compass,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Building2,
 } from 'lucide-react';
 
-import { applicantPipelineMockData } from '../../lib/applicantOpportunitiesMock';
+import {
+  applicantLifecycleConfig,
+  applicantOpportunitiesMockData,
+} from '../../lib/applicantOpportunitiesMock';
+import type { ApplicantOpportunity } from '../../lib/applicantOpportunitiesMock';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
-type SubTab = 'pipeline' | 'explore' | 'messages';
-type PipelineStage = 'discovered' | 'applied' | 'interviewing' | 'offer';
+type SubTab = 'opportunities' | 'explore';
 
 interface Industry {
   id: string;
@@ -27,21 +29,9 @@ interface Industry {
   typicalRoles: { title: string; avgSalary: string; demand: 'High' | 'Medium' | 'Low' }[];
 }
 
-interface Conversation {
-  id: number;
-  company: string;
-  role: string;
-  contactName: string;
-  contactRole: string;
-  lastMessage: string;
-  lastMessageTime: string;
-  unread: boolean;
-  messages: { sender: 'you' | 'them'; text: string; time: string }[];
-}
-
 // ─── Data ──────────────────────────────────────────────────────────────
 
-const pipelineData = applicantPipelineMockData;
+const initialOpportunitiesData = applicantOpportunitiesMockData;
 
 const industries: Industry[] = [
   {
@@ -133,57 +123,6 @@ const industries: Industry[] = [
 
 export const exploreIndustriesMatchedCount = industries.length;
 
-const conversations: Conversation[] = [
-  {
-    id: 1,
-    company: 'TechFlow Inc.',
-    role: 'Senior Product Designer',
-    contactName: 'Sarah Chen',
-    contactRole: 'Head of Design',
-    lastMessage: 'Looking forward to meeting you on the 18th! Let me know if you have any questions about the team.',
-    lastMessageTime: '2 hours ago',
-    unread: true,
-    messages: [
-      { sender: 'them', text: 'Hi Alex! We were really impressed with your profile and would love to move forward with a final round interview.', time: 'Feb 14, 10:30 AM' },
-      { sender: 'you', text: 'Thank you Sarah! I\'m excited about the opportunity. I\'d love to learn more about the team structure and current design challenges.', time: 'Feb 14, 11:15 AM' },
-      { sender: 'them', text: 'Great questions! We\'re a team of 8 designers working across 3 product lines. Your systems thinking approach really stood out to us.', time: 'Feb 14, 2:00 PM' },
-      { sender: 'you', text: 'That sounds like a great setup. I\'m available anytime next week for the final round.', time: 'Feb 14, 3:30 PM' },
-      { sender: 'them', text: 'Looking forward to meeting you on the 18th! Let me know if you have any questions about the team.', time: '2 hours ago' },
-    ],
-  },
-  {
-    id: 2,
-    company: 'Stripe',
-    role: 'Product Design Lead',
-    contactName: 'Jamie Rodriguez',
-    contactRole: 'Design Director',
-    lastMessage: 'We\'d like to extend an offer — details are in your email. Happy to jump on a call to discuss!',
-    lastMessageTime: '1 day ago',
-    unread: true,
-    messages: [
-      { sender: 'them', text: 'Hi Alex, thanks for going through our process. The team really enjoyed your portfolio review and the design challenge.', time: 'Feb 10, 9:00 AM' },
-      { sender: 'you', text: 'Thank you Jamie! I really enjoyed the challenge — the payments flow problem was fascinating to work through.', time: 'Feb 10, 10:45 AM' },
-      { sender: 'them', text: 'We\'d like to extend an offer — details are in your email. Happy to jump on a call to discuss!', time: '1 day ago' },
-    ],
-  },
-  {
-    id: 3,
-    company: 'Notion',
-    role: 'Product Designer',
-    contactName: 'Alex Kim',
-    contactRole: 'Recruiting Lead',
-    lastMessage: 'Your application is currently being reviewed by the hiring team. We\'ll be in touch within the next few days.',
-    lastMessageTime: '3 days ago',
-    unread: false,
-    messages: [
-      { sender: 'you', text: 'Hi! I recently applied for the Product Designer position and wanted to express my enthusiasm for the role.', time: 'Feb 12, 4:00 PM' },
-      { sender: 'them', text: 'Your application is currently being reviewed by the hiring team. We\'ll be in touch within the next few days.', time: '3 days ago' },
-    ],
-  },
-];
-
-export const applicantMessagingUnreadMockCount = conversations.filter((c) => c.unread).length;
-
 // ─── Flat list helpers (handoff / HTML reference) ────────────────────────
 
 function rowInitials(companyName: string): string {
@@ -211,45 +150,270 @@ function growthBarWidthPercent(growthLabel: string): number {
   return 40;
 }
 
-// ─── Stage Config ──────────────────────────────────────────────────────
+function nowMessageLabel(): string {
+  return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
 
-const stageConfig: Record<PipelineStage, { label: string; color: string; bg: string; icon: typeof Eye }> = {
-  discovered: { label: 'Discovered', color: '#64748B', bg: 'rgba(100,116,139,0.12)', icon: Eye },
-  applied: { label: 'Applied', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Send },
-  interviewing: { label: 'Interviewing', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)', icon: Users },
-  offer: { label: 'Offer', color: '#22C55E', bg: 'rgba(34,197,94,0.12)', icon: CheckCircle2 },
-};
+const OPPORTUNITY_FILTER_ORDER = [
+  'all',
+  'contacted',
+  'responded',
+  'interviewing',
+  'decision',
+  'discovered',
+  'hired',
+  'rejected',
+] as const;
+type OpportunityFilterStage = (typeof OPPORTUNITY_FILTER_ORDER)[number];
 
-const PIPELINE_FILTER_ORDER = ['all', 'offer', 'interviewing', 'applied', 'discovered'] as const;
-type PipelineFilterStage = (typeof PIPELINE_FILTER_ORDER)[number];
+function OpportunityDetail({
+  opportunity,
+  chatInput,
+  onChatInputChange,
+  onSend,
+  onPrimaryAction,
+  onAskQuestion,
+}: {
+  opportunity: ApplicantOpportunity;
+  chatInput: string;
+  onChatInputChange: (value: string) => void;
+  onSend: () => void;
+  onPrimaryAction: () => void;
+  onAskQuestion: () => void;
+}) {
+  const config = applicantLifecycleConfig[opportunity.status];
+  const accent = matchAccent(opportunity.matchScore);
+  const hasMessages = opportunity.messages.length > 0;
+
+  return (
+    <section className="overflow-hidden border border-[#E5E7EB] bg-white" style={{ borderRadius: 14 }}>
+      <div className="border-b border-[#EDEDED] p-5">
+        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                style={{ color: config.color, backgroundColor: config.bg }}
+              >
+                {config.label}
+              </span>
+              {opportunity.unread ? (
+                <span className="inline-flex items-center rounded-full bg-[#EF4444]/10 px-2 py-0.5 text-[11px] font-semibold text-[#EF4444]">
+                  Unread
+                </span>
+              ) : null}
+            </div>
+            <h2 className="text-xl font-semibold tracking-[-0.02em] text-[#111827]">
+              {opportunity.business.name} reached out about {opportunity.role.title}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#6B7280]">{opportunity.business.intro}</p>
+          </div>
+          <div className="shrink-0 text-left sm:text-right">
+            <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-[#9CA3AF]">Match</p>
+            <p className="font-dashboard-mono text-3xl font-semibold tabular-nums" style={{ color: accent.color }}>
+              {opportunity.matchScore}
+              <span className="text-sm font-normal text-[#9CA3AF]">/100</span>
+            </p>
+            <div className="mt-2 h-1 w-24 overflow-hidden rounded-full bg-[#F3F4F6] sm:ml-auto">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${Math.min(100, opportunity.matchScore)}%`, backgroundColor: accent.bar }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-md bg-[#FAFAFA] p-3">
+            <p className="mb-1 text-[10px] uppercase tracking-[0.1em] text-[#9CA3AF]">Role</p>
+            <p className="font-medium text-[#111827]">{opportunity.role.title}</p>
+            <p className="mt-0.5 text-xs text-[#6B7280]">
+              {opportunity.role.location} · {opportunity.role.employmentType}
+            </p>
+          </div>
+          <div className="rounded-md bg-[#FAFAFA] p-3">
+            <p className="mb-1 text-[10px] uppercase tracking-[0.1em] text-[#9CA3AF]">Business</p>
+            <p className="font-medium text-[#111827]">{opportunity.business.industry}</p>
+            <p className="mt-0.5 text-xs text-[#6B7280]">{opportunity.business.size} employees</p>
+          </div>
+          <div className="rounded-md bg-[#FAFAFA] p-3">
+            <p className="mb-1 text-[10px] uppercase tracking-[0.1em] text-[#9CA3AF]">Contact</p>
+            <p className="font-medium text-[#111827]">{opportunity.contact.name}</p>
+            <p className="mt-0.5 text-xs text-[#6B7280]">{opportunity.contact.title}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-0 lg:grid-cols-[1fr_320px]">
+        <div className="p-5">
+          <div>
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]">Why this matches you</p>
+            <div className="grid gap-3">
+              {opportunity.whyMatches.map((reason, index) => (
+                <div key={reason} className="flex gap-3">
+                  <span className="mt-0.5 font-dashboard-mono text-[11px] text-[#C4C4CC]">{index + 1}</span>
+                  <p className="text-sm leading-relaxed text-[#374151]">{reason}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-7">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]">Message thread</p>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="rounded-md border border-transparent p-1.5 text-[#6B7280] transition-colors hover:border-[#E5E7EB] hover:bg-[#F9FAFA]"
+                  aria-label="Call"
+                >
+                  <Phone className="h-3.5 w-3.5" strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-transparent p-1.5 text-[#6B7280] transition-colors hover:border-[#E5E7EB] hover:bg-[#F9FAFA]"
+                  aria-label="Video"
+                >
+                  <Video className="h-3.5 w-3.5" strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+            <div className="space-y-4 rounded-md border border-[#EDEDED] bg-[#FAFAFA] p-4">
+              {hasMessages ? (
+                opportunity.messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex max-w-[88%] flex-col ${
+                      msg.sender === 'applicant' ? 'ml-auto items-end' : 'mr-auto items-start'
+                    }`}
+                  >
+                    <div
+                      className={`rounded-md px-3 py-2 text-sm leading-relaxed ${
+                        msg.sender === 'applicant'
+                          ? 'bg-[#82B7FB] text-white'
+                          : 'border border-[#E5E7EB] bg-white text-[#111827]'
+                      }`}
+                    >
+                      {msg.body}
+                    </div>
+                    <p className="mt-1.5 px-0.5 font-dashboard-mono text-[10px] text-[#9CA3AF]">{msg.sentAt}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-md border border-dashed border-[#D1D5DB] bg-white p-4 text-sm text-[#6B7280]">
+                  No business messages yet. This match is ready to watch from your opportunities list.
+                </div>
+              )}
+              <div className="flex items-center gap-2 border-t border-[#EDEDED] pt-4">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => onChatInputChange(e.target.value)}
+                  placeholder="Write a message in this opportunity..."
+                  className="flex-1 rounded-md border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#111827] placeholder:text-[#9CA3AF] focus:border-[#7DBBFF] focus:outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') onSend();
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={onSend}
+                  className="shrink-0 rounded-md bg-[#7DBBFF] p-2.5 text-white transition-colors hover:bg-[#6aabef]"
+                  aria-label="Send"
+                >
+                  <Send className="h-4 w-4" strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside className="border-t border-[#EDEDED] bg-[#FBFBFB] p-5 lg:border-l lg:border-t-0">
+          <div className="rounded-lg border border-[#E5E7EB] bg-white p-4">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]">Next action</p>
+            <p className="text-sm font-semibold text-[#111827]">{opportunity.nextAction.label}</p>
+            <p className="mt-2 text-xs leading-relaxed text-[#6B7280]">{opportunity.nextAction.description}</p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={onPrimaryAction}
+                className="flex items-center justify-center gap-2 rounded-md bg-[#7DBBFF] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6aabef]"
+              >
+                <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+                {opportunity.nextAction.ctaLabel}
+              </button>
+              <button
+                type="button"
+                onClick={onAskQuestion}
+                className="flex items-center justify-center gap-2 rounded-md border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm font-medium text-[#374151] transition-colors hover:bg-[#FAFAFA]"
+              >
+                Ask a question
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]">Timeline</p>
+            <div className="relative pl-5">
+              <div className="pointer-events-none absolute bottom-1.5 left-[5px] top-1.5 w-px bg-black/[0.07]" aria-hidden />
+              {opportunity.timeline.map((event, idx) => (
+                <div key={event.id} className="relative flex gap-3.5" style={{ paddingBottom: idx === opportunity.timeline.length - 1 ? 0 : 16 }}>
+                  <span
+                    className="absolute left-[2px] mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full border-[1.5px] border-white"
+                    style={{ background: config.color, boxShadow: `0 0 0 1px ${config.color}` }}
+                  />
+                  <div className="pl-4">
+                    <p className="text-[12.5px] font-semibold text-[#111827]">{event.label}</p>
+                    <p className="mt-1 text-[12px] leading-normal text-[#6B7280]">{event.description}</p>
+                    <p className="mt-1 font-dashboard-mono text-[10px] text-[#9CA3AF]">{event.happenedAt}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-start gap-3 rounded-md bg-[#F3F4F6] p-3">
+            <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-[#9CA3AF]" strokeWidth={2} />
+            <p className="text-xs leading-relaxed text-[#6B7280]">
+              Future Supabase records can map this detail view to one engagement, related engagement_messages,
+              and timeline-style engagement_events.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-export type OpportunitiesEmbeddedMode = 'pipeline' | 'explore' | 'messages';
+export type OpportunitiesEmbeddedMode = 'opportunities' | 'explore';
 
 export type OpportunitiesPageProps = {
   /** When set, show only this tab (no sub-tab strip or Opportunities header). Used by applicant shell nav. */
   mode?: OpportunitiesEmbeddedMode;
-  /** After navigating to Messaging, select the conversation for this company name. */
-  focusCompanyName?: string | null;
-  /** Pipeline only: user clicked Message on a row — parent switches to Messaging. */
-  onRequestSwitchToMessaging?: (company: string) => void;
+  /** Select a specific opportunity from dashboard/notification context. */
+  selectedOpportunityId?: number | null;
+  /** Select a specific engagement-backed opportunity from dashboard/notification context. */
+  selectedOpportunityEngagementId?: string | null;
 };
 
 function subTabFromMode(mode: OpportunitiesEmbeddedMode | undefined): SubTab {
   if (mode === 'explore') return 'explore';
-  if (mode === 'messages') return 'messages';
-  return 'pipeline';
+  return 'opportunities';
 }
 
-export function OpportunitiesPage({ mode, focusCompanyName, onRequestSwitchToMessaging }: OpportunitiesPageProps = {}) {
+export function OpportunitiesPage({ mode, selectedOpportunityId, selectedOpportunityEngagementId }: OpportunitiesPageProps = {}) {
   const embedded = mode != null;
   const [activeTab, setActiveTab] = useState<SubTab>(() => subTabFromMode(mode));
   const [expandedIndustry, setExpandedIndustry] = useState<string | null>('saas');
-  const [activeConversation, setActiveConversation] = useState<number>(1);
+  const [opportunities, setOpportunities] = useState<ApplicantOpportunity[]>(initialOpportunitiesData);
+  const [selectedId, setSelectedId] = useState<number>(() => selectedOpportunityId ?? initialOpportunitiesData[0]?.id ?? 1);
   const [chatInput, setChatInput] = useState('');
-  const [savedItems, setSavedItems] = useState<Set<number>>(new Set([1, 3, 6, 8]));
-  const [pipelineFilter, setPipelineFilter] = useState<PipelineFilterStage>('all');
+  const [savedItems, setSavedItems] = useState<Set<number>>(
+    () => new Set(initialOpportunitiesData.filter((o) => o.saved).map((o) => o.id)),
+  );
+  const [opportunityFilter, setOpportunityFilter] = useState<OpportunityFilterStage>('all');
   const [industrySort, setIndustrySort] = useState<'match' | 'growth' | 'roles'>('match');
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
 
@@ -259,10 +423,16 @@ export function OpportunitiesPage({ mode, focusCompanyName, onRequestSwitchToMes
   }, [mode]);
 
   useEffect(() => {
-    if (!focusCompanyName) return;
-    const c = conversations.find((x) => x.company === focusCompanyName);
-    if (c) setActiveConversation(c.id);
-  }, [focusCompanyName]);
+    if (!selectedOpportunityEngagementId) return;
+    const opportunity = opportunities.find((x) => x.engagementId === selectedOpportunityEngagementId);
+    if (opportunity) setSelectedId(opportunity.id);
+  }, [opportunities, selectedOpportunityEngagementId]);
+
+  useEffect(() => {
+    if (selectedOpportunityId == null) return;
+    const opportunity = opportunities.find((x) => x.id === selectedOpportunityId);
+    if (opportunity) setSelectedId(opportunity.id);
+  }, [opportunities, selectedOpportunityId]);
 
   const showToast = (message: string) => setToast({ message, visible: true });
 
@@ -282,16 +452,124 @@ export function OpportunitiesPage({ mode, focusCompanyName, onRequestSwitchToMes
     });
   };
 
-  // Pipeline counts
-  const stageCounts = {
-    all: pipelineData.length,
-    discovered: pipelineData.filter(p => p.stage === 'discovered').length,
-    applied: pipelineData.filter(p => p.stage === 'applied').length,
-    interviewing: pipelineData.filter(p => p.stage === 'interviewing').length,
-    offer: pipelineData.filter(p => p.stage === 'offer').length,
+  const updateOpportunity = (id: number, updater: (opportunity: ApplicantOpportunity) => ApplicantOpportunity) => {
+    setOpportunities((prev) => prev.map((opportunity) => (opportunity.id === id ? updater(opportunity) : opportunity)));
   };
 
-  const filteredPipeline = pipelineFilter === 'all' ? pipelineData : pipelineData.filter(p => p.stage === pipelineFilter);
+  const markOpportunityResponded = (
+    opportunity: ApplicantOpportunity,
+    body: string,
+    options?: { question?: boolean; nextActionLabel?: string; toast?: string },
+  ) => {
+    const messageId = `msg-${opportunity.engagementId}-${Date.now()}`;
+    const eventId = `evt-${opportunity.engagementId}-response-${Date.now()}`;
+    updateOpportunity(opportunity.id, (current) => ({
+      ...current,
+      status: current.status === 'contacted' || current.status === 'discovered' ? 'responded' : current.status,
+      unread: false,
+      unreadMessages: 0,
+      lastUpdate: 'Just now',
+      applicantResponseState: options?.question ? 'asked-question' : 'interested',
+      messages: [
+        ...current.messages.map((msg) => ({ ...msg, read: true })),
+        {
+          id: messageId,
+          sender: 'applicant',
+          body,
+          sentAt: nowMessageLabel(),
+          read: true,
+        },
+      ],
+      timeline: [
+        ...current.timeline,
+        {
+          id: eventId,
+          label: options?.question ? 'Question sent' : 'Responded',
+          description: options?.question
+            ? `You asked ${current.contact.name} for more context.`
+            : `You replied to ${current.business.name}.`,
+          happenedAt: 'Just now',
+          type: 'response',
+        },
+      ],
+      nextAction: {
+        label: options?.nextActionLabel ?? 'Waiting on business follow-up',
+        description: `${current.business.name} has your response and can follow up in this thread.`,
+        ctaLabel: 'Send follow-up',
+        state: 'reply',
+      },
+    }));
+    showToast(options?.toast ?? `Message sent to ${opportunity.business.name}`);
+  };
+
+  const handlePrimaryAction = (opportunity: ApplicantOpportunity) => {
+    if (opportunity.nextAction.state === 'view-summary') {
+      setSavedItems((prev) => new Set(prev).add(opportunity.id));
+      updateOpportunity(opportunity.id, (current) => ({
+        ...current,
+        saved: true,
+        lastUpdate: 'Just now',
+        nextAction: {
+          label: 'Saved to your opportunities',
+          description: 'CMe will keep this strong match visible while monitoring for business activity.',
+          ctaLabel: 'Saved',
+          state: 'view-summary',
+        },
+      }));
+      showToast(`${opportunity.business.name} saved to your opportunities`);
+      return;
+    }
+
+    if (opportunity.nextAction.state === 'schedule') {
+      markOpportunityResponded(opportunity, 'Thanks, I am interested. Tuesday or Thursday afternoon works for me.', {
+        nextActionLabel: 'Availability sent',
+        toast: `Availability sent to ${opportunity.business.name}`,
+      });
+      return;
+    }
+
+    if (opportunity.nextAction.state === 'review-decision') {
+      updateOpportunity(opportunity.id, (current) => ({
+        ...current,
+        unread: false,
+        unreadMessages: 0,
+        lastUpdate: 'Just now',
+        nextAction: {
+          label: 'Decision update reviewed',
+          description: `${current.business.name}'s latest update has been marked as reviewed.`,
+          ctaLabel: 'Send follow-up',
+          state: 'reply',
+        },
+      }));
+      showToast(`Reviewed ${opportunity.business.name}'s update`);
+      return;
+    }
+
+    markOpportunityResponded(opportunity, `Hi ${opportunity.contact.name}, thanks for reaching out. I am interested in learning more about the ${opportunity.role.title} role.`, {
+      toast: `Interest sent to ${opportunity.business.name}`,
+    });
+  };
+
+  const handleAskQuestion = (opportunity: ApplicantOpportunity) => {
+    const question = `Hi ${opportunity.contact.name}, thanks for reaching out. Could you share more about the team and what success looks like in the first six months?`;
+    markOpportunityResponded(opportunity, question, {
+      question: true,
+      toast: `Question sent to ${opportunity.business.name}`,
+    });
+    setChatInput('');
+  };
+
+  const stageCounts = OPPORTUNITY_FILTER_ORDER.reduce((acc, stage) => {
+    acc[stage] = stage === 'all'
+      ? opportunities.length
+      : opportunities.filter((p) => p.status === stage).length;
+    return acc;
+  }, {} as Record<OpportunityFilterStage, number>);
+
+  const filteredOpportunities =
+    opportunityFilter === 'all'
+      ? opportunities
+      : opportunities.filter((p) => p.status === opportunityFilter);
 
   const sortedIndustries = [...industries].sort((a, b) => {
     if (industrySort === 'match') return b.matchPercent - a.matchPercent;
@@ -299,8 +577,9 @@ export function OpportunitiesPage({ mode, focusCompanyName, onRequestSwitchToMes
     return parseFloat(b.growth) - parseFloat(a.growth);
   });
 
-  const activeConvo = conversations.find(c => c.id === activeConversation);
-  const totalUnread = conversations.filter(c => c.unread).length;
+  const activeOpportunity =
+    opportunities.find((o) => o.id === selectedId) ?? filteredOpportunities[0] ?? opportunities[0];
+  const totalUnread = opportunities.filter((o) => o.unread).length;
 
   return (
     <div className="font-dashboard text-[#111827] antialiased">
@@ -308,119 +587,113 @@ export function OpportunitiesPage({ mode, focusCompanyName, onRequestSwitchToMes
       {!embedded ? (
       <div className="mb-6">
         <h1 className="text-2xl text-[#111827] font-semibold mb-2">Opportunities</h1>
-        <p className="text-sm text-[#6B7280]">Explore industries, track your pipeline, and connect with companies that match your profile</p>
+        <p className="text-sm text-[#6B7280]">Explore industries, review opportunities, and connect with companies that match your profile</p>
       </div>
       ) : null}
 
       {!embedded ? (
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 border border-black/[0.08]" style={{ borderRadius: '14px' }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-[#6B7280]">Active Pipeline</span>
-            <Layers className="w-4 h-4 text-[#7DBBFF]" strokeWidth={2} />
+        <div className="mb-6 grid grid-cols-4 gap-4">
+          <div className="border border-black/[0.08] bg-white p-4" style={{ borderRadius: '14px' }}>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs text-[#6B7280]">Active Opportunities</span>
+              <Layers className="h-4 w-4 text-[#7DBBFF]" strokeWidth={2} />
+            </div>
+            <p className="font-dashboard-mono text-2xl font-semibold tabular-nums text-[#111827]">{opportunities.length}</p>
+            <p className="mt-1 flex items-center gap-1 text-xs text-[#10B981]">
+              <TrendingUp className="h-3 w-3" strokeWidth={2} />
+              <span>{stageCounts.contacted} new reach-outs</span>
+            </p>
           </div>
-          <p className="font-dashboard-mono text-2xl font-semibold text-[#111827] tabular-nums">{pipelineData.length}</p>
-          <p className="text-xs text-[#10B981] mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" strokeWidth={2} />
-            <span>3 new this week</span>
-          </p>
-        </div>
-        <div className="bg-white p-4 border border-black/[0.08]" style={{ borderRadius: '14px' }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-[#6B7280]">Interviews</span>
-            <Video className="w-4 h-4 text-[#F59E0B]" strokeWidth={2} />
+          <div className="border border-black/[0.08] bg-white p-4" style={{ borderRadius: '14px' }}>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs text-[#6B7280]">Reached out</span>
+              <MessageCircle className="h-4 w-4 text-[#3B82F6]" strokeWidth={2} />
+            </div>
+            <p className="font-dashboard-mono text-2xl font-semibold tabular-nums text-[#111827]">{stageCounts.contacted}</p>
+            <p className="mt-1 text-xs text-[#EF4444]">{totalUnread} unread</p>
           </div>
-          <p className="font-dashboard-mono text-2xl font-semibold text-[#111827] tabular-nums">{stageCounts.interviewing}</p>
-          <p className="text-xs text-[#F59E0B] mt-1">Next: Feb 18</p>
-        </div>
-        <div className="bg-white p-4 border border-black/[0.08]" style={{ borderRadius: '14px' }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-[#6B7280]">Offers</span>
-            <CheckCircle2 className="w-4 h-4 text-[#10B981]" strokeWidth={2} />
+          <div className="border border-black/[0.08] bg-white p-4" style={{ borderRadius: '14px' }}>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs text-[#6B7280]">Interviewing</span>
+              <Video className="h-4 w-4 text-[#F59E0B]" strokeWidth={2} />
+            </div>
+            <p className="font-dashboard-mono text-2xl font-semibold tabular-nums text-[#111827]">{stageCounts.interviewing}</p>
+            <p className="mt-1 text-xs text-[#F59E0B]">Next action ready</p>
           </div>
-          <p className="font-dashboard-mono text-2xl font-semibold text-[#111827] tabular-nums">{stageCounts.offer}</p>
-          <p className="text-xs text-[#10B981] mt-1">Review pending</p>
-        </div>
-        <div className="bg-white p-4 border border-black/[0.08]" style={{ borderRadius: '14px' }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-[#6B7280]">Industries Matched</span>
-            <Compass className="w-4 h-4 text-[#8B5CF6]" strokeWidth={2} />
+          <div className="border border-black/[0.08] bg-white p-4" style={{ borderRadius: '14px' }}>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs text-[#6B7280]">Industries Matched</span>
+              <Compass className="h-4 w-4 text-[#8B5CF6]" strokeWidth={2} />
+            </div>
+            <p className="font-dashboard-mono text-2xl font-semibold tabular-nums text-[#111827]">{industries.length}</p>
+            <p className="mt-1 text-xs text-[#8B5CF6]">Based on your traits</p>
           </div>
-          <p className="font-dashboard-mono text-2xl font-semibold text-[#111827] tabular-nums">{industries.length}</p>
-          <p className="text-xs text-[#8B5CF6] mt-1">Based on your traits</p>
         </div>
-      </div>
       ) : null}
 
       {!embedded ? (
-      <div className="flex gap-1 mb-6 p-1 bg-[#F9F9FA] border border-black/[0.08] inline-flex" style={{ borderRadius: '12px' }}>
-        {([
-          { key: 'pipeline' as SubTab, label: 'Pipeline', icon: Layers, count: pipelineData.length },
-          { key: 'explore' as SubTab, label: 'Explore Industries', icon: Compass, count: industries.length },
-          { key: 'messages' as SubTab, label: 'Messages', icon: MessageCircle, count: totalUnread || undefined },
-        ]).map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-2.5 text-sm font-medium transition-all flex items-center gap-2 ${
-              activeTab === tab.key
-                ? 'bg-white text-[#111827] shadow-sm'
-                : 'text-[#6B7280] hover:text-[#111827]'
-            }`}
-            style={{ borderRadius: '10px' }}
-          >
-            <tab.icon className="w-4 h-4" strokeWidth={2} />
-            <span>{tab.label}</span>
-            {tab.count !== undefined && (
-              <span className={`px-2 py-0.5 text-xs font-semibold ${
+        <div className="mb-6 inline-flex gap-1 border border-black/[0.08] bg-[#F9F9FA] p-1" style={{ borderRadius: '12px' }}>
+          {([
+            { key: 'opportunities' as SubTab, label: 'Opportunities', icon: Layers, count: opportunities.length },
+            { key: 'explore' as SubTab, label: 'Explore Industries', icon: Compass, count: industries.length },
+          ]).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-all ${
                 activeTab === tab.key
-                  ? tab.key === 'messages' && totalUnread > 0 ? 'bg-red-500 text-white' : 'bg-[#7DBBFF] text-white'
-                  : tab.key === 'messages' && totalUnread > 0 ? 'bg-red-500 text-white' : 'bg-[#E5E7EB] text-[#6B7280]'
-              }`} style={{ borderRadius: '6px' }}>
+                  ? 'bg-white text-[#111827] shadow-sm'
+                  : 'text-[#6B7280] hover:text-[#111827]'
+              }`}
+              style={{ borderRadius: '10px' }}
+            >
+              <tab.icon className="h-4 w-4" strokeWidth={2} />
+              <span>{tab.label}</span>
+              <span
+                className={`px-2 py-0.5 text-xs font-semibold ${
+                  activeTab === tab.key ? 'bg-[#7DBBFF] text-white' : 'bg-[#E5E7EB] text-[#6B7280]'
+                }`}
+                style={{ borderRadius: '6px' }}
+              >
                 {tab.count}
               </span>
-            )}
-          </button>
-        ))}
-      </div>
+            </button>
+          ))}
+        </div>
       ) : null}
 
-      {/* ═══════════ PIPELINE TAB ═══════════ */}
-      {activeTab === 'pipeline' && (
+      {/* ═══════════ OPPORTUNITIES TAB ═══════════ */}
+      {activeTab === 'opportunities' && (
         <div className="bg-white">
           {embedded ? (
-            <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2 pb-4 mb-4 border-b border-[#EDEDED]">
+            <div className="mb-4 flex flex-wrap items-baseline gap-x-8 gap-y-2 border-b border-[#EDEDED] pb-4">
               <div className="flex items-baseline gap-2">
                 <span className="font-dashboard-mono text-xl font-semibold tabular-nums text-[#111827]">{stageCounts.all}</span>
                 <span className="text-sm text-[#9CA3AF]">Total</span>
               </div>
               <div className="flex items-baseline gap-2">
+                <span className="font-dashboard-mono text-xl font-semibold tabular-nums" style={{ color: '#3B82F6' }}>{stageCounts.contacted}</span>
+                <span className="text-sm text-[#9CA3AF]">Reached out</span>
+              </div>
+              <div className="flex items-baseline gap-2">
                 <span className="font-dashboard-mono text-xl font-semibold tabular-nums" style={{ color: '#F59E0B' }}>{stageCounts.interviewing}</span>
                 <span className="text-sm text-[#9CA3AF]">Interviewing</span>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-dashboard-mono text-xl font-semibold tabular-nums" style={{ color: '#22C55E' }}>{stageCounts.offer}</span>
-                <span className="text-sm text-[#9CA3AF]">Offers</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-dashboard-mono text-xl font-semibold tabular-nums" style={{ color: '#3B82F6' }}>{stageCounts.applied}</span>
-                <span className="text-sm text-[#9CA3AF]">Applied</span>
-              </div>
-              <span className="w-full sm:w-auto sm:ml-auto text-sm text-[#22C55E]">3 new this week</span>
+              <span className="w-full text-sm text-[#22C55E] sm:ml-auto sm:w-auto">{totalUnread} unread</span>
             </div>
           ) : null}
 
-          <div className="flex flex-wrap gap-2 mb-1">
-            {PIPELINE_FILTER_ORDER.map((stage) => {
-              const config = stage === 'all' ? { label: 'All' } : stageConfig[stage];
+          <div className="mb-4 flex flex-wrap gap-2">
+            {OPPORTUNITY_FILTER_ORDER.filter((stage) => stage === 'all' || stageCounts[stage] > 0).map((stage) => {
+              const config = stage === 'all' ? { label: 'All' } : applicantLifecycleConfig[stage];
               const count = stageCounts[stage];
-              const active = pipelineFilter === stage;
+              const active = opportunityFilter === stage;
               return (
                 <button
                   key={stage}
                   type="button"
-                  onClick={() => setPipelineFilter(stage)}
-                  className={`px-3.5 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                  onClick={() => setOpportunityFilter(stage)}
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
                     active ? 'bg-[#F3F4F6] text-[#111827]' : 'bg-transparent text-[#9CA3AF] hover:text-[#6B7280]'
                   }`}
                 >
@@ -430,113 +703,104 @@ export function OpportunitiesPage({ mode, focusCompanyName, onRequestSwitchToMes
             })}
           </div>
 
-          <div className="border-t border-[#EDEDED] divide-y divide-[#EDEDED]">
-            {filteredPipeline.map((item) => {
-              const config = stageConfig[item.stage];
-              const accent = matchAccent(item.matchScore);
-              const initials = rowInitials(item.company);
-              const subline = [item.location, item.employmentType, item.sector, item.nextAction].filter(Boolean).join(' · ');
-              return (
-                <div key={item.id} className="py-4">
-                  <div className="flex gap-4">
-                    <div
-                      className="w-9 h-9 rounded-full bg-[#F3F4F6] flex items-center justify-center shrink-0 text-[11px] font-semibold text-[#9CA3AF]"
-                      aria-hidden
-                    >
-                      {initials}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="text-sm font-semibold text-[#111827]">{item.role}</span>
-                            <span className="text-sm text-[#6B7280]">{item.company}</span>
-                            <span
-                              className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full"
-                              style={{ color: config.color, backgroundColor: config.bg }}
-                            >
-                              {config.label}
-                            </span>
-                          </div>
-                          {subline ? (
-                            <p className="text-xs text-[#9CA3AF] mt-1 leading-snug">{subline}</p>
-                          ) : null}
-                          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#9CA3AF]">
-                            {item.unreadMessages != null && item.unreadMessages > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[#EF4444]">
-                                <MessageCircle className="w-3 h-3 shrink-0" strokeWidth={2} />
-                                {item.unreadMessages} new
-                              </span>
-                            ) : null}
-                            <span className="inline-flex items-center gap-1">
-                              <Clock className="w-3 h-3 shrink-0" strokeWidth={2} />
-                              {item.lastUpdate}
-                            </span>
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (onRequestSwitchToMessaging) {
-                                  onRequestSwitchToMessaging(item.company);
-                                } else {
-                                  setActiveTab('messages');
-                                  setActiveConversation(conversations.find((c) => c.company === item.company)?.id || 1);
-                                }
-                              }}
-                              className="text-xs font-medium text-[#7DBBFF] hover:underline inline-flex items-center gap-1"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
-                              Message
-                            </button>
-                            {item.stage === 'discovered' ? (
-                              <button
-                                type="button"
-                                className="text-xs font-medium text-[#7DBBFF] hover:underline inline-flex items-center gap-1"
-                              >
-                                <ArrowUpRight className="w-3.5 h-3.5" strokeWidth={2} />
-                                Apply
-                              </button>
-                            ) : null}
-                            {item.stage === 'offer' ? (
-                              <button
-                                type="button"
-                                className="text-xs font-semibold text-[#22C55E] hover:underline inline-flex items-center gap-1"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2} />
-                                Review offer
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-start gap-3 sm:pt-0">
-                          <div className="text-right">
-                            <p className="font-dashboard-mono text-sm font-semibold tabular-nums" style={{ color: accent.color }}>
-                              {item.matchScore}
-                              <span className="font-normal text-[#9CA3AF]">/100</span>
-                            </p>
-                            <div className="mt-1.5 w-20 h-1 rounded-full bg-[#F3F4F6] overflow-hidden ml-auto">
-                              <div
-                                className="h-full rounded-full"
-                                style={{ width: `${Math.min(100, item.matchScore)}%`, backgroundColor: accent.bar }}
-                              />
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => toggleSave(item.id)}
-                            className={`p-1 transition-colors mt-0.5 ${savedItems.has(item.id) ? 'text-[#F59E0B]' : 'text-[#D1D5DB] hover:text-[#F59E0B]'}`}
-                            aria-label={savedItems.has(item.id) ? 'Remove bookmark' : 'Save'}
+          <div className="grid gap-6 lg:grid-cols-[minmax(300px,420px)_1fr]">
+            <div className="divide-y divide-[#EDEDED] border-y border-[#EDEDED]">
+              {filteredOpportunities.map((item) => {
+                const config = applicantLifecycleConfig[item.status];
+                const accent = matchAccent(item.matchScore);
+                const initials = rowInitials(item.business.name);
+                const selected = activeOpportunity?.id === item.id;
+                const subline = [
+                  item.role.location,
+                  item.role.employmentType,
+                  item.role.sector,
+                  item.nextAction.label,
+                ].filter(Boolean).join(' · ');
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSelectedId(item.id)}
+                    className={`block w-full px-3 py-4 text-left transition-colors ${
+                      selected ? 'bg-[#7DBBFF]/10' : 'hover:bg-[#FAFAFA]'
+                    }`}
+                  >
+                    <div className="flex gap-4">
+                      <div
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F3F4F6] text-[11px] font-semibold text-[#9CA3AF]"
+                        aria-hidden
+                      >
+                        {initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="text-sm font-semibold text-[#111827]">{item.role.title}</span>
+                          <span className="text-sm text-[#6B7280]">{item.business.name}</span>
+                          <span
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                            style={{ color: config.color, backgroundColor: config.bg }}
                           >
-                            <Bookmark className="w-4 h-4" strokeWidth={2} fill={savedItems.has(item.id) ? 'currentColor' : 'none'} />
-                          </button>
+                            {config.label}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs leading-snug text-[#9CA3AF]">{subline}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#9CA3AF]">
+                          {item.unreadMessages > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-[#EF4444]">
+                              <MessageCircle className="h-3 w-3 shrink-0" strokeWidth={2} />
+                              {item.unreadMessages} new
+                            </span>
+                          ) : null}
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="h-3 w-3 shrink-0" strokeWidth={2} />
+                            {item.lastUpdate}
+                          </span>
                         </div>
                       </div>
+                      <div className="shrink-0 text-right">
+                        <p className="font-dashboard-mono text-sm font-semibold tabular-nums" style={{ color: accent.color }}>
+                          {item.matchScore}
+                          <span className="font-normal text-[#9CA3AF]">/100</span>
+                        </p>
+                        <div className="ml-auto mt-1.5 h-1 w-16 overflow-hidden rounded-full bg-[#F3F4F6]">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${Math.min(100, item.matchScore)}%`, backgroundColor: accent.bar }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSave(item.id);
+                          }}
+                          className={`mt-3 p-1 transition-colors ${savedItems.has(item.id) ? 'text-[#F59E0B]' : 'text-[#D1D5DB] hover:text-[#F59E0B]'}`}
+                          aria-label={savedItems.has(item.id) ? 'Remove bookmark' : 'Save'}
+                        >
+                          <Bookmark className="h-4 w-4" strokeWidth={2} fill={savedItems.has(item.id) ? 'currentColor' : 'none'} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
+
+            {activeOpportunity ? (
+              <OpportunityDetail
+                opportunity={activeOpportunity}
+                chatInput={chatInput}
+                onChatInputChange={setChatInput}
+                onSend={() => {
+                  const body = chatInput.trim();
+                  if (!body) return;
+                  markOpportunityResponded(activeOpportunity, body);
+                  setChatInput('');
+                }}
+                onPrimaryAction={() => handlePrimaryAction(activeOpportunity)}
+                onAskQuestion={() => handleAskQuestion(activeOpportunity)}
+              />
+            ) : null}
           </div>
         </div>
       )}
@@ -677,159 +941,6 @@ export function OpportunitiesPage({ mode, focusCompanyName, onRequestSwitchToMes
         </div>
       )}
 
-      {/* ═══════════ MESSAGES TAB ═══════════ */}
-      {activeTab === 'messages' && (
-        <div className="bg-white border border-[#E5E7EB] overflow-hidden flex h-[min(600px,calc(100vh-200px))] rounded-sm">
-          {/* Conversation List */}
-          <div className="w-[300px] sm:w-[320px] border-r border-[#EDEDED] flex flex-col shrink-0">
-            <div className="px-4 py-3 border-b border-[#EDEDED]">
-              <p className="text-[10px] font-medium tracking-[0.14em] text-[#9CA3AF] uppercase">Conversations</p>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {conversations.map((convo) => (
-                <button
-                  key={convo.id}
-                  type="button"
-                  onClick={() => setActiveConversation(convo.id)}
-                  className={`w-full px-4 py-3.5 text-left border-b border-[#EDEDED] transition-colors ${
-                    activeConversation === convo.id
-                      ? 'bg-[#7DBBFF]/10'
-                      : 'hover:bg-[#FAFAFA]'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[#F3F4F6] flex items-center justify-center shrink-0 text-[10px] font-semibold text-[#9CA3AF]">
-                      {rowInitials(convo.company)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <p
-                          className={`text-sm truncate ${
-                            convo.unread ? 'text-[#111827] font-semibold' : 'text-[#111827] font-medium'
-                          }`}
-                        >
-                          {convo.company}
-                        </p>
-                        {convo.unread ? (
-                          <div className="w-2 h-2 rounded-full shrink-0 bg-[#7DBBFF]" aria-hidden />
-                        ) : null}
-                      </div>
-                      <p className="text-xs text-[#6B7280] mb-1 truncate">
-                        {convo.contactName} · {convo.contactRole}
-                      </p>
-                      <p
-                        className={`text-xs line-clamp-2 ${
-                          convo.unread ? 'text-[#111827]' : 'text-[#9CA3AF]'
-                        }`}
-                      >
-                        {convo.lastMessage}
-                      </p>
-                      <p className="mt-1 font-dashboard-mono text-[10px] text-[#9CA3AF]">{convo.lastMessageTime}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Chat Area */}
-          {activeConvo ? (
-            <div className="flex-1 flex flex-col min-w-0">
-              {/* Chat Header */}
-              <div className="px-4 py-3 border-b border-[#EDEDED] flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-[#F3F4F6] flex items-center justify-center shrink-0 text-[10px] font-semibold text-[#9CA3AF]">
-                    {rowInitials(activeConvo.company)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm text-[#111827] font-semibold truncate">{activeConvo.company}</p>
-                    <p className="text-xs text-[#6B7280] truncate">
-                      {activeConvo.contactName} · {activeConvo.contactRole}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    className="p-2 text-[#6B7280] hover:bg-[#F9FAFA] transition-colors rounded-md border border-transparent hover:border-[#E5E7EB]"
-                    aria-label="Call"
-                  >
-                    <Phone className="w-4 h-4" strokeWidth={2} />
-                  </button>
-                  <button
-                    type="button"
-                    className="p-2 text-[#6B7280] hover:bg-[#F9FAFA] transition-colors rounded-md border border-transparent hover:border-[#E5E7EB]"
-                    aria-label="Video"
-                  >
-                    <Video className="w-4 h-4" strokeWidth={2} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 bg-white">
-                {activeConvo.messages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex flex-col max-w-[85%] sm:max-w-[72%] ${msg.sender === 'you' ? 'ml-auto items-end' : 'mr-auto items-start'}`}
-                  >
-                    <div
-                      className={`px-3 py-2 text-sm leading-relaxed rounded-md ${
-                        msg.sender === 'you'
-                          ? 'bg-[#82B7FB] text-white'
-                          : 'bg-white text-[#111827] border border-[#E5E7EB]'
-                      }`}
-                    >
-                      {msg.text}
-                    </div>
-                    <p className="mt-1.5 px-0.5 font-dashboard-mono text-[10px] text-[#9CA3AF]">{msg.time}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Chat Input */}
-              <div className="p-4 border-t border-[#EDEDED] bg-white">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Write a message..."
-                    className="flex-1 px-3 py-2.5 bg-white border border-[#E5E7EB] text-sm text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#7DBBFF] rounded-md"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && chatInput.trim()) {
-                        showToast(`Message sent to ${activeConvo.company}`);
-                        setChatInput('');
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (chatInput.trim()) {
-                        showToast(`Message sent to ${activeConvo.company}`);
-                        setChatInput('');
-                      }
-                    }}
-                    className="p-2.5 bg-[#7DBBFF] text-white hover:bg-[#6aabef] transition-colors rounded-md shrink-0"
-                    aria-label="Send"
-                  >
-                    <Send className="w-4 h-4" strokeWidth={2} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-center">
-              <div>
-                <MessageCircle className="w-12 h-12 text-[#D1D5DB] mx-auto mb-3" strokeWidth={1.5} />
-                <p className="text-sm text-[#6B7280]">Select a conversation to start messaging</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Toast */}
       {toast.visible && (
         <div className="fixed bottom-6 right-6 z-50 animate-[slideUp_0.3s_ease-out]">
@@ -843,14 +954,12 @@ export function OpportunitiesPage({ mode, focusCompanyName, onRequestSwitchToMes
   );
 }
 
-export function ApplicantPipelinePanel(props: Pick<OpportunitiesPageProps, 'onRequestSwitchToMessaging'>) {
-  return <OpportunitiesPage mode="pipeline" {...props} />;
+export function ApplicantOpportunitiesPanel(
+  props: Pick<OpportunitiesPageProps, 'selectedOpportunityId' | 'selectedOpportunityEngagementId'>,
+) {
+  return <OpportunitiesPage mode="opportunities" {...props} />;
 }
 
 export function ApplicantExploreIndustriesPanel() {
   return <OpportunitiesPage mode="explore" />;
-}
-
-export function ApplicantMessagingPanel(props: Pick<OpportunitiesPageProps, 'focusCompanyName'>) {
-  return <OpportunitiesPage mode="messages" {...props} />;
 }

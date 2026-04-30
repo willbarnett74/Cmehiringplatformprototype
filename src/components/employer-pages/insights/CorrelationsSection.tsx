@@ -99,8 +99,8 @@ export function CorrelationsSection({
       <div
         style={{
           background: '#fff',
-          border: '1px solid #E5E7EB',
-          borderRadius: '12px',
+          border: '1px solid rgba(0,0,0,0.08)',
+          borderRadius: '6px',
           padding: '22px',
           marginBottom: '16px',
         }}
@@ -127,11 +127,12 @@ export function CorrelationsSection({
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#111827',
-                border: 'none',
+                backgroundColor: '#ffffff',
+                border: '1px solid rgba(0,0,0,0.08)',
                 borderRadius: '8px',
-                color: '#fff',
+                color: '#111827',
                 fontSize: '12px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
               }}
             />
             <Bar dataKey="Top" fill="#10B981" radius={[4, 4, 0, 0]} />
