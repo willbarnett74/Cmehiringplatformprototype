@@ -407,7 +407,7 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
           stepStatuses={stepStatuses}
           onStepChange={(stepId) => setActiveStep(stepId)}
           onBack={handleBack}
-          onNext={() => handleNext()}
+          onFooterContinue={() => handleNext()}
         >
           {renderSection()}
         </ProfileBuilderLayout>

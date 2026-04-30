@@ -79,7 +79,7 @@ export function SearchPage({
   onClearFilters,
   onLocationDropdownToggle,
   onLevelDropdownToggle: _onLevelDropdownToggle,
-  onTraitsDropdownToggle,
+  onTraitsDropdownToggle: _onTraitsDropdownToggle,
   onCandidateClick,
   onFilteredCountChange,
 }: SearchPageProps) {
