@@ -174,7 +174,8 @@ export function EditBasicInfoPage({
       setLoading(false);
       return;
     }
-    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const client = supabase;
+    void client.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user?.id) {
         setLoading(false);
         return;
@@ -183,7 +184,7 @@ export function EditBasicInfoPage({
       setUserId(uid);
 
       // Load from profiles table (name, email)
-      const { data: profileRow } = await supabase
+      const { data: profileRow } = await client
         .from('profiles')
         .select('full_name,email,avatar_url,notify_email_matches,notify_weekly_digest')
         .eq('id', uid)
@@ -206,11 +207,11 @@ export function EditBasicInfoPage({
       }
 
       // Load from candidate_profiles
-      const profileId = await ensureApplicantProfile(supabase, uid);
+      const profileId = await ensureApplicantProfile(client, uid);
       setApplicantProfileId(profileId);
 
       if (profileId) {
-        const { data } = await supabase
+        const { data } = await client
           .from('candidate_profiles')
           .select(
             'location,experience_years,current_situation,education_summary,experience_narrative,age,job_title,current_company,phone,linkedin_url,gender,certifications,published',
@@ -274,10 +275,11 @@ export function EditBasicInfoPage({
         setSaveError('Sign in to save changes.');
         return;
       }
+      const client = supabase;
 
       let profileId = applicantProfileId;
       if (!profileId) {
-        profileId = await ensureApplicantProfile(supabase, userId);
+        profileId = await ensureApplicantProfile(client, userId);
         setApplicantProfileId(profileId);
       }
       if (!profileId) {
@@ -294,7 +296,7 @@ export function EditBasicInfoPage({
 
       let newAvatarUrl: string | null | undefined;
       if (pendingPhotoFile) {
-        const { publicUrl, error: avErr } = await uploadApplicantAvatar(supabase, userId, pendingPhotoFile);
+        const { publicUrl, error: avErr } = await uploadApplicantAvatar(client, userId, pendingPhotoFile);
         if (avErr || !publicUrl) {
           setSaveError(
             avErr?.message?.includes('Bucket not found') || avErr?.message?.includes('not found')
@@ -315,7 +317,7 @@ export function EditBasicInfoPage({
         profilePayload.notify_weekly_digest = notifyWeeklyDigest;
       }
 
-      const { error: profileErr } = await supabase.from('profiles').update(profilePayload).eq('id', userId);
+      const { error: profileErr } = await client.from('profiles').update(profilePayload).eq('id', userId);
 
       if (profileErr) {
         setSaveError(profileErr.message);
@@ -328,7 +330,7 @@ export function EditBasicInfoPage({
         if (photoInputRef.current) photoInputRef.current.value = '';
       }
 
-      const { error: candErr } = await updateApplicantBasicInfo(supabase, profileId, {
+      const { error: candErr } = await updateApplicantBasicInfo(client, profileId, {
         age: ageParsed.value,
         job_title: jobTitle.trim() || null,
         current_company: currentCompany.trim() || null,
@@ -353,7 +355,7 @@ export function EditBasicInfoPage({
         return;
       }
 
-      await insertCandidateActivityEvent(supabase, userId, 'profile', 'Profile details updated');
+      await insertCandidateActivityEvent(client, userId, 'profile', 'Profile details updated');
       onSaved?.();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);

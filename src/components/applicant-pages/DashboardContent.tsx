@@ -182,13 +182,14 @@ export function DashboardContent({
       setHasLoaded(true);
       return;
     }
-    void supabase.auth
+    const client = supabase;
+    void client.auth
       .getSession()
       .then(async ({ data: { session } }) => {
         try {
           if (!session?.user?.id) return;
 
-          const { data: profileRow } = await supabase
+          const { data: profileRow } = await client
             .from('profiles')
             .select('full_name,avatar_url')
             .eq('id', session.user.id)
@@ -197,10 +198,10 @@ export function DashboardContent({
           setAvatarUrl(typeof profileRow?.avatar_url === 'string' ? profileRow.avatar_url : null);
           setAvatarLoadFailed(false);
 
-          const profileId = await ensureApplicantProfile(supabase, session.user.id);
+          const profileId = await ensureApplicantProfile(client, session.user.id);
           if (!profileId) return;
 
-          const { data } = await supabase
+          const { data } = await client
             .from('candidate_profiles')
             .select(
               'location,experience_years,education_summary,availability,experience_narrative,intake_status,current_situation,preferred_role_types,preferred_work_type,org_size_preference',
@@ -242,7 +243,7 @@ export function DashboardContent({
             );
           }
 
-          const { data: events, error: eventsErr } = await supabase
+          const { data: events, error: eventsErr } = await client
             .from('candidate_activity_events')
             .select('id,event_type,body,created_at')
             .eq('user_id', session.user.id)

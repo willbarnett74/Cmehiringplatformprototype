@@ -85,16 +85,17 @@ export function ApplicantScreen() {
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
-    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const client = supabase;
+    void client.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user?.id) return;
       const uid = session.user.id;
       setUserId(uid);
-      const { data: profileRow } = await supabase.from('profiles').select('full_name').eq('id', uid).maybeSingle();
+      const { data: profileRow } = await client.from('profiles').select('full_name').eq('id', uid).maybeSingle();
       setUserName(typeof profileRow?.full_name === 'string' ? profileRow.full_name : '');
-      const id = await ensureApplicantProfile(supabase, uid);
+      const id = await ensureApplicantProfile(client, uid);
       setApplicantProfileId(id);
       if (!id) return;
-      const { data: sitRow } = await supabase
+      const { data: sitRow } = await client
         .from('candidate_profiles')
         .select('current_situation')
         .eq('id', id)
@@ -102,7 +103,7 @@ export function ApplicantScreen() {
       setSidebarSituation(
         typeof sitRow?.current_situation === 'string' ? sitRow.current_situation : '',
       );
-      const loaded = await loadApplicantProfileFromSupabase(supabase, id);
+      const loaded = await loadApplicantProfileFromSupabase(client, id);
       if (loaded) {
         replaceProfileData(loaded.profile);
         setDbTraitScores(loaded.traitScores);

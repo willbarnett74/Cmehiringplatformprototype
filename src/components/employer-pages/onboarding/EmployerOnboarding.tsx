@@ -43,9 +43,10 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
-    void supabase.auth.getSession().then(({ data: { session } }) => {
+    const client = supabase;
+    void client.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.id) {
-        void setProfileRoleEmployer(supabase, session.user.id);
+        void setProfileRoleEmployer(client, session.user.id);
       }
     });
   }, []);

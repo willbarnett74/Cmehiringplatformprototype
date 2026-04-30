@@ -63,9 +63,10 @@ export function EmployerScreen() {
   // Check Supabase for existing business row on mount — skip onboarding if already done
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
-    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const client = supabase;
+    void client.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user?.id) return;
-      const { data } = await supabase
+      const { data } = await client
         .from('businesses')
         .select('id, name')
         .eq('owner_id', session.user.id)

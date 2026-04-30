@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Compass } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 type Mode = 'signin' | 'signup';
 
@@ -17,6 +17,12 @@ export function LoginScreen() {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    if (!isSupabaseConfigured || !supabase) {
+      setError('Sign in is not configured yet. Please contact support.');
+      setLoading(false);
+      return;
+    }
 
     if (mode === 'signin') {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
