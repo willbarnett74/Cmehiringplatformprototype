@@ -145,8 +145,8 @@ export function InferenceSection({ inference, hiredCandidates, dataState, snapsh
       <div
         style={{
           background: '#F9FAFB',
-          border: '1px solid #E5E7EB',
-          borderRadius: '8px',
+          border: '1px solid rgba(0,0,0,0.08)',
+          borderRadius: '6px',
           padding: '14px 18px',
           marginTop: '20px',
         }}

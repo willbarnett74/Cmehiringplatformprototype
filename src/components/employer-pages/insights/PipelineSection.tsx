@@ -191,8 +191,8 @@ export function PipelineSection({ candidates: _candidates, employerWeights, data
             onChange={(e) => setSortField(e.target.value as SortField)}
             style={{
               padding: '6px 11px',
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
+              border: '1px solid rgba(0,0,0,0.08)',
+              borderRadius: '6px',
               fontSize: '12px',
               color: '#374151',
               background: '#fff',
@@ -208,8 +208,8 @@ export function PipelineSection({ candidates: _candidates, employerWeights, data
             onChange={(e) => setStageFilter(e.target.value as StageFilter)}
             style={{
               padding: '6px 11px',
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
+              border: '1px solid rgba(0,0,0,0.08)',
+              borderRadius: '6px',
               fontSize: '12px',
               color: '#374151',
               background: '#fff',
@@ -225,10 +225,10 @@ export function PipelineSection({ candidates: _candidates, employerWeights, data
       </div>
 
       {/* Table */}
-      <div style={{ border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden' }}>
+      <div style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: '6px', overflow: 'hidden' }}>
         <table className="w-full" style={{ borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
+            <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
               {['CANDIDATE', 'MATCH SCORE', 'TRAIT HEALTH', 'STAGE', ''].map(header => (
                 <th
                   key={header || 'action'}
@@ -297,7 +297,7 @@ export function PipelineSection({ candidates: _candidates, employerWeights, data
                       style={{
                         width: '64px',
                         height: '3px',
-                        background: '#E5E7EB',
+                        background: 'rgba(0,0,0,0.08)',
                         borderRadius: '99px',
                         marginTop: '4px',
                         overflow: 'hidden',

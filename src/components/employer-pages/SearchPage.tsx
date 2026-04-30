@@ -1,6 +1,13 @@
-import { MapPin, Briefcase, Zap, ChevronDown, X, UserPlus, FileText, Star, Sparkles } from 'lucide-react';
+import { MapPin, Briefcase, Zap, ChevronDown, X, UserPlus, FileText, Star } from 'lucide-react';
 import type { Candidate } from '../types/employer';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import {
+  MOTIVATIONAL_FIT_SUB_KEYS,
+  MOTIVATIONAL_FIT_SUB_LABELS,
+  TRAIT_DIMENSION_KEYS,
+  TRAIT_LABELS,
+} from '../../lib/traits';
+import { toCandidateDimensionScores } from '../../utils/intakeScoreAggregate';
 
 interface SearchPageProps {
   candidates: Candidate[];
@@ -18,6 +25,8 @@ interface SearchPageProps {
   onLevelDropdownToggle: () => void;
   onTraitsDropdownToggle: () => void;
   onCandidateClick: (candidate: Candidate) => void;
+  /** Reports filtered result count for the employer top bar (handoff: "N results"). */
+  onFilteredCountChange?: (count: number) => void;
 }
 
 const locations = ['San Francisco, CA', 'New York, NY', 'Austin, TX', 'Remote'];
@@ -37,19 +46,24 @@ const readinessTags = [
   'Recently retrained / reskilled',
 ];
 
-const allTraits = [
-  'Ownership',
-  'Learning Speed',
-  'Adaptability',
-  'Communication',
-  'Collaboration',
-  'Innovation',
-  'Problem Solving',
-  'Creativity',
-  'Detail-oriented',
-  'Leadership',
-  'Strategic Thinking',
+/** Profile-builder dimensions (core + motivational subs) — keys match `Candidate.dimensionScores`. */
+const PROFILE_TRAIT_FILTERS: { key: string; label: string }[] = [
+  ...TRAIT_DIMENSION_KEYS.map((key) => ({ key, label: TRAIT_LABELS[key] })),
+  ...MOTIVATIONAL_FIT_SUB_KEYS.map((key) => ({ key, label: MOTIVATIONAL_FIT_SUB_LABELS[key] })),
 ];
+
+function candidateMatchesProfileTraitFilter(candidate: Candidate, traitKey: string): boolean {
+  const ds =
+    candidate.dimensionScores ??
+    (candidate.trait_scores ? toCandidateDimensionScores(candidate.trait_scores) : undefined);
+  if (ds) {
+    const v = ds[traitKey as keyof typeof ds];
+    if (typeof v === 'number' && !Number.isNaN(v)) return true;
+  }
+  const label =
+    PROFILE_TRAIT_FILTERS.find((t) => t.key === traitKey)?.label;
+  return !!(label && candidate.traits.includes(label));
+}
 
 export function SearchPage({
   candidates,
@@ -65,9 +79,18 @@ export function SearchPage({
   onClearFilters,
   onLocationDropdownToggle,
   onLevelDropdownToggle: _onLevelDropdownToggle,
-  onTraitsDropdownToggle: _onTraitsDropdownToggle,
+  onTraitsDropdownToggle,
   onCandidateClick,
+  onFilteredCountChange,
 }: SearchPageProps) {
+  const profileTraitLabelByKey = useMemo(
+    () => Object.fromEntries(PROFILE_TRAIT_FILTERS.map(({ key, label }) => [key, label])) as Record<
+      string,
+      string
+    >,
+    [],
+  );
+
   // Filter states
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
@@ -105,9 +128,11 @@ export function SearchPage({
       if (!matchesReadiness) return false;
     }
     
-    // Behavioral Traits filter
+    // Profile-builder trait dimensions (scores on candidate or legacy label chips)
     if (selectedTraits.length > 0) {
-      const hasMatchingTrait = selectedTraits.some((trait) => candidate.traits.includes(trait));
+      const hasMatchingTrait = selectedTraits.some((traitKey) =>
+        candidateMatchesProfileTraitFilter(candidate, traitKey),
+      );
       if (!hasMatchingTrait) return false;
     }
     
@@ -116,6 +141,10 @@ export function SearchPage({
 
   // Sort by score (highest first)
   const sortedCandidates = [...filteredCandidates].sort((a, b) => b.score - a.score);
+
+  useEffect(() => {
+    onFilteredCountChange?.(sortedCandidates.length);
+  }, [sortedCandidates.length, onFilteredCountChange]);
 
   const getScoreColor = (score: number): string => {
     if (score >= 90) return 'bg-[#10B981]/10 text-[#10B981]';
@@ -136,7 +165,10 @@ export function SearchPage({
     if (selectedRole) parts.push(`for ${selectedRole}`);
     if (selectedLocation) parts.push(`in ${selectedLocation}`);
     if (selectedCareerStage) parts.push(`at ${selectedCareerStage} stage`);
-    if (selectedTraits.length === 1) parts.push(`with ${selectedTraits[0]} trait`);
+    if (selectedTraits.length === 1) {
+      const one = profileTraitLabelByKey[selectedTraits[0]] ?? selectedTraits[0];
+      parts.push(`with ${one} trait`);
+    }
     if (selectedTraits.length > 1) parts.push(`with ${selectedTraits.length} selected traits`);
     if (selectedReadinessTags.length > 0) parts.push(`${selectedReadinessTags.length} readiness tag${selectedReadinessTags.length !== 1 ? 's' : ''}`);
     
@@ -172,269 +204,228 @@ export function SearchPage({
     if (selectedLocation) chips.push({ label: selectedLocation, type: 'location' });
     if (selectedCareerStage) chips.push({ label: selectedCareerStage, type: 'careerStage' });
     if (selectedRole && selectedRole !== 'All Roles') chips.push({ label: selectedRole, type: 'role' });
-    selectedTraits.forEach((trait) => chips.push({ label: trait, type: 'trait', value: trait }));
+    selectedTraits.forEach((traitKey) =>
+      chips.push({
+        label: profileTraitLabelByKey[traitKey] ?? traitKey,
+        type: 'trait',
+        value: traitKey,
+      }),
+    );
     selectedReadinessTags.forEach((tag) => chips.push({ label: tag, type: 'readiness', value: tag }));
     return chips;
   };
 
   const activeChips = getActiveFilterChips();
 
+  const filterBtnBase =
+    'flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-xs transition-colors';
+  const filterBtnIdle = 'border-black/[0.11] bg-white text-[#6B7280] hover:border-[#7DBBFF]/50';
+  const filterBtnActive = 'border-[#7DBBFF] bg-white text-[#111827]';
+
   return (
     <div>
-      {/* Page Title */}
-      <div className="mb-6">
-        <h1 className="text-2xl text-[#111827] font-semibold mb-2">Search Candidates</h1>
-        <p className="text-sm text-[#6B7280]">
-          Use filters and behavioral signals to find candidates who best match your role requirements.
-        </p>
-      </div>
+      <p className="mb-3 text-[12.5px] leading-snug text-[#9CA3AF]">
+        Refine by role, location, career stage, and behavioral signals.
+      </p>
 
-      {/* Filter Bar - Sticky */}
-      <div className="sticky top-[73px] z-20 bg-[#fafafa] pb-4">
-        <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
-          {/* Role Filters Section */}
-          <div className="mb-5 p-5 bg-[#F9FBFF]" style={{ borderRadius: '8px' }}>
-            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[#E8EDF2]">
-              <Briefcase className="w-4 h-4 text-[#7DBBFF]" strokeWidth={1.5} />
-              <span className="text-xs text-[#111827] font-semibold uppercase tracking-wider">Role Filters</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Hiring For Filter */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                  className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm border transition-all ${
-                    selectedRole
-                      ? 'bg-white border-[#7DBBFF] text-[#111827]'
-                      : 'bg-white border-[#D1D9E6] text-[#6B7280] hover:border-[#7DBBFF]/50 hover:bg-[#7DBBFF]/5'
-                  }`}
-                  style={{ borderRadius: '10px' }}
+      <div className="sticky top-0 z-20 -mx-0 mb-4 border-b border-black/[0.06] bg-[#fafafa] pb-3 pt-0.5">
+        <div className="rounded-md border border-black/[0.08] bg-white p-3 shadow-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="relative">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9CA3AF]">Role</p>
+              <button
+                type="button"
+                onClick={() => setShowRoleDropdown(!showRoleDropdown)}
+                className={`${filterBtnBase} ${selectedRole ? filterBtnActive : filterBtnIdle}`}
+              >
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <Briefcase className="h-3.5 w-3.5 shrink-0 text-[#7DBBFF]" strokeWidth={1.75} />
+                  <span className={`truncate ${selectedRole ? 'text-[#111827]' : 'text-[#9CA3AF]'}`}>
+                    {selectedRole || 'Any role'}
+                  </span>
+                </span>
+                <ChevronDown className="h-3 w-3 shrink-0 opacity-60" strokeWidth={2} />
+              </button>
+              {showRoleDropdown && (
+                <div
+                  className="absolute left-0 right-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-md border border-black/[0.1] bg-white shadow-lg"
                 >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Briefcase className="w-4 h-4 shrink-0" strokeWidth={1.5} />
-                    <span className={`truncate ${selectedRole ? 'text-[#111827]' : 'text-[#9CA3AF]'}`}>
-                      {selectedRole || 'Select role…'}
-                    </span>
-                    {selectedRole && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#7DBBFF] shrink-0" />
-                    )}
+                  <div className="p-1">
+                    {roles.map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => {
+                          setSelectedRole(role === 'All Roles' ? null : role);
+                          setShowRoleDropdown(false);
+                        }}
+                        className={`w-full rounded px-2.5 py-1.5 text-left text-xs transition-colors ${
+                          selectedRole === role
+                            ? 'bg-[#7DBBFF]/10 font-medium text-[#111827]'
+                            : 'text-[#6B7280] hover:bg-[#F9F9FA]'
+                        }`}
+                      >
+                        {role}
+                      </button>
+                    ))}
                   </div>
-                  <ChevronDown className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-                </button>
-                {showRoleDropdown && (
-                  <div className="absolute top-full left-0 mt-2 w-full bg-white border border-[#D1D9E6] shadow-lg z-30" style={{ borderRadius: '12px' }}>
-                    <div className="p-2 space-y-1">
-                      {roles.map((role) => (
-                        <button
-                          key={role}
-                          onClick={() => {
-                            setSelectedRole(role === 'All Roles' ? null : role);
-                            setShowRoleDropdown(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                            selectedRole === role
-                              ? 'bg-[#7DBBFF]/10 text-[#111827]'
-                              : 'text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827]'
-                          }`}
-                          style={{ borderRadius: '8px' }}
-                        >
-                          {role}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
+            </div>
 
-              {/* Location Filter */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    onLocationDropdownToggle();
-                    setShowRoleDropdown(false);
-                  }}
-                  className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm border transition-all ${
-                    selectedLocation
-                      ? 'bg-white border-[#7DBBFF] text-[#111827]'
-                      : 'bg-white border-[#D1D9E6] text-[#6B7280] hover:border-[#7DBBFF]/50 hover:bg-[#7DBBFF]/5'
-                  }`}
-                  style={{ borderRadius: '10px' }}
+            <div className="relative">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9CA3AF]">Location</p>
+              <button
+                type="button"
+                onClick={() => {
+                  onLocationDropdownToggle();
+                  setShowRoleDropdown(false);
+                }}
+                className={`${filterBtnBase} ${selectedLocation ? filterBtnActive : filterBtnIdle}`}
+              >
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-[#7DBBFF]" strokeWidth={1.75} />
+                  <span className={`truncate ${selectedLocation ? 'text-[#111827]' : 'text-[#9CA3AF]'}`}>
+                    {selectedLocation || 'Any location'}
+                  </span>
+                </span>
+                <ChevronDown className="h-3 w-3 shrink-0 opacity-60" strokeWidth={2} />
+              </button>
+              {showLocationDropdown && (
+                <div
+                  className="absolute left-0 right-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-md border border-black/[0.1] bg-white shadow-lg"
                 >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <MapPin className="w-4 h-4 shrink-0" strokeWidth={1.5} />
-                    <span className={`truncate ${selectedLocation ? 'text-[#111827]' : 'text-[#9CA3AF]'}`}>
-                      {selectedLocation || 'Choose location…'}
-                    </span>
-                    {selectedLocation && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#7DBBFF] shrink-0" />
-                    )}
+                  <div className="p-1">
+                    {locations.map((location) => (
+                      <button
+                        key={location}
+                        type="button"
+                        onClick={() => {
+                          onLocationChange(location === selectedLocation ? null : location);
+                          onLocationDropdownToggle();
+                        }}
+                        className={`w-full rounded px-2.5 py-1.5 text-left text-xs transition-colors ${
+                          selectedLocation === location
+                            ? 'bg-[#7DBBFF]/10 font-medium text-[#111827]'
+                            : 'text-[#6B7280] hover:bg-[#F9F9FA]'
+                        }`}
+                      >
+                        {location}
+                      </button>
+                    ))}
                   </div>
-                  <ChevronDown className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-                </button>
-                {showLocationDropdown && (
-                  <div className="absolute top-full left-0 mt-2 w-full bg-white border border-[#D1D9E6] shadow-lg z-30" style={{ borderRadius: '12px' }}>
-                    <div className="p-2 space-y-1">
-                      {locations.map((location) => (
-                        <button
-                          key={location}
-                          onClick={() => {
-                            onLocationChange(location === selectedLocation ? null : location);
-                            onLocationDropdownToggle();
-                          }}
-                          className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                            selectedLocation === location
-                              ? 'bg-[#7DBBFF]/10 text-[#111827]'
-                              : 'text-[#6B7280] hover:bg-[#F9F9FA] hover:text-[#111827]'
-                          }`}
-                          style={{ borderRadius: '8px' }}
-                        >
-                          {location}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Career Stage & Growth Section */}
-          <div className="mb-5 p-5 bg-[#F9FBFF]" style={{ borderRadius: '8px' }}>
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#E8EDF2]">
-              <Sparkles className="w-4 h-4 text-[#7DBBFF]" strokeWidth={1.5} />
-              <span className="text-xs text-[#111827] font-semibold uppercase tracking-wider">Career Stage & Growth</span>
-            </div>
-
-            {/* Career Stage Chips */}
-            <div className="mb-5">
-              <label className="text-xs text-[#6B7280] font-medium mb-3 block">Career Stage</label>
-              <div className="flex flex-wrap gap-2">
-                {careerStages.map((stage) => {
-                  const isSelected = selectedCareerStage === stage.label;
-                  return (
-                    <button
-                      key={stage.label}
-                      onClick={() => setSelectedCareerStage(isSelected ? null : stage.label)}
-                      className={`px-3 py-2.5 text-xs font-medium border transition-all ${
-                        isSelected
-                          ? 'bg-[#7DBBFF] text-white border-[#7DBBFF] shadow-sm'
-                          : 'bg-white text-[#7C8CA5] border-[#D1D9E6] hover:border-[#7DBBFF]/50 hover:text-[#111827]'
-                      }`}
-                      style={{ borderRadius: '8px' }}
-                    >
-                      <div className="flex flex-col items-start">
-                        <span>{stage.label}</span>
-                        {stage.subtitle && (
-                          <span className={`text-xs mt-0.5 ${isSelected ? 'text-white/80' : 'text-[#9CA3AF]'}`}>
-                            {stage.subtitle}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Readiness Tags */}
-            <div>
-              <label className="text-xs text-[#6B7280] font-medium mb-3 block">Optional Readiness Tags</label>
-              <div className="flex flex-wrap gap-2">
-                {readinessTags.map((tag) => {
-                  const isSelected = selectedReadinessTags.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      onClick={() => toggleReadinessTag(tag)}
-                      className={`px-3 py-2 text-xs font-medium border transition-all ${
-                        isSelected
-                          ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] border-[#8B5CF6]/30'
-                          : 'bg-white text-[#7C8CA5] border-[#D1D9E6] hover:border-[#8B5CF6]/30 hover:text-[#111827]'
-                      }`}
-                      style={{ borderRadius: '8px' }}
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedReadinessTags.length > 0 && (
-                <p className="text-xs text-[#6B7280] mt-3">
-                  <span className="font-semibold text-[#8B5CF6]">{selectedReadinessTags.length}</span> readiness tag{selectedReadinessTags.length !== 1 ? 's' : ''} selected
-                </p>
+                </div>
               )}
             </div>
           </div>
 
-          {/* Behavioral Signals Section */}
-          <div className="mb-4 p-5 bg-[#F9FBFF]" style={{ borderRadius: '8px' }}>
-            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[#E8EDF2]">
-              <Zap className="w-4 h-4 text-[#7DBBFF]" strokeWidth={1.5} />
-              <span className="text-xs text-[#111827] font-semibold uppercase tracking-wider">Behavioral Signals</span>
-              {selectedTraits.length > 0 && (
-                <div className="w-2 h-2 rounded-full bg-[#7DBBFF] animate-pulse ml-1" />
-              )}
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Trait Chips */}
-              {allTraits.map((trait) => {
-                const isSelected = selectedTraits.includes(trait);
+          <div className="mt-3 border-t border-black/[0.06] pt-3">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9CA3AF]">
+              Career stage
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {careerStages.map((stage) => {
+                const isSelected = selectedCareerStage === stage.label;
+                const hint = stage.subtitle ? `${stage.label} (${stage.subtitle})` : stage.label;
                 return (
                   <button
-                    key={trait}
-                    onClick={() => onTraitToggle(trait)}
-                    className={`px-3 py-2 text-xs font-medium border transition-all transform hover:scale-105 active:scale-95 ${
+                    key={stage.label}
+                    type="button"
+                    title={hint}
+                    onClick={() => setSelectedCareerStage(isSelected ? null : stage.label)}
+                    className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
                       isSelected
-                        ? 'bg-gradient-to-r from-[#8B5CF6] to-[#14B8A6] text-white border-transparent shadow-sm'
-                        : 'bg-white text-[#7C8CA5] border-[#D1D9E6] hover:border-[#7DBBFF]/50 hover:text-[#111827]'
+                        ? 'border-[#7DBBFF] bg-[#7DBBFF] text-white'
+                        : 'border-black/[0.1] bg-[#fafafa] text-[#374151] hover:border-[#7DBBFF]/40'
                     }`}
-                    style={{ borderRadius: '8px' }}
                   >
-                    {trait}
+                    {stage.label}
                   </button>
                 );
               })}
             </div>
-            {selectedTraits.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-[#E8EDF2]">
-                <p className="text-xs text-[#6B7280]">
-                  <span className="font-semibold text-[#7DBBFF]">{selectedTraits.length}</span> behavioral signal
-                  {selectedTraits.length !== 1 ? 's' : ''} active
-                </p>
-              </div>
-            )}
           </div>
 
-          {/* Active Filter Chips */}
+          <div className="mt-3 border-t border-black/[0.06] pt-3">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9CA3AF]">
+              Readiness
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {readinessTags.map((tag) => {
+                const isSelected = selectedReadinessTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleReadinessTag(tag)}
+                    className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                      isSelected
+                        ? 'border-[#8B5CF6]/40 bg-[#8B5CF6]/10 text-[#7C3AED]'
+                        : 'border-black/[0.1] bg-white text-[#6B7280] hover:border-[#8B5CF6]/25'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-3 border-t border-black/[0.06] pt-3">
+            <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9CA3AF]">
+              <Zap className="h-3 w-3 text-[#7DBBFF]" strokeWidth={2} />
+              Traits
+            </p>
+            <div className="flex max-h-[4.5rem] flex-wrap gap-1.5 overflow-y-auto pr-0.5">
+              {PROFILE_TRAIT_FILTERS.map(({ key, label }) => {
+                const isSelected = selectedTraits.includes(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onTraitToggle(key)}
+                    className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                      isSelected
+                        ? 'border-transparent bg-gradient-to-r from-[#8B5CF6] to-[#14B8A6] text-white'
+                        : 'border-black/[0.1] bg-white text-[#6B7280] hover:border-[#7DBBFF]/40'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {activeChips.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap pt-4 border-t border-black/[0.08]">
-              <span className="text-xs text-[#6B7280]">Active:</span>
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-black/[0.08] pt-3">
+              <span className="text-[10px] font-medium text-[#9CA3AF]">Active</span>
               {activeChips.map((chip, index) => (
                 <button
                   key={`${chip.type}-${index}`}
+                  type="button"
                   onClick={() => removeFilter(chip.type, chip.value)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[#7DBBFF]/10 text-[#7DBBFF] hover:bg-[#7DBBFF]/20 transition-colors text-xs font-medium"
-                  style={{ borderRadius: '8px' }}
+                  className="flex items-center gap-1 rounded-md bg-[#7DBBFF]/12 px-2 py-0.5 text-[11px] font-medium text-[#2563EB] hover:bg-[#7DBBFF]/20"
                 >
-                  <span>{chip.label}</span>
-                  <X className="w-3 h-3" strokeWidth={2} />
+                  <span className="max-w-[140px] truncate">{chip.label}</span>
+                  <X className="h-3 w-3 shrink-0" strokeWidth={2} />
                 </button>
               ))}
               <button
+                type="button"
                 onClick={handleResetFilters}
-                className="ml-auto text-sm text-[#6B7280] hover:text-[#111827] transition-colors font-medium"
+                className="ml-auto text-[11px] font-medium text-[#6B7280] hover:text-[#111827]"
               >
-                Reset All Filters
+                Reset all
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Summary */}
-      <div className="bg-[#F9F9FA] px-5 py-3 border border-black/[0.08] mb-6 mt-6" style={{ borderRadius: '12px' }}>
-        <p className="text-sm text-[#111827]">
-          <span className="font-semibold">Results:</span> {getSummary()}
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-black/[0.08] bg-[#fafafa] px-3 py-2">
+        <p className="text-[12.5px] text-[#374151]">
+          <span className="font-semibold text-[#111827]">Results:</span> {getSummary()}
         </p>
       </div>
 

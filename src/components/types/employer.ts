@@ -1,3 +1,5 @@
+import type { CandidateDimensionScores, DimensionScores } from '../../utils/intakeScoreAggregate';
+
 // ─── candidate_profiles (trait score columns merged from former applicant_trait_scores) ───
 export interface CandidateProfile {
   id: number; // maps to candidate_profiles.id in DB
@@ -27,19 +29,10 @@ export interface CandidateProfile {
     collaboration?: number;
     ownership?: number;
   };
-  // Spec 5: Spec 1 dimension scores used by the match scoring engine
-  dimensionScores?: {
-    learning_velocity: number;
-    ownership_follow_through: number;
-    resilience: number;
-    communication_confidence: number;
-    relational_intelligence: number;
-    motivational_fit: number;
-    motivational_fit_mastery: number;
-    motivational_fit_impact: number;
-    motivational_fit_recognition: number;
-    motivational_fit_autonomy: number;
-  };
+  /** Same shape as applicant `UserProfileData.trait_scores` / intake `DimensionScores` (nine keys). */
+  trait_scores?: DimensionScores | null;
+  /** Spec 1 dimensions + aggregate motivational fit — used by match scoring and employer cards. */
+  dimensionScores?: CandidateDimensionScores;
   // ISO timestamp of last stage change — used to compute days in current stage
   stageUpdatedAt?: string;
 }

@@ -1,20 +1,13 @@
 /**
  * Insight Page — Employer insight layer
  *
- * Five tabs with browser-tab navigation:
- *   01 · Hiring Profile         — radar chart, three layers
- *   02 · Performance Correlations — grouped bar chart by performance band
- *   03 · Pipeline               — full-width candidate table
- *   04 · Motivational Fit Watch — quarterly time-series per hire
- *   05 · Inference              — plain-English findings with confidence
+ * Five tabs:
+ *   Hiring Profile, Performance Correlations, Pipeline, Motivational Fit, Inference
  *
  * Data state system:
  *   State 1 (<5 snapshots)  — hiring profile + pipeline only; others gated
  *   State 2 (5-14)          — early-signal framing throughout
  *   State 3 (15+)           — full correlations + confidence display
- *
- * Layout: active tab connects visually to the content panel via matching
- * white background and no bottom border — a browser-tab effect.
  */
 
 import { useState, useEffect } from 'react';
@@ -23,7 +16,7 @@ import { fetchInsightData } from '../../lib/insightQueries';
 import type { InsightData } from '../../lib/insightQueries';
 import { runInferenceEngine } from '../../lib/inferenceEngine';
 import type { InferenceResult } from '../../lib/inferenceEngine';
-import { getDataState } from './insights/shared';
+import { getDataState, SectionRule } from './insights/shared';
 import type { DataState } from './insights/shared';
 import { HiringProfileSection } from './insights/HiringProfileSection';
 import { CorrelationsSection } from './insights/CorrelationsSection';
@@ -31,28 +24,23 @@ import { PipelineSection } from './insights/PipelineSection';
 import { MotivationalFitSection } from './insights/MotivationalFitSection';
 import { InferenceSection } from './insights/InferenceSection';
 
-// ─── Tab Definitions ─────────────────────────────────────────────────────────
-
 type TabId = 'hiring-profile' | 'correlations' | 'pipeline' | 'motivational-fit' | 'inference';
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'hiring-profile',    label: 'Hiring Profile' },
-  { id: 'correlations',      label: 'Performance Correlations' },
-  { id: 'pipeline',          label: 'Pipeline' },
-  { id: 'motivational-fit',  label: 'Motivational Fit' },
-  { id: 'inference',         label: 'Inference' },
+  { id: 'hiring-profile', label: 'Hiring Profile' },
+  { id: 'correlations', label: 'Performance Correlations' },
+  { id: 'pipeline', label: 'Pipeline' },
+  { id: 'motivational-fit', label: 'Motivational Fit' },
+  { id: 'inference', label: 'Inference' },
 ];
 
-// ─── Main Component ──────────────────────────────────────────────────────────
-
-export function InsightPage() {
+export function InsightPage({ employerBusinessName }: { employerBusinessName?: string }) {
   const [data, setData] = useState<InsightData | null>(null);
   const [inference, setInference] = useState<InferenceResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('hiring-profile');
 
-  // Suppress recharts duplicate-key warnings (internal recharts issue)
   useEffect(() => {
     const originalError = console.error;
     console.error = (...args) => {
@@ -81,7 +69,7 @@ export function InsightPage() {
           insightData.hiredCandidates,
           insightData.topPerformers,
           insightData.correlationData,
-          insightData.timeSeriesData
+          insightData.timeSeriesData,
         );
         setData(insightData);
         setInference(inferenceResult);
@@ -97,10 +85,10 @@ export function InsightPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex h-96 items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#7DBBFF] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p style={{ fontSize: '12px', color: '#6B7280' }}>Loading insights...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[#7DBBFF] border-t-transparent" />
+          <p className="text-xs text-[#6B7280]">Loading insights...</p>
         </div>
       </div>
     );
@@ -108,112 +96,52 @@ export function InsightPage() {
 
   if (error || !data || !inference) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex h-96 items-center justify-center">
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-[#EF4444] mx-auto mb-4" strokeWidth={1.5} />
-          <p style={{ fontSize: '12px', color: '#6B7280' }}>{error || 'No data available'}</p>
+          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-[#EF4444]" strokeWidth={1.5} />
+          <p className="text-xs text-[#6B7280]">{error || 'No data available'}</p>
         </div>
       </div>
     );
   }
 
   const dataState: DataState = getDataState(data.snapshotCount);
-  const activeHires = data.hiredCandidates.filter(c => !c.departed).length;
-  const businessName = 'Meridian Design Co.'; // MOCK — replace with real employer context
+  const activeHires = data.hiredCandidates.filter((c) => !c.departed).length;
+  const orgLabel = employerBusinessName?.trim() || 'Your organization';
 
   return (
     <div>
-      {/* ── Topbar ─────────────────────────────────────────────────────────── */}
-      <div
-        className="sticky top-0 z-10 flex items-center justify-between"
-        style={{
-          background: 'rgba(244,246,249,0.95)',
-          backdropFilter: 'blur(8px)',
-          borderBottom: '1px solid #E5E7EB',
-          padding: '16px 32px',
-          margin: '-16px -32px 0 -32px',
-          marginBottom: '24px',
-        }}
-      >
-        <div>
-          <h1
-            style={{
-              fontSize: '20px',
-              fontWeight: 700,
-              letterSpacing: '-0.4px',
-              color: '#111827',
-              marginBottom: '2px',
-            }}
-          >
-            Insights &amp; Analytics
-          </h1>
-          <p style={{ fontSize: '12px', color: '#6B7280' }}>
-            {data.snapshotCount} performance snapshots · {activeHires} active hires · {businessName}
-          </p>
-        </div>
+      <SectionRule mt={0} mb={20}>
+        Insight modules
+      </SectionRule>
+
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-[#6B7280]">
+          {data.snapshotCount} performance snapshots · {activeHires} active hires · {orgLabel}
+        </p>
         <button
+          type="button"
           onClick={() => window.print()}
-          style={{
-            fontSize: '12px',
-            fontWeight: 500,
-            color: '#374151',
-            background: '#fff',
-            border: '1px solid #E5E7EB',
-            borderRadius: '8px',
-            padding: '7px 14px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-black/[0.08] bg-white px-3.5 py-1.5 text-xs font-medium text-[#374151] transition-colors hover:bg-[#fafafa]"
         >
-          <Download style={{ width: '14px', height: '14px' }} strokeWidth={2} />
+          <Download className="h-3.5 w-3.5" strokeWidth={2} />
           Export
         </button>
       </div>
 
-      {/* ── Section Tab Navigation ──────────────────────────────────────────── */}
-      {/*
-        Browser-tab effect:
-        - Active tab: white bg, 1px #E5E7EB border top/left/right, bottom matches panel bg (white)
-        - Tab row sits directly above the content panel with no gap so the active tab
-          visually merges into the panel below it.
-      */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          gap: '4px',
-          paddingBottom: '0',
-        }}
-      >
-        {TABS.map(tab => {
+      <div className="flex flex-wrap gap-1.5">
+        {TABS.map((tab) => {
           const isActive = tab.id === activeTab;
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: '8px 18px',
-                fontSize: '13px',
-                fontWeight: isActive ? 600 : 500,
-                color: isActive ? '#111827' : '#9CA3AF',
-                background: isActive ? '#ffffff' : 'transparent',
-                border: isActive ? '1px solid #E5E7EB' : '1px solid transparent',
-                borderBottom: isActive ? '1px solid #ffffff' : '1px solid transparent',
-                borderRadius: '8px 8px 0 0',
-                cursor: 'pointer',
-                transition: 'color 0.12s ease',
-                position: 'relative',
-                zIndex: isActive ? 1 : 0,
-                marginBottom: isActive ? '-1px' : '0',
-              }}
-              onMouseEnter={e => {
-                if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = '#6B7280';
-              }}
-              onMouseLeave={e => {
-                if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF';
-              }}
+              className={`rounded-md px-3.5 py-2 text-[13px] font-medium transition-colors ${
+                isActive
+                  ? 'border border-[#7dbbff] bg-[#7dbbff]/10 text-[#111827]'
+                  : 'border border-transparent text-[#9CA3AF] hover:bg-black/[0.03] hover:text-[#6B7280]'
+              }`}
             >
               {tab.label}
             </button>
@@ -221,22 +149,7 @@ export function InsightPage() {
         })}
       </div>
 
-      {/* ── Content Panel ───────────────────────────────────────────────────── */}
-      {/*
-        border-radius 0 12px 12px 12px — flat top-left corner aligns with the first
-        active tab. When another tab is active the panel corners are all 12px but
-        the visual connection still works because of the border-bottom flush.
-      */}
-      <div
-        style={{
-          background: '#ffffff',
-          border: '1px solid #E5E7EB',
-          borderRadius: activeTab === 'hiring-profile' ? '0 12px 12px 12px' : '12px',
-          padding: '28px',
-          position: 'relative',
-          zIndex: 0,
-        }}
-      >
+      <div className="insight-content-panel mt-3 rounded-md border border-black/[0.08] bg-white p-7">
         {activeTab === 'hiring-profile' && (
           <HiringProfileSection
             employerWeights={data.employerWeights}
@@ -283,11 +196,10 @@ export function InsightPage() {
         )}
       </div>
 
-      {/* ── Print Stylesheet ─────────────────────────────────────────────────── */}
       <style>{`
         @media print {
           .insight-content-panel {
-            border-radius: 12px !important;
+            border-radius: 6px !important;
           }
         }
       `}</style>

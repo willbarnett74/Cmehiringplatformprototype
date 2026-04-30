@@ -1,6 +1,40 @@
 import { X, MapPin, Briefcase, Mail, Phone, Linkedin, Star, MessageSquare, FileText, ArrowRight, Copy, Sparkles, Building2, Download, Share2, Calendar, Award, TrendingUp, Target, Users, Zap, Brain, Heart, Palette, CheckCircle2, ArrowUpRight, ExternalLink } from 'lucide-react';
 import type { Candidate } from '../types/employer';
 import { useState } from 'react';
+import type { CandidateDimensionScores } from '../../utils/intakeScoreAggregate';
+import { toCandidateDimensionScores } from '../../utils/intakeScoreAggregate';
+import {
+  MOTIVATIONAL_FIT_SUB_KEYS,
+  MOTIVATIONAL_FIT_SUB_LABELS,
+  TRAIT_DIMENSION_KEYS,
+  TRAIT_LABELS,
+} from '../../lib/traits';
+
+function resolveCandidateProfileDims(candidate: Candidate): CandidateDimensionScores | null {
+  if (candidate.dimensionScores) return candidate.dimensionScores;
+  if (candidate.trait_scores) return toCandidateDimensionScores(candidate.trait_scores);
+  return null;
+}
+
+const DIMENSION_BAR_COLORS = ['#7DBBFF', '#8B5CF6', '#14B8A6', '#F59E0B'];
+
+const MOCK_ROLE_TARGET_BY_KEY: Record<(typeof TRAIT_DIMENSION_KEYS)[number], number> = {
+  learning_velocity: 72,
+  ownership_follow_through: 74,
+  resilience: 70,
+  communication_confidence: 73,
+  relational_intelligence: 71,
+  motivational_fit: 72,
+};
+
+const CORE_DIMENSION_DESCRIPTIONS: Record<(typeof TRAIT_DIMENSION_KEYS)[number], string> = {
+  learning_velocity: 'Picks up new skills quickly and adapts to changing environments.',
+  ownership_follow_through: 'Takes responsibility end-to-end and follows through on commitments.',
+  resilience: 'Maintains composure under pressure and recovers quickly from setbacks.',
+  communication_confidence: 'Communicates clearly and confidently across contexts.',
+  relational_intelligence: 'Reads people well and builds trust through empathy and awareness.',
+  motivational_fit: 'Driven by intrinsic motivators aligned with role and environment.',
+};
 
 interface CandidateProfileViewProps {
   candidate: Candidate;
@@ -22,6 +56,44 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
 
   const fitLevel = getFitLevel(candidate.score);
 
+  const profileDims = resolveCandidateProfileDims(candidate);
+
+  const coreSorted = profileDims
+    ? TRAIT_DIMENSION_KEYS.map((k) => ({ key: k, score: profileDims[k] })).sort((a, b) => b.score - a.score)
+    : [];
+
+  const traitClusterBars = profileDims
+    ? coreSorted
+        .slice(0, 4)
+        .map((row, i) => ({
+          name: TRAIT_LABELS[row.key],
+          value: Math.round(row.score),
+          color: DIMENSION_BAR_COLORS[i % DIMENSION_BAR_COLORS.length],
+        }))
+    : [];
+
+  const derivedStrengths = coreSorted.slice(0, 2).map(({ key }) => ({
+    label: TRAIT_LABELS[key],
+    description: CORE_DIMENSION_DESCRIPTIONS[key],
+  }));
+
+  const derivedGrowth = coreSorted.length >= 2
+    ? coreSorted.slice(-2).map(({ key }) => ({
+        label: TRAIT_LABELS[key],
+        description: `Room to strengthen ${TRAIT_LABELS[key].toLowerCase()} with targeted practice and feedback.`,
+      }))
+    : [];
+
+  const assessmentFromProfile =
+    profileDims && coreSorted.length > 0
+      ? coreSorted.slice(0, 3).map(({ key, score }) => ({
+          title: TRAIT_LABELS[key],
+          score: Math.round(score),
+          percentile: score >= 85 ? 'Strong signal' : score >= 70 ? 'Solid signal' : 'Emerging',
+          description: CORE_DIMENSION_DESCRIPTIONS[key],
+        }))
+      : null;
+
   const sections = [
     { id: 'overview', label: 'Overview', icon: TrendingUp },
     { id: 'traits', label: 'Signature Traits', icon: Sparkles },
@@ -31,28 +103,13 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
     { id: 'documents', label: 'CV / Documents', icon: FileText },
   ];
 
-  const traitClusters = [
-    { name: 'Self-Management', value: 92, color: '#7DBBFF' },
-    { name: 'Collaboration', value: 88, color: '#8B5CF6' },
-    { name: 'Adaptability', value: 85, color: '#14B8A6' },
-    { name: 'Creativity', value: 90, color: '#F59E0B' },
-  ];
-
-  const strengths = [
-    { label: 'Autonomous Execution', description: 'Thrives with minimal oversight' },
-    { label: 'Learning Velocity', description: 'Rapid skill acquisition' },
-    { label: 'Team Synergy', description: 'Natural collaborator' },
-  ];
-
-  const growthAreas = [
-    { label: 'Public Speaking', description: 'Building confidence in large groups' },
-    { label: 'Strategic Planning', description: 'Developing long-term thinking' },
-  ];
-
-  const assessmentResults = [
-    { title: 'Cognitive Agility', score: 92, percentile: 'Top 15%', description: 'Pattern recognition and problem-solving' },
-    { title: 'Design Challenge', score: 88, percentile: 'Top 22%', description: 'Practical application and creativity' },
-    { title: 'Culture Fit', score: 95, percentile: 'Top 8%', description: 'Alignment with team values' },
+  const assessmentResults = assessmentFromProfile ?? [
+    {
+      title: 'CMe trait profile',
+      score: 0,
+      percentile: 'Pending',
+      description: 'Scores populate when the applicant completes the profile builder (Sections 2–6).',
+    },
   ];
 
   const experiences = [
@@ -386,160 +443,147 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
                   })()}
                 </div>
 
-                {/* Trait Cluster Visualization */}
-                <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
-                  <h2 className="text-base text-[#111827] font-semibold mb-5">Trait Clusters</h2>
-                  <div className="grid grid-cols-2 gap-6">
-                    {traitClusters.map((cluster) => (
-                      <div key={cluster.name}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-[#111827] font-medium">{cluster.name}</span>
-                          <span className="text-sm font-semibold" style={{ color: cluster.color }}>{cluster.value}%</span>
+                {/* Top dimensions (same six core axes as profile builder radar) */}
+                {traitClusterBars.length > 0 && (
+                  <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                    <h2 className="text-base text-[#111827] font-semibold mb-5">Strongest profile dimensions</h2>
+                    <div className="grid grid-cols-2 gap-6">
+                      {traitClusterBars.map((cluster) => (
+                        <div key={cluster.name}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm text-[#111827] font-medium">{cluster.name}</span>
+                            <span className="text-sm font-semibold" style={{ color: cluster.color }}>{cluster.value}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
+                            <div
+                              className="h-full transition-all duration-500"
+                              style={{ width: `${cluster.value}%`, backgroundColor: cluster.color, borderRadius: '4px' }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full h-2 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
-                          <div
-                            className="h-full transition-all duration-500"
-                            style={{ width: `${cluster.value}%`, backgroundColor: cluster.color, borderRadius: '4px' }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Dimension Breakdown (Spec 7 §3.3) */}
-                {candidate.traitScores && Object.keys(candidate.traitScores).length > 0 && (() => {
-                  // Mock employer weights (replace with real role template data when available)
-                  const employerWeights: Record<string, number> = {
-                    adaptability: 70,
-                    decisionMaking: 65,
-                    communication: 80,
-                    cognitiveAgility: 72,
-                    collaboration: 75,
-                    ownership: 68,
-                  };
-                  const dimensionLabels: Record<string, string> = {
-                    adaptability: 'Adaptability',
-                    decisionMaking: 'Decision Making',
-                    communication: 'Communication',
-                    cognitiveAgility: 'Cognitive Agility',
-                    collaboration: 'Collaboration',
-                    ownership: 'Ownership',
-                  };
-                  const rows = Object.entries(candidate.traitScores!)
-                    .filter(([, v]) => v !== undefined && v !== null)
-                    .map(([key, score]) => {
-                      const weight = employerWeights[key] ?? 60;
-                      const gap = (score as number) - weight;
-                      return { key, label: dimensionLabels[key] ?? key, score: score as number, weight, gap };
-                    });
-
-                  return (
-                    <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
-                      <div className="flex items-center gap-2 mb-5">
-                        <Zap className="w-5 h-5 text-[#8B5CF6]" strokeWidth={2} />
-                        <h2 className="text-base text-[#111827] font-semibold">Dimension Breakdown</h2>
-                        <span className="ml-auto text-xs text-[#9CA3AF]">vs. role weighting</span>
-                      </div>
-                      <div className="space-y-3">
-                        {rows.map(({ key, label, score, weight, gap }) => {
-                          const hasDivergence = Math.abs(gap) > 15;
-                          const scoreColor = score >= 75 ? '#10B981' : score >= 50 ? '#F59E0B' : '#9CA3AF';
-                          return (
-                            <div key={key}>
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-sm text-[#111827]">{label}</span>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xs text-[#9CA3AF]">Weight: {weight}</span>
-                                  <span className="text-sm font-semibold" style={{ color: scoreColor }}>{score}</span>
-                                  {hasDivergence && (
-                                    <span className={`text-xs font-medium px-1.5 py-0.5 ${gap > 0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#EF4444]/10 text-[#EF4444]'}`} style={{ borderRadius: '4px' }}>
-                                      {gap > 0 ? '+' : ''}{gap}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="relative w-full h-2 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
-                                {/* Employer weight marker */}
-                                <div className="absolute top-0 h-full w-0.5 bg-[#111827]/20 z-10" style={{ left: `${weight}%` }} />
-                                {/* Candidate score bar */}
-                                <div className="h-full transition-all duration-500" style={{ width: `${score}%`, backgroundColor: scoreColor, borderRadius: '4px' }} />
+                {/* Dimension Breakdown — Spec 1 / candidate_profiles columns */}
+                {profileDims && (
+                  <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                    <div className="flex items-center gap-2 mb-5">
+                      <Zap className="w-5 h-5 text-[#8B5CF6]" strokeWidth={2} />
+                      <h2 className="text-base text-[#111827] font-semibold">Dimension breakdown</h2>
+                      <span className="ml-auto text-xs text-[#9CA3AF]">vs. mock role target (0–100)</span>
+                    </div>
+                    <div className="space-y-3">
+                      {TRAIT_DIMENSION_KEYS.map((key) => {
+                        const score = Math.round(profileDims[key]);
+                        const target = MOCK_ROLE_TARGET_BY_KEY[key];
+                        const gap = score - target;
+                        const hasDivergence = Math.abs(gap) > 15;
+                        const scoreColor = score >= 75 ? '#10B981' : score >= 50 ? '#F59E0B' : '#9CA3AF';
+                        return (
+                          <div key={key}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-sm text-[#111827]">{TRAIT_LABELS[key]}</span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-[#9CA3AF]">Target: {target}</span>
+                                <span className="text-sm font-semibold" style={{ color: scoreColor }}>{score}</span>
+                                {hasDivergence && (
+                                  <span className={`text-xs font-medium px-1.5 py-0.5 ${gap > 0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#EF4444]/10 text-[#EF4444]'}`} style={{ borderRadius: '4px' }}>
+                                    {gap > 0 ? '+' : ''}{gap}
+                                  </span>
+                                )}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                      <p className="text-xs text-[#9CA3AF] mt-4">Divergence flag (±) shown when gap exceeds 15 points from role weighting.</p>
+                            <div className="relative w-full h-2 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
+                              <div className="absolute top-0 h-full w-0.5 bg-[#111827]/20 z-10" style={{ left: `${target}%` }} />
+                              <div className="h-full transition-all duration-500" style={{ width: `${score}%`, backgroundColor: scoreColor, borderRadius: '4px' }} />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })()}
+                    <p className="text-xs text-[#9CA3AF] mt-4">Divergence flag (±) when the gap to the mock target exceeds 15 points.</p>
+                  </div>
+                )}
 
-                {/* Motivational Fit (Spec 7 §3.3) */}
+                {/* Motivational sub-dimensions (intake section 6 — same keys as profile builder) */}
                 <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
                   <div className="flex items-center gap-2 mb-5">
                     <Heart className="w-5 h-5 text-[#F59E0B]" strokeWidth={2} />
-                    <h2 className="text-base text-[#111827] font-semibold">Motivational Fit</h2>
+                    <h2 className="text-base text-[#111827] font-semibold">Motivational profile</h2>
                   </div>
-                  {(() => {
-                    // Candidate's motivational rankings (mock — will be from intake section 6)
-                    const motivations = [
-                      { label: 'Mastery', rank: 1, score: 88, roleExpected: true },
-                      { label: 'Impact', rank: 2, score: 82, roleExpected: true },
-                      { label: 'Autonomy', rank: 3, score: 74, roleExpected: false },
-                      { label: 'Recognition', rank: 4, score: 61, roleExpected: false },
-                    ];
-                    return (
-                      <div className="space-y-3">
-                        {motivations.map((m) => (
-                          <div key={m.label} className="flex items-center gap-3 p-3 bg-[#F9F9FA]" style={{ borderRadius: '10px' }}>
-                            <span className="w-5 h-5 rounded-full bg-white border border-black/[0.08] text-xs text-[#6B7280] flex items-center justify-center font-medium shrink-0">{m.rank}</span>
-                            <span className="text-sm text-[#111827] font-medium flex-1">{m.label}</span>
-                            <div className="w-24 h-1.5 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
-                              <div className="h-full bg-[#F59E0B]" style={{ width: `${m.score}%`, borderRadius: '4px' }} />
+                  {profileDims ? (
+                    (() => {
+                      const motivations = [...MOTIVATIONAL_FIT_SUB_KEYS.map((k) => ({
+                        label: MOTIVATIONAL_FIT_SUB_LABELS[k],
+                        score: Math.round(profileDims[k]),
+                      }))].sort((a, b) => b.score - a.score).map((m, i) => ({
+                        ...m,
+                        rank: i + 1,
+                        roleExpected: i < 2,
+                      }));
+                      return (
+                        <div className="space-y-3">
+                          {motivations.map((m) => (
+                            <div key={m.label} className="flex flex-wrap items-center gap-3 p-3 bg-[#F9F9FA]" style={{ borderRadius: '10px' }}>
+                              <span className="w-5 h-5 rounded-full bg-white border border-black/[0.08] text-xs text-[#6B7280] flex items-center justify-center font-medium shrink-0">{m.rank}</span>
+                              <span className="text-sm text-[#111827] font-medium flex-1 min-w-[8rem]">{m.label}</span>
+                              <div className="w-24 h-1.5 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
+                                <div className="h-full bg-[#F59E0B]" style={{ width: `${m.score}%`, borderRadius: '4px' }} />
+                              </div>
+                              <span className="text-xs text-[#9CA3AF] w-8 text-right">{m.score}</span>
+                              {m.roleExpected && (
+                                <span className="text-xs px-1.5 py-0.5 bg-[#10B981]/10 text-[#10B981] font-medium" style={{ borderRadius: '4px' }}>Top driver</span>
+                              )}
                             </div>
-                            <span className="text-xs text-[#9CA3AF] w-6 text-right">{m.score}</span>
-                            {m.roleExpected && (
-                              <span className="text-xs px-1.5 py-0.5 bg-[#10B981]/10 text-[#10B981] font-medium" style={{ borderRadius: '4px' }}>Role fit</span>
-                            )}
-                          </div>
-                        ))}
-                        <p className="text-xs text-[#9CA3AF] pt-1">Role fit badges indicate alignment with this role's expected motivation signals.</p>
-                      </div>
-                    );
-                  })()}
+                          ))}
+                          <p className="text-xs text-[#9CA3AF] pt-1">Ranked by score from the applicant profile builder (Section 6).</p>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <p className="text-sm text-[#6B7280]">No motivational dimension data on this profile.</p>
+                  )}
                 </div>
 
-                {/* Strengths and Growth Areas */}
+                {/* Strengths and Growth Areas — derived from core six ordering */}
                 <div className="grid grid-cols-2 gap-6">
-                  {/* Strengths */}
                   <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
                     <div className="flex items-center gap-2 mb-4">
                       <CheckCircle2 className="w-5 h-5 text-[#34D399]" strokeWidth={2} />
-                      <h3 className="text-base text-[#111827] font-semibold">Core Strengths</h3>
+                      <h3 className="text-base text-[#111827] font-semibold">Core strengths</h3>
                     </div>
                     <div className="space-y-3">
-                      {strengths.map((strength, idx) => (
-                        <div key={idx} className="p-3 bg-[#34D399]/5 border border-[#34D399]/10" style={{ borderRadius: '10px' }}>
-                          <p className="text-sm text-[#111827] font-medium mb-1">{strength.label}</p>
-                          <p className="text-xs text-[#6B7280]">{strength.description}</p>
-                        </div>
-                      ))}
+                      {derivedStrengths.length > 0 ? (
+                        derivedStrengths.map((strength, idx) => (
+                          <div key={idx} className="p-3 bg-[#34D399]/5 border border-[#34D399]/10" style={{ borderRadius: '10px' }}>
+                            <p className="text-sm text-[#111827] font-medium mb-1">{strength.label}</p>
+                            <p className="text-xs text-[#6B7280]">{strength.description}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-[#6B7280]">Trait scores will appear here after intake.</p>
+                      )}
                     </div>
                   </div>
 
-                  {/* Growth Areas */}
                   <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
                     <div className="flex items-center gap-2 mb-4">
                       <TrendingUp className="w-5 h-5 text-[#3B82F6]" strokeWidth={2} />
-                      <h3 className="text-base text-[#111827] font-semibold">Growth Areas</h3>
+                      <h3 className="text-base text-[#111827] font-semibold">Growth areas</h3>
                     </div>
                     <div className="space-y-3">
-                      {growthAreas.map((area, idx) => (
-                        <div key={idx} className="p-3 bg-[#3B82F6]/5 border border-[#3B82F6]/10" style={{ borderRadius: '10px' }}>
-                          <p className="text-sm text-[#111827] font-medium mb-1">{area.label}</p>
-                          <p className="text-xs text-[#6B7280]">{area.description}</p>
-                        </div>
-                      ))}
+                      {derivedGrowth.length > 0 ? (
+                        derivedGrowth.map((area, idx) => (
+                          <div key={idx} className="p-3 bg-[#3B82F6]/5 border border-[#3B82F6]/10" style={{ borderRadius: '10px' }}>
+                            <p className="text-sm text-[#111827] font-medium mb-1">{area.label}</p>
+                            <p className="text-xs text-[#6B7280]">{area.description}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-[#6B7280]">Trait scores will appear here after intake.</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -549,43 +593,40 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
             {/* Signature Traits Section */}
             {activeSection === 'traits' && (
               <div className="space-y-6">
-                <h2 className="text-lg text-[#111827] font-semibold">Signature Traits</h2>
-
-                {/* Grouped Traits */}
-                <div className="space-y-6">
-                  {['Collaboration', 'Cognition', 'Execution'].map((group) => (
-                    <div key={group} className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
-                      <h3 className="text-sm text-[#111827] font-semibold mb-4">{group}</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {candidate.traits.slice(0, 3).map((trait, idx) => (
+                <h2 className="text-lg text-[#111827] font-semibold">Signature traits</h2>
+                <p className="text-sm text-[#6B7280]">
+                  Top dimensions from the same Spec 1 model as the applicant profile builder (signature = highest core scores).
+                </p>
+                <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                  <h3 className="text-sm text-[#111827] font-semibold mb-4">Top dimensions</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {profileDims && coreSorted.length > 0
+                      ? coreSorted.slice(0, 3).map((row) => (
                           <div
-                            key={`${group}-${idx}`}
+                            key={row.key}
                             className="group relative px-4 py-2.5 bg-[#7DBBFF]/10 text-[#7DBBFF] text-sm font-medium hover:bg-[#7DBBFF]/20 transition-all cursor-pointer"
                             style={{ borderRadius: '10px' }}
                           >
                             <div className="flex items-center gap-2">
-                              <span>{trait}</span>
-                              <div className="flex gap-0.5">
-                                {[1, 2, 3].map((dot) => (
-                                  <div
-                                    key={dot}
-                                    className={`w-1 h-1 rounded-full ${
-                                      dot <= 2 ? 'bg-[#7DBBFF]' : 'bg-[#7DBBFF]/30'
-                                    }`}
-                                  />
-                                ))}
-                              </div>
+                              <span>{TRAIT_LABELS[row.key]}</span>
+                              <span className="text-xs font-semibold text-[#111827]/70">{Math.round(row.score)}</span>
                             </div>
-                            {/* Tooltip */}
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[#111827] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ borderRadius: '8px' }}>
-                              High strength indicator
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[#111827] text-white text-xs max-w-[240px] text-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ borderRadius: '8px' }}>
+                              From intake-derived dimension scores
                               <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-[#111827] transform rotate-45" />
                             </div>
                           </div>
+                        ))
+                      : candidate.traits.slice(0, 3).map((trait) => (
+                          <div
+                            key={trait}
+                            className="px-4 py-2.5 bg-[#7DBBFF]/10 text-[#7DBBFF] text-sm font-medium"
+                            style={{ borderRadius: '10px' }}
+                          >
+                            {trait}
+                          </div>
                         ))}
-                      </div>
-                    </div>
-                  ))}
+                  </div>
                 </div>
               </div>
             )}

@@ -1,12 +1,9 @@
 /**
- * 01 · Hiring Profile — Dark-themed radar chart with state toggle buttons
- * 
+ * 01 · Hiring Profile — Radar chart with state toggle buttons
+ *
  * State 1: Weights only (blue), info callout
  * State 2: Weights + Hired Avg (blue + amber/orange)
  * State 3: Weights + Hired Avg + Top Performers (all three)
- * 
- * Dark background chart matching reference design.
- * Divergence callouts auto-generated when gap > 10pts.
  */
 
 import { useState } from 'react';
@@ -53,12 +50,12 @@ export function HiringProfileSection({
     'Top performer avg': Math.round(topPerformerAverages[dim] || 0),
   }));
 
-  const significantDivergences = divergences.filter(d => Math.abs(d.divergence) > 10);
+  const significantDivergences = divergences.filter((d) => Math.abs(d.divergence) > 10);
 
   const stateDescriptions: Record<DataState, string> = {
-    1: 'Only your weighting is visible. Hire and review at least 5 candidates to unlock the hired average layer.',
-    2: 'Two layers visible. The hired average (orange) shows who you\'re actually selecting — compare it against your stated weighting (blue) to spot drift.',
-    3: 'Three layers visible. Compare where your top performers (green) diverge from your weighting (blue) — that divergence tells you which traits actually predict success in your environment vs what you thought mattered.',
+    1: "Only your weighting is visible. Hire and review at least 5 candidates to unlock the hired average layer.",
+    2: "Two layers visible. The hired average (orange) shows who you're actually selecting — compare it against your stated weighting (blue) to spot drift.",
+    3: "Three layers visible. Compare where your top performers (green) diverge from your weighting (blue) — that divergence tells you which traits actually predict success in your environment vs what you thought mattered.",
   };
 
   return (
@@ -70,76 +67,63 @@ export function HiringProfileSection({
         body="Here's the first chart — Panel 1, the hiring profile radar chart showing the three layers that build up over time."
       />
 
-      {/* State Toggle Buttons */}
-      <div className="flex gap-2 mb-5">
-        {STATE_BUTTONS.map(({ state, label }) => (
-          <button
-            key={state}
-            onClick={() => setPreviewState(state)}
-            style={{
-              padding: '8px 16px',
-              fontSize: '13px',
-              fontWeight: 600,
-              color: previewState === state ? '#fff' : '#9CA3AF',
-              background: previewState === state ? '#374151' : 'transparent',
-              border: previewState === state ? '1.5px solid #6B7280' : '1px solid #4B5563',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="mb-5 flex flex-wrap gap-2">
+        {STATE_BUTTONS.map(({ state, label }) => {
+          const on = previewState === state;
+          return (
+            <button
+              key={state}
+              type="button"
+              onClick={() => setPreviewState(state)}
+              className={`rounded-md px-4 py-2 text-[13px] font-semibold transition-colors ${
+                on
+                  ? 'border border-[#7dbbff] bg-[#7dbbff]/10 text-[#111827]'
+                  : 'border border-black/[0.08] bg-white text-[#9CA3AF] hover:border-black/[0.12] hover:text-[#6B7280]'
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-5 mb-4" style={{ fontSize: '13px', color: '#9CA3AF' }}>
+      <div className="mb-4 flex flex-wrap items-center gap-5 text-[13px] text-[#9CA3AF]">
         <div className="flex items-center gap-2">
-          <div style={{ width: 12, height: 12, borderRadius: 2, background: '#7DBBFF' }} />
+          <div className="h-3 w-3 rounded-sm bg-[#7DBBFF]" />
           <span>Your weighting</span>
         </div>
         {dataState >= 2 && (
           <div className="flex items-center gap-2">
-            <div style={{ width: 12, height: 12, borderRadius: 2, background: '#F59E0B' }} />
+            <div className="h-3 w-3 rounded-sm bg-[#F59E0B]" />
             <span>Hired average</span>
           </div>
         )}
         {dataState >= 3 && (
           <div className="flex items-center gap-2">
-            <div style={{ width: 12, height: 12, borderRadius: 2, background: '#10B981' }} />
+            <div className="h-3 w-3 rounded-sm bg-[#10B981]" />
             <span>Top performer avg</span>
           </div>
         )}
       </div>
 
-      {/* Dark Radar Chart Card */}
-      <div
-        style={{
-          background: '#1F2937',
-          borderRadius: '14px',
-          padding: '28px 20px 20px',
-          marginBottom: '20px',
-        }}
-      >
+      <div className="mb-5 rounded-md border border-black/[0.08] bg-white px-5 pb-5 pt-7">
         <ResponsiveContainer width="100%" height={420}>
           <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
-            <PolarGrid stroke="#374151" strokeWidth={1} />
+            <PolarGrid stroke="rgba(0,0,0,0.08)" strokeWidth={1} />
             <PolarAngleAxis
               dataKey="dimension"
-              tick={{ fill: '#D1D5DB', fontSize: 12 }}
+              tick={{ fill: '#374151', fontSize: 12 }}
               tickLine={false}
             />
             <PolarRadiusAxis
               angle={90}
               domain={[0, 100]}
               tickCount={6}
-              tick={{ fill: '#6B7280', fontSize: 10 }}
+              tick={{ fill: '#9CA3AF', fontSize: 10 }}
               axisLine={false}
-              stroke="#374151"
+              stroke="rgba(0,0,0,0.08)"
             />
 
-            {/* Layer 3: Top performers (green) — rendered first so it's behind */}
             {dataState >= 3 && (
               <Radar
                 name="Top performer avg"
@@ -152,7 +136,6 @@ export function HiringProfileSection({
               />
             )}
 
-            {/* Layer 2: Hired average (orange/amber) */}
             {dataState >= 2 && (
               <Radar
                 name="Hired average"
@@ -165,7 +148,6 @@ export function HiringProfileSection({
               />
             )}
 
-            {/* Layer 1: Your weighting (blue) — always visible, on top */}
             <Radar
               name="Your weighting"
               dataKey="Your weighting"
@@ -178,34 +160,24 @@ export function HiringProfileSection({
 
             <Tooltip
               contentStyle={{
-                backgroundColor: '#111827',
-                border: '1px solid #374151',
+                backgroundColor: '#ffffff',
+                border: '1px solid rgba(0,0,0,0.08)',
                 borderRadius: '8px',
-                color: '#fff',
+                color: '#111827',
                 fontSize: '12px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
               }}
             />
           </RadarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* State Description */}
-      <p
-        style={{
-          fontSize: '14px',
-          color: '#6B7280',
-          lineHeight: 1.6,
-          marginBottom: '20px',
-          fontStyle: 'italic',
-        }}
-      >
-        {stateDescriptions[dataState]}
-      </p>
+      <p className="mb-5 text-sm italic leading-relaxed text-[#6B7280]">{stateDescriptions[dataState]}</p>
 
-      {/* Callouts */}
       {dataState === 1 && (
         <Callout variant="info">
-          Once you have 5+ performance snapshots, we'll overlay the average profile of your hired candidates so you can see where your actual hires differ from your stated priorities.
+          Once you have 5+ performance snapshots, we'll overlay the average profile of your hired candidates so you
+          can see where your actual hires differ from your stated priorities.
         </Callout>
       )}
 
@@ -222,7 +194,7 @@ export function HiringProfileSection({
 
               return (
                 <Callout key={`div-${div.dimension}-${idx}`} variant={variant}>
-                  <span style={{ fontWeight: 600 }}>{DIMENSION_LABELS[div.dimension]}</span>
+                  <span className="font-semibold">{DIMENSION_LABELS[div.dimension]}</span>
                   {' — '}
                   {div.callout || `${Math.round(div.divergence)}pt gap between your weight and top performer average.`}
                 </Callout>
