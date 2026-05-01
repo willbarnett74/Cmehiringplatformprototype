@@ -1,15 +1,26 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { OverviewScreen } from './components/OverviewScreen';
-import { ApplicantScreen } from './components/ApplicantScreen';
-import { EmployerScreen } from './components/EmployerScreen';
-import { DesignSystem } from './components/DesignSystem';
-import { AssessmentLink } from './pages/AssessmentLink';
-import { PulseCheckForm } from './pages/PulseCheckForm';
 import { LoginScreen } from './components/LoginScreen';
 import { Sparkles, Palette } from 'lucide-react';
 import { UserProfileProvider } from './contexts/UserProfileContext';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
+
+const ApplicantScreen = lazy(() =>
+  import('./components/ApplicantScreen').then((module) => ({ default: module.ApplicantScreen })),
+);
+const EmployerScreen = lazy(() =>
+  import('./components/EmployerScreen').then((module) => ({ default: module.EmployerScreen })),
+);
+const DesignSystem = lazy(() =>
+  import('./components/DesignSystem').then((module) => ({ default: module.DesignSystem })),
+);
+const AssessmentLink = lazy(() =>
+  import('./pages/AssessmentLink').then((module) => ({ default: module.AssessmentLink })),
+);
+const PulseCheckForm = lazy(() =>
+  import('./pages/PulseCheckForm').then((module) => ({ default: module.PulseCheckForm })),
+);
 
 type Tab = 'overview' | 'applicant' | 'employer' | 'design' | 'assessment' | 'pulsecheck';
 
@@ -136,12 +147,14 @@ export default function App() {
 
         {/* Screen Content */}
         <main>
-          {activeTab === 'overview' && <OverviewScreen onNavigate={handleNavigateToPath} />}
-          {activeTab === 'applicant' && (session ? <ApplicantScreen /> : <LoginScreen />)}
-          {activeTab === 'employer' && (session ? <EmployerScreen /> : <LoginScreen />)}
-          {activeTab === 'design' && <DesignSystem />}
-          {activeTab === 'assessment' && <AssessmentLink />}
-          {activeTab === 'pulsecheck' && <PulseCheckForm />}
+          <Suspense fallback={<div className="min-h-[420px] bg-[#fafafa]" />}>
+            {activeTab === 'overview' && <OverviewScreen onNavigate={handleNavigateToPath} />}
+            {activeTab === 'applicant' && (session ? <ApplicantScreen /> : <LoginScreen />)}
+            {activeTab === 'employer' && (session ? <EmployerScreen /> : <LoginScreen />)}
+            {activeTab === 'design' && <DesignSystem />}
+            {activeTab === 'assessment' && <AssessmentLink />}
+            {activeTab === 'pulsecheck' && <PulseCheckForm />}
+          </Suspense>
         </main>
       </div>
     </UserProfileProvider>

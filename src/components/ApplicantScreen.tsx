@@ -563,8 +563,12 @@ export function ApplicantScreen() {
             </ProfileBuilderLayout>
           ) : (
           <div className="px-9 pb-12 pt-7">
-            {activeSection === 'dashboard' ? (
+            <div className={activeSection === 'dashboard' ? 'block' : 'hidden'}>
               <DashboardContent
+                userId={userId}
+                applicantProfileId={applicantProfileId}
+                initialName={userName}
+                initialCurrentSituation={sidebarSituation}
                 onProfileBuilderClick={handleProfileBuilderClick}
                 onEditProfile={() => setShowEditBasicInfo(true)}
                 onViewAllOpportunities={(opportunityId) => {
@@ -587,7 +591,7 @@ export function ApplicantScreen() {
                   };
                 })()}
               />
-            ) : null}
+            </div>
             {activeSection === 'opportunities' ? (
               <ApplicantOpportunitiesPanel
                 selectedOpportunityId={selectedOpportunityId}

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Pencil, Check, ArrowRight } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
-import { ensureApplicantProfile } from '../../lib/applicantPersistence';
 import type { DimensionScores } from '../../utils/intakeScoring';
 import type { CandidateActivityEventType } from '../../types/supabase';
 import {
@@ -17,6 +16,10 @@ export interface DashboardSection1Narratives {
 }
 
 export interface DashboardContentProps {
+  userId: string | null;
+  applicantProfileId: string | null;
+  initialName?: string;
+  initialCurrentSituation?: string;
   onProfileBuilderClick: (stepId?: number) => void;
   onEditProfile: () => void;
   onViewAllOpportunities: (opportunityId?: number) => void;
@@ -127,6 +130,21 @@ type Section7Parts = {
   growthTeaser: string | null;
 };
 
+type DashboardCache = {
+  name: string;
+  avatarUrl: string | null;
+  location: string | null;
+  experienceYears: string | null;
+  education: string | null;
+  availability: string | null;
+  summary: string | null;
+  currentSituation: string | null;
+  preferredRolesDb: string[];
+  workTypeDb: string[];
+  orgSizeDb: string | null;
+  activityRows: Array<{ id: string; event_type: CandidateActivityEventType; body: string; created_at: string }>;
+};
+
 function parseIntakeSection7(raw: Record<string, unknown> | undefined): Section7Parts | null {
   if (!raw || typeof raw !== 'object') return null;
   const q1 = raw.S7Q1 as { looking_for?: string[] } | undefined;
@@ -151,6 +169,10 @@ function parseIntakeSection7(raw: Record<string, unknown> | undefined): Section7
 }
 
 export function DashboardContent({
+  userId,
+  applicantProfileId,
+  initialName = '',
+  initialCurrentSituation = '',
   onProfileBuilderClick,
   onEditProfile,
   onViewAllOpportunities,
@@ -160,7 +182,7 @@ export function DashboardContent({
   intakeSection7,
   profileRefreshKey = 0,
 }: DashboardContentProps) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [location, setLocation] = useState<string | null>(null);
@@ -168,7 +190,7 @@ export function DashboardContent({
   const [education, setEducation] = useState<string | null>(null);
   const [availability, setAvailability] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
-  const [currentSituation, setCurrentSituation] = useState<string | null>(null);
+  const [currentSituation, setCurrentSituation] = useState<string | null>(initialCurrentSituation || null);
   const [preferredRolesDb, setPreferredRolesDb] = useState<string[]>([]);
   const [workTypeDb, setWorkTypeDb] = useState<string[]>([]);
   const [orgSizeDb, setOrgSizeDb] = useState<string | null>(null);
@@ -177,97 +199,170 @@ export function DashboardContent({
     Array<{ id: string; event_type: CandidateActivityEventType; body: string; created_at: string }>
   >([]);
 
+  const applyDashboardCache = (cache: DashboardCache) => {
+    setName(cache.name);
+    setAvatarUrl(cache.avatarUrl);
+    setAvatarLoadFailed(false);
+    setLocation(cache.location);
+    setExperienceYears(cache.experienceYears);
+    setEducation(cache.education);
+    setAvailability(cache.availability);
+    setSummary(cache.summary);
+    setCurrentSituation(cache.currentSituation);
+    setPreferredRolesDb(cache.preferredRolesDb);
+    setWorkTypeDb(cache.workTypeDb);
+    setOrgSizeDb(cache.orgSizeDb);
+    setActivityRows(cache.activityRows);
+  };
+
+  useEffect(() => {
+    if (initialName) setName(initialName);
+  }, [initialName]);
+
+  useEffect(() => {
+    if (initialCurrentSituation) setCurrentSituation(initialCurrentSituation);
+  }, [initialCurrentSituation]);
+
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      const cached = localStorage.getItem(`cme_applicant_dashboard_${userId}`);
+      if (!cached) return;
+      applyDashboardCache(JSON.parse(cached) as DashboardCache);
+      setHasLoaded(true);
+    } catch {
+      // Ignore corrupt or unavailable browser storage and fall back to Supabase.
+    }
+  }, [userId]);
+
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
       setHasLoaded(true);
       return;
     }
-    const client = supabase;
-    void client.auth
-      .getSession()
-      .then(async ({ data: { session } }) => {
-        try {
-          if (!session?.user?.id) return;
+    if (!userId || !applicantProfileId) return;
 
-          const { data: profileRow } = await client
+    const client = supabase;
+    void (async () => {
+      try {
+        const [profileResult, candidateResult, eventsResult] = await Promise.all([
+          client
             .from('profiles')
             .select('full_name,avatar_url')
-            .eq('id', session.user.id)
-            .maybeSingle();
-          setName(typeof profileRow?.full_name === 'string' ? profileRow.full_name : '');
-          setAvatarUrl(typeof profileRow?.avatar_url === 'string' ? profileRow.avatar_url : null);
-          setAvatarLoadFailed(false);
-
-          const profileId = await ensureApplicantProfile(client, session.user.id);
-          if (!profileId) return;
-
-          const { data } = await client
+            .eq('id', userId)
+            .maybeSingle(),
+          client
             .from('candidate_profiles')
             .select(
               'location,experience_years,education_summary,availability,experience_narrative,intake_status,current_situation,preferred_role_types,preferred_work_type,org_size_preference',
             )
-            .eq('id', profileId)
-            .maybeSingle();
-
-          if (data) {
-            setLocation(typeof data.location === 'string' && data.location ? data.location : null);
-            setExperienceYears(
-              data.experience_years != null && data.experience_years !== ''
-                ? `${data.experience_years} years`
-                : null,
-            );
-            setEducation(
-              typeof data.education_summary === 'string' && data.education_summary
-                ? data.education_summary
-                : null,
-            );
-            setAvailability(
-              typeof data.availability === 'string' && data.availability ? data.availability : null,
-            );
-            setSummary(
-              typeof data.experience_narrative === 'string' && data.experience_narrative
-                ? data.experience_narrative
-                : null,
-            );
-            setCurrentSituation(
-              typeof data.current_situation === 'string' && data.current_situation
-                ? data.current_situation
-                : null,
-            );
-            const pr = data.preferred_role_types as string[] | null;
-            setPreferredRolesDb(Array.isArray(pr) ? pr : []);
-            const pw = data.preferred_work_type as string[] | null;
-            setWorkTypeDb(Array.isArray(pw) ? pw : []);
-            setOrgSizeDb(
-              typeof data.org_size_preference === 'string' ? data.org_size_preference : null,
-            );
-          }
-
-          const { data: events, error: eventsErr } = await client
+            .eq('id', applicantProfileId)
+            .maybeSingle(),
+          client
             .from('candidate_activity_events')
             .select('id,event_type,body,created_at')
-            .eq('user_id', session.user.id)
+            .eq('user_id', userId)
             .order('created_at', { ascending: false })
-            .limit(12);
+            .limit(12),
+        ]);
 
-          if (!eventsErr && events) {
-            setActivityRows(
-              events as Array<{
+        const profileRow = profileResult.data;
+        setName(typeof profileRow?.full_name === 'string' ? profileRow.full_name : initialName);
+        setAvatarUrl(typeof profileRow?.avatar_url === 'string' ? profileRow.avatar_url : null);
+        setAvatarLoadFailed(false);
+
+        const data = candidateResult.data;
+        if (data) {
+          setLocation(typeof data.location === 'string' && data.location ? data.location : null);
+          setExperienceYears(
+            data.experience_years != null && data.experience_years !== ''
+              ? `${data.experience_years} years`
+              : null,
+          );
+          setEducation(
+            typeof data.education_summary === 'string' && data.education_summary
+              ? data.education_summary
+              : null,
+          );
+          setAvailability(
+            typeof data.availability === 'string' && data.availability ? data.availability : null,
+          );
+          setSummary(
+            typeof data.experience_narrative === 'string' && data.experience_narrative
+              ? data.experience_narrative
+              : null,
+          );
+          setCurrentSituation(
+            typeof data.current_situation === 'string' && data.current_situation
+              ? data.current_situation
+              : initialCurrentSituation || null,
+          );
+          const pr = data.preferred_role_types as string[] | null;
+          setPreferredRolesDb(Array.isArray(pr) ? pr : []);
+          const pw = data.preferred_work_type as string[] | null;
+          setWorkTypeDb(Array.isArray(pw) ? pw : []);
+          setOrgSizeDb(
+            typeof data.org_size_preference === 'string' ? data.org_size_preference : null,
+          );
+        }
+
+        const nextActivityRows =
+          !eventsResult.error && eventsResult.data
+            ? (eventsResult.data as Array<{
                 id: string;
                 event_type: CandidateActivityEventType;
                 body: string;
                 created_at: string;
-              }>,
-            );
-          }
-        } finally {
-          setHasLoaded(true);
+              }>)
+            : activityRows;
+
+        if (!eventsResult.error && eventsResult.data) {
+          setActivityRows(nextActivityRows);
         }
-      })
-      .catch(() => {
+
+        try {
+          localStorage.setItem(
+            `cme_applicant_dashboard_${userId}`,
+            JSON.stringify({
+              name: typeof profileRow?.full_name === 'string' ? profileRow.full_name : initialName,
+              avatarUrl: typeof profileRow?.avatar_url === 'string' ? profileRow.avatar_url : null,
+              location: data && typeof data.location === 'string' && data.location ? data.location : null,
+              experienceYears:
+                data && data.experience_years != null && data.experience_years !== ''
+                  ? `${data.experience_years} years`
+                  : null,
+              education:
+                data && typeof data.education_summary === 'string' && data.education_summary
+                  ? data.education_summary
+                  : null,
+              availability:
+                data && typeof data.availability === 'string' && data.availability ? data.availability : null,
+              summary:
+                data && typeof data.experience_narrative === 'string' && data.experience_narrative
+                  ? data.experience_narrative
+                  : null,
+              currentSituation:
+                data && typeof data.current_situation === 'string' && data.current_situation
+                  ? data.current_situation
+                  : initialCurrentSituation || null,
+              preferredRolesDb:
+                data && Array.isArray(data.preferred_role_types) ? data.preferred_role_types : [],
+              workTypeDb: data && Array.isArray(data.preferred_work_type) ? data.preferred_work_type : [],
+              orgSizeDb:
+                data && typeof data.org_size_preference === 'string' ? data.org_size_preference : null,
+              activityRows: nextActivityRows,
+            } satisfies DashboardCache),
+          );
+        } catch {
+          // Storage is only a speed hint; ignore quota/private-mode failures.
+        }
+      } finally {
         setHasLoaded(true);
-      });
-  }, [profileRefreshKey]);
+      }
+    })().catch(() => {
+      setHasLoaded(true);
+    });
+  }, [applicantProfileId, initialCurrentSituation, initialName, profileRefreshKey, userId]);
 
   const initials = name
     .trim()
@@ -433,7 +528,7 @@ export function DashboardContent({
               onError={() => setAvatarLoadFailed(true)}
             />
           ) : null}
-          {hasLoaded && (!avatarUrl || avatarLoadFailed) && initials ? (
+          {(!avatarUrl || avatarLoadFailed) && initials ? (
             <span className="text-[18px] font-semibold text-white">{initials}</span>
           ) : null}
         </div>
@@ -443,14 +538,14 @@ export function DashboardContent({
               className="text-[22px] font-semibold tracking-[-0.025em] text-[#111827]"
               style={{ lineHeight: 1.3 }}
             >
-              {hasLoaded ? name.trim() || '—' : '…'}
+              {name.trim() || (hasLoaded ? '—' : '…')}
             </h2>
             {roleHeadline ? (
               <span className="text-[13px] text-[#9CA3AF]">{roleHeadline}</span>
             ) : null}
           </div>
           <p className="mb-4 text-[12.5px] text-[#6B7280]">
-            {hasLoaded ? currentSituation || 'Situation not set' : '…'}
+            {currentSituation || (hasLoaded ? 'Situation not set' : '…')}
           </p>
           <div className="flex flex-wrap gap-x-7 gap-y-2.5">
             {metaFieldsRow1.map((f) => (
