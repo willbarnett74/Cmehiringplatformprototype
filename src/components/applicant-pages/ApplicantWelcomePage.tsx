@@ -66,6 +66,7 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
         full_name: name.trim() || null,
         location: location.trim() || null,
         current_situation: currentRole.trim() || null,
+        job_title: currentRole.trim() || null,
         age: age ? parseInt(age, 10) : null,
         availability: availability || null,
       });

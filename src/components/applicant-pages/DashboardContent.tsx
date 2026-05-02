@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Pencil, Check, ArrowRight } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
+import { ensureApplicantProfile } from '../../lib/applicantPersistence';
 import type { DimensionScores } from '../../utils/intakeScoring';
 import type { CandidateActivityEventType } from '../../types/supabase';
 import {
@@ -130,21 +131,6 @@ type Section7Parts = {
   growthTeaser: string | null;
 };
 
-type DashboardCache = {
-  name: string;
-  avatarUrl: string | null;
-  location: string | null;
-  experienceYears: string | null;
-  education: string | null;
-  availability: string | null;
-  summary: string | null;
-  currentSituation: string | null;
-  preferredRolesDb: string[];
-  workTypeDb: string[];
-  orgSizeDb: string | null;
-  activityRows: Array<{ id: string; event_type: CandidateActivityEventType; body: string; created_at: string }>;
-};
-
 function parseIntakeSection7(raw: Record<string, unknown> | undefined): Section7Parts | null {
   if (!raw || typeof raw !== 'object') return null;
   const q1 = raw.S7Q1 as { looking_for?: string[] } | undefined;
@@ -199,169 +185,99 @@ export function DashboardContent({
     Array<{ id: string; event_type: CandidateActivityEventType; body: string; created_at: string }>
   >([]);
 
-  const applyDashboardCache = (cache: DashboardCache) => {
-    setName(cache.name);
-    setAvatarUrl(cache.avatarUrl);
-    setAvatarLoadFailed(false);
-    setLocation(cache.location);
-    setExperienceYears(cache.experienceYears);
-    setEducation(cache.education);
-    setAvailability(cache.availability);
-    setSummary(cache.summary);
-    setCurrentSituation(cache.currentSituation);
-    setPreferredRolesDb(cache.preferredRolesDb);
-    setWorkTypeDb(cache.workTypeDb);
-    setOrgSizeDb(cache.orgSizeDb);
-    setActivityRows(cache.activityRows);
-  };
-
-  useEffect(() => {
-    if (initialName) setName(initialName);
-  }, [initialName]);
-
-  useEffect(() => {
-    if (initialCurrentSituation) setCurrentSituation(initialCurrentSituation);
-  }, [initialCurrentSituation]);
-
-  useEffect(() => {
-    if (!userId) return;
-    try {
-      const cached = localStorage.getItem(`cme_applicant_dashboard_${userId}`);
-      if (!cached) return;
-      applyDashboardCache(JSON.parse(cached) as DashboardCache);
-      setHasLoaded(true);
-    } catch {
-      // Ignore corrupt or unavailable browser storage and fall back to Supabase.
-    }
-  }, [userId]);
-
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
       setHasLoaded(true);
       return;
     }
-    if (!userId || !applicantProfileId) return;
-
     const client = supabase;
-    void (async () => {
-      try {
-        const [profileResult, candidateResult, eventsResult] = await Promise.all([
-          client
+    void client.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        try {
+          const uid = userId ?? session?.user?.id ?? null;
+          if (!uid) return;
+
+          const { data: profileRow } = await client
             .from('profiles')
             .select('full_name,avatar_url')
-            .eq('id', userId)
-            .maybeSingle(),
-          client
+            .eq('id', uid)
+            .maybeSingle();
+          setName(typeof profileRow?.full_name === 'string' ? profileRow.full_name : initialName);
+          setAvatarUrl(typeof profileRow?.avatar_url === 'string' ? profileRow.avatar_url : null);
+          setAvatarLoadFailed(false);
+
+          const profileId = applicantProfileId ?? await ensureApplicantProfile(client, uid);
+          if (!profileId) return;
+
+          const { data } = await client
             .from('candidate_profiles')
             .select(
-              'location,experience_years,education_summary,availability,experience_narrative,intake_status,current_situation,preferred_role_types,preferred_work_type,org_size_preference',
+              'location,experience_years,education_summary,availability,experience_narrative,intake_status,job_title,current_situation,preferred_role_types,preferred_work_type,org_size_preference',
             )
-            .eq('id', applicantProfileId)
-            .maybeSingle(),
-          client
+            .eq('id', profileId)
+            .maybeSingle();
+
+          if (data) {
+            setLocation(typeof data.location === 'string' && data.location ? data.location : null);
+            setExperienceYears(
+              data.experience_years != null && data.experience_years !== ''
+                ? `${data.experience_years} years`
+                : null,
+            );
+            setEducation(
+              typeof data.education_summary === 'string' && data.education_summary
+                ? data.education_summary
+                : null,
+            );
+            setAvailability(
+              typeof data.availability === 'string' && data.availability ? data.availability : null,
+            );
+            setSummary(
+              typeof data.experience_narrative === 'string' && data.experience_narrative
+                ? data.experience_narrative
+                : null,
+            );
+            setCurrentSituation(
+              typeof data.job_title === 'string' && data.job_title
+                ? data.job_title
+                : typeof data.current_situation === 'string' && data.current_situation
+                  ? data.current_situation
+                  : initialCurrentSituation || null,
+            );
+            const pr = data.preferred_role_types as string[] | null;
+            setPreferredRolesDb(Array.isArray(pr) ? pr : []);
+            const pw = data.preferred_work_type as string[] | null;
+            setWorkTypeDb(Array.isArray(pw) ? pw : []);
+            setOrgSizeDb(
+              typeof data.org_size_preference === 'string' ? data.org_size_preference : null,
+            );
+          }
+
+          const { data: events, error: eventsErr } = await client
             .from('candidate_activity_events')
             .select('id,event_type,body,created_at')
-            .eq('user_id', userId)
+            .eq('user_id', uid)
             .order('created_at', { ascending: false })
-            .limit(12),
-        ]);
+            .limit(12);
 
-        const profileRow = profileResult.data;
-        setName(typeof profileRow?.full_name === 'string' ? profileRow.full_name : initialName);
-        setAvatarUrl(typeof profileRow?.avatar_url === 'string' ? profileRow.avatar_url : null);
-        setAvatarLoadFailed(false);
-
-        const data = candidateResult.data;
-        if (data) {
-          setLocation(typeof data.location === 'string' && data.location ? data.location : null);
-          setExperienceYears(
-            data.experience_years != null && data.experience_years !== ''
-              ? `${data.experience_years} years`
-              : null,
-          );
-          setEducation(
-            typeof data.education_summary === 'string' && data.education_summary
-              ? data.education_summary
-              : null,
-          );
-          setAvailability(
-            typeof data.availability === 'string' && data.availability ? data.availability : null,
-          );
-          setSummary(
-            typeof data.experience_narrative === 'string' && data.experience_narrative
-              ? data.experience_narrative
-              : null,
-          );
-          setCurrentSituation(
-            typeof data.current_situation === 'string' && data.current_situation
-              ? data.current_situation
-              : initialCurrentSituation || null,
-          );
-          const pr = data.preferred_role_types as string[] | null;
-          setPreferredRolesDb(Array.isArray(pr) ? pr : []);
-          const pw = data.preferred_work_type as string[] | null;
-          setWorkTypeDb(Array.isArray(pw) ? pw : []);
-          setOrgSizeDb(
-            typeof data.org_size_preference === 'string' ? data.org_size_preference : null,
-          );
-        }
-
-        const nextActivityRows =
-          !eventsResult.error && eventsResult.data
-            ? (eventsResult.data as Array<{
+          if (!eventsErr && events) {
+            setActivityRows(
+              events as Array<{
                 id: string;
                 event_type: CandidateActivityEventType;
                 body: string;
                 created_at: string;
-              }>)
-            : activityRows;
-
-        if (!eventsResult.error && eventsResult.data) {
-          setActivityRows(nextActivityRows);
+              }>,
+            );
+          }
+        } finally {
+          setHasLoaded(true);
         }
-
-        try {
-          localStorage.setItem(
-            `cme_applicant_dashboard_${userId}`,
-            JSON.stringify({
-              name: typeof profileRow?.full_name === 'string' ? profileRow.full_name : initialName,
-              avatarUrl: typeof profileRow?.avatar_url === 'string' ? profileRow.avatar_url : null,
-              location: data && typeof data.location === 'string' && data.location ? data.location : null,
-              experienceYears:
-                data && data.experience_years != null && data.experience_years !== ''
-                  ? `${data.experience_years} years`
-                  : null,
-              education:
-                data && typeof data.education_summary === 'string' && data.education_summary
-                  ? data.education_summary
-                  : null,
-              availability:
-                data && typeof data.availability === 'string' && data.availability ? data.availability : null,
-              summary:
-                data && typeof data.experience_narrative === 'string' && data.experience_narrative
-                  ? data.experience_narrative
-                  : null,
-              currentSituation:
-                data && typeof data.current_situation === 'string' && data.current_situation
-                  ? data.current_situation
-                  : initialCurrentSituation || null,
-              preferredRolesDb:
-                data && Array.isArray(data.preferred_role_types) ? data.preferred_role_types : [],
-              workTypeDb: data && Array.isArray(data.preferred_work_type) ? data.preferred_work_type : [],
-              orgSizeDb:
-                data && typeof data.org_size_preference === 'string' ? data.org_size_preference : null,
-              activityRows: nextActivityRows,
-            } satisfies DashboardCache),
-          );
-        } catch {
-          // Storage is only a speed hint; ignore quota/private-mode failures.
-        }
-      } finally {
+      })
+      .catch(() => {
         setHasLoaded(true);
-      }
-    })().catch(() => {
-      setHasLoaded(true);
-    });
+      });
   }, [applicantProfileId, initialCurrentSituation, initialName, profileRefreshKey, userId]);
 
   const initials = name
@@ -528,7 +444,7 @@ export function DashboardContent({
               onError={() => setAvatarLoadFailed(true)}
             />
           ) : null}
-          {(!avatarUrl || avatarLoadFailed) && initials ? (
+          {hasLoaded && (!avatarUrl || avatarLoadFailed) && initials ? (
             <span className="text-[18px] font-semibold text-white">{initials}</span>
           ) : null}
         </div>
@@ -538,14 +454,14 @@ export function DashboardContent({
               className="text-[22px] font-semibold tracking-[-0.025em] text-[#111827]"
               style={{ lineHeight: 1.3 }}
             >
-              {name.trim() || (hasLoaded ? '—' : '…')}
+              {hasLoaded ? name.trim() || '—' : '…'}
             </h2>
             {roleHeadline ? (
               <span className="text-[13px] text-[#9CA3AF]">{roleHeadline}</span>
             ) : null}
           </div>
           <p className="mb-4 text-[12.5px] text-[#6B7280]">
-            {currentSituation || (hasLoaded ? 'Situation not set' : '…')}
+            {hasLoaded ? currentSituation || 'Situation not set' : '…'}
           </p>
           <div className="flex flex-wrap gap-x-7 gap-y-2.5">
             {metaFieldsRow1.map((f) => (

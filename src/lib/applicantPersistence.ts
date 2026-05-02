@@ -24,13 +24,24 @@ function profileRoleFromMetadata(metaRole: string | undefined): 'candidate' | 'e
 export async function ensureApplicantProfile(
   client: SupabaseClient,
   userId: string,
+  options: { throwOnError?: boolean } = {},
 ): Promise<string | null> {
+  const fail = (message: string): null => {
+    console.warn(message);
+    if (options.throwOnError) throw new Error(message.replace(/^\[CMe\]\s*/, ''));
+    return null;
+  };
+
   // 1. Ensure profiles row exists (in case trigger migration hasn't been run)
-  const { data: existingProfileRow } = await client
+  const { data: existingProfileRow, error: profileSelErr } = await client
     .from('profiles')
     .select('id')
     .eq('id', userId)
     .maybeSingle();
+
+  if (profileSelErr) {
+    return fail(`[CMe] profiles select failed: ${profileSelErr.message}`);
+  }
 
   if (!existingProfileRow) {
     const { data: { user } } = await client.auth.getUser();
@@ -42,7 +53,7 @@ export async function ensureApplicantProfile(
       role: profileRoleFromMetadata(metaRole),
     });
     if (profileInsErr) {
-      console.warn('[CMe] profiles insert failed:', profileInsErr.message);
+      return fail(`[CMe] profiles insert failed: ${profileInsErr.message}`);
     }
   }
 
@@ -54,8 +65,7 @@ export async function ensureApplicantProfile(
     .maybeSingle();
 
   if (selErr) {
-    console.warn('[CMe] candidate_profiles select failed:', selErr.message);
-    return null;
+    return fail(`[CMe] candidate_profiles select failed: ${selErr.message}`);
   }
   if (existing?.id) return existing.id;
 
@@ -66,8 +76,7 @@ export async function ensureApplicantProfile(
     .single();
 
   if (insErr) {
-    console.warn('[CMe] candidate_profiles insert failed:', insErr.message);
-    return null;
+    return fail(`[CMe] candidate_profiles insert failed: ${insErr.message}`);
   }
   return created.id;
 }
@@ -355,6 +364,7 @@ export async function saveBaseDetails(
     full_name: string | null;
     location: string | null;
     current_situation: string | null;
+    job_title?: string | null;
     age: number | null;
     availability: string | null;
   },
@@ -368,6 +378,7 @@ export async function saveBaseDetails(
     .update({
       location: fields.location,
       current_situation: fields.current_situation,
+      job_title: fields.job_title ?? fields.current_situation,
       age: fields.age,
       availability: fields.availability,
       updated_at: new Date().toISOString(),

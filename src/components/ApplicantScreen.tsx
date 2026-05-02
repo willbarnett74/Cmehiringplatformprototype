@@ -62,6 +62,7 @@ export function ApplicantScreen() {
   const [userName, setUserName] = useState<string>('');
   const [sidebarSituation, setSidebarSituation] = useState<string>('');
   const [dashboardProfileRefreshKey, setDashboardProfileRefreshKey] = useState(0);
+  const profileBuilderSubmitRef = useRef<(() => void) | null>(null);
 
   const refreshApplicantShell = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase || !userId) return;
@@ -70,11 +71,15 @@ export function ApplicantScreen() {
     if (!applicantProfileId) return;
     const { data: sitRow } = await supabase
       .from('candidate_profiles')
-      .select('current_situation')
+      .select('job_title,current_situation')
       .eq('id', applicantProfileId)
       .maybeSingle();
     setSidebarSituation(
-      typeof sitRow?.current_situation === 'string' ? sitRow.current_situation : '',
+      typeof sitRow?.job_title === 'string' && sitRow.job_title
+        ? sitRow.job_title
+        : typeof sitRow?.current_situation === 'string'
+          ? sitRow.current_situation
+          : '',
     );
   }, [userId, applicantProfileId]);
 
@@ -97,11 +102,15 @@ export function ApplicantScreen() {
       if (!id) return;
       const { data: sitRow } = await client
         .from('candidate_profiles')
-        .select('current_situation')
+        .select('job_title,current_situation')
         .eq('id', id)
         .maybeSingle();
       setSidebarSituation(
-        typeof sitRow?.current_situation === 'string' ? sitRow.current_situation : '',
+        typeof sitRow?.job_title === 'string' && sitRow.job_title
+          ? sitRow.job_title
+          : typeof sitRow?.current_situation === 'string'
+            ? sitRow.current_situation
+            : '',
       );
       const loaded = await loadApplicantProfileFromSupabase(client, id);
       if (loaded) {
@@ -162,8 +171,6 @@ export function ApplicantScreen() {
     setActiveSection('profileBuilder');
     setActiveStep(stepId || 1);
   };
-
-  const profileBuilderSubmitRef = useRef<(() => void) | null>(null);
 
   const handleProfileBuilderBack = () => {
     if (activeStep === 1) {
@@ -420,7 +427,11 @@ export function ApplicantScreen() {
             >
               <X className="h-5 w-5" strokeWidth={2} />
             </button>
-            <EditBasicInfoPage onSaved={handleBasicInfoSaved} />
+            <EditBasicInfoPage
+              onSaved={handleBasicInfoSaved}
+              initialUserId={userId}
+              initialApplicantProfileId={applicantProfileId}
+            />
           </div>
         </div>
       )}
@@ -551,17 +562,6 @@ export function ApplicantScreen() {
             </div>
           </div>
 
-          {activeSection === 'profileBuilder' ? (
-            <ProfileBuilderLayout
-              currentStep={activeStep}
-              stepStatuses={stepStatuses}
-              onStepChange={(stepId) => setActiveStep(stepId)}
-              onBack={handleProfileBuilderBack}
-              onFooterContinue={() => profileBuilderSubmitRef.current?.()}
-            >
-              {renderProfileBuilderSection()}
-            </ProfileBuilderLayout>
-          ) : (
           <div className="px-9 pb-12 pt-7">
             <div className={activeSection === 'dashboard' ? 'block' : 'hidden'}>
               <DashboardContent
@@ -592,6 +592,17 @@ export function ApplicantScreen() {
                 })()}
               />
             </div>
+            {activeSection === 'profileBuilder' ? (
+              <ProfileBuilderLayout
+                currentStep={activeStep}
+                stepStatuses={stepStatuses}
+                onStepChange={(stepId) => setActiveStep(stepId)}
+                onBack={handleProfileBuilderBack}
+                onFooterContinue={() => profileBuilderSubmitRef.current?.()}
+              >
+                {renderProfileBuilderSection()}
+              </ProfileBuilderLayout>
+            ) : null}
             {activeSection === 'opportunities' ? (
               <ApplicantOpportunitiesPanel
                 selectedOpportunityId={selectedOpportunityId}
@@ -605,11 +616,15 @@ export function ApplicantScreen() {
                   <h1 className="mb-1.5 text-xl font-semibold tracking-[-0.02em] text-[#111827]">Account Settings</h1>
                   <p className="text-[13px] text-[#9CA3AF]">Manage your account details and preferences</p>
                 </div>
-                <EditBasicInfoPage onSaved={handleBasicInfoSaved} showPreferencesSection />
+                <EditBasicInfoPage
+                  onSaved={handleBasicInfoSaved}
+                  showPreferencesSection
+                  initialUserId={userId}
+                  initialApplicantProfileId={applicantProfileId}
+                />
               </div>
             ) : null}
           </div>
-          )}
         </main>
       </div>
     </div>
