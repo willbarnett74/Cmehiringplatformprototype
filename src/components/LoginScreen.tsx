@@ -24,13 +24,6 @@ const splitCardGridStyle: CSSProperties = {
   borderRadius: '20px',
 };
 
-const buttonSurfaceStyle: CSSProperties = {
-  border: '1px solid rgba(0,0,0,0.12)',
-  borderRadius: '10px',
-  fontSize: '13px',
-  lineHeight: '1.5',
-};
-
 const inputStyle: CSSProperties = {
   border: '1px solid rgba(0,0,0,0.1)',
   borderRadius: '10px',
@@ -91,17 +84,33 @@ function MicrosoftLogo() {
   );
 }
 
-function SocialOAuthStub({ icon, label }: { icon: ReactNode; label: string }) {
+function SocialOAuthStub({
+  icon,
+  label,
+  shortLabel,
+}: {
+  icon: ReactNode;
+  label: string;
+  shortLabel: string;
+}) {
   return (
     <button
       type="button"
-      title="OAuth not configured yet — use email and password"
+      title={label}
+      aria-label={label}
       onClick={(e) => e.preventDefault()}
-      className="flex w-full cursor-default items-center justify-center bg-white px-4 py-2.5 font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA]"
-      style={{ ...buttonSurfaceStyle, gap: '10px' }}
+      className="flex min-w-0 flex-1 cursor-default flex-col items-center justify-center gap-1 bg-white py-2 font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA] sm:flex-row sm:gap-1.5 sm:py-2"
+      style={{
+        border: '1px solid rgba(0,0,0,0.12)',
+        borderRadius: '10px',
+        fontSize: 'clamp(10px, 0.65rem + 0.2vw, 12px)',
+        lineHeight: '1.35',
+        paddingLeft: 'clamp(4px, 1vw, 8px)',
+        paddingRight: 'clamp(4px, 1vw, 8px)',
+      }}
     >
       {icon}
-      {label}
+      <span className="max-w-full truncate text-center">{shortLabel}</span>
     </button>
   );
 }
@@ -318,11 +327,14 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
         <section
           className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white"
-          style={{ padding: 'clamp(32px, 4.5vw, 96px)' }}
+          style={{
+            paddingBlock: 'clamp(16px, 2.5vh, 40px)',
+            paddingInline: 'clamp(24px, 4.5vw, 96px)',
+          }}
         >
           <div
             className="absolute z-10 text-[#6B7280]"
-            style={{ top: '24px', right: '28px', fontSize: '12px', lineHeight: '1.5' }}
+            style={{ top: 'clamp(16px, 2vh, 24px)', right: 'clamp(16px, 2.5vw, 28px)', fontSize: '12px', lineHeight: '1.5' }}
           >
             {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}
             <button
@@ -336,19 +348,22 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             </button>
           </div>
 
-          <div className="mt-8 flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div
+            className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto"
+            style={{ paddingTop: 'clamp(40px, 6vh, 56px)' }}
+          >
             <h2
-              className="mb-1.5 font-medium text-[#111827]"
-              style={{ fontSize: 'clamp(1.125rem, 0.95rem + 0.55vw, 1.5rem)', lineHeight: '1.5' }}
+              className="mb-1 font-medium text-[#111827]"
+              style={{ fontSize: 'clamp(1.125rem, 0.95rem + 0.55vw, 1.5rem)', lineHeight: '1.4' }}
             >
               {mode === 'signin' ? 'Sign in' : 'Create account'}
             </h2>
             <p
               className="text-[#6B7280]"
               style={{
-                marginBottom: '28px',
+                marginBottom: 'clamp(10px, 1.5vh, 16px)',
                 fontSize: 'clamp(12px, 0.75rem + 0.35vw, 15px)',
-                lineHeight: '1.5',
+                lineHeight: '1.45',
               }}
             >
               {mode === 'signin'
@@ -356,13 +371,25 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                 : 'Get started in under a minute.'}
             </p>
 
-            <div className="mb-6 flex flex-col" style={{ gap: '10px' }}>
-              <SocialOAuthStub icon={<GoogleLogo />} label="Continue with Google" />
-              <SocialOAuthStub icon={<AppleLogo />} label="Continue with Apple" />
-              <SocialOAuthStub icon={<MicrosoftLogo />} label="Continue with Microsoft" />
+            <div className="mb-3 grid w-full grid-cols-3 gap-2">
+              <SocialOAuthStub
+                icon={<GoogleLogo />}
+                label="Continue with Google — OAuth not configured; use email and password"
+                shortLabel="Google"
+              />
+              <SocialOAuthStub
+                icon={<AppleLogo />}
+                label="Continue with Apple — OAuth not configured; use email and password"
+                shortLabel="Apple"
+              />
+              <SocialOAuthStub
+                icon={<MicrosoftLogo />}
+                label="Continue with Microsoft — OAuth not configured; use email and password"
+                shortLabel="Microsoft"
+              />
             </div>
 
-            <div className="mb-5 flex items-center gap-3">
+            <div className="mb-3 flex items-center gap-2">
               <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
               <span
                 className="text-[#9CA3AF]"
@@ -373,16 +400,16 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
             </div>
 
-            <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: '14px' }}>
+            <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: '10px' }}>
               {mode === 'signup' && (
                 <div>
-                  <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
+                  <span className="mb-1 block font-medium text-[#6B7280]" style={labelStyle}>
                     Full name
                   </span>
                   <input
                     value={fullName}
                     onChange={(ev) => setFullName(ev.target.value)}
-                    className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                    className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
                     style={inputStyle}
                     placeholder="Alex Rivera"
                     disabled={loading}
@@ -392,14 +419,14 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               )}
 
               <div>
-                <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
+                <span className="mb-1 block font-medium text-[#6B7280]" style={labelStyle}>
                   Email address
                 </span>
                 <input
                   type="email"
                   value={email}
                   onChange={(ev) => setEmail(ev.target.value)}
-                  className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                  className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
                   style={inputStyle}
                   placeholder="you@example.com"
                   disabled={loading}
@@ -408,13 +435,13 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               </div>
 
               <div>
-                <div className="mb-1.5 flex items-baseline justify-between">
+                <div className="mb-1 flex items-baseline justify-between gap-2">
                   <span className="font-medium text-[#6B7280]" style={labelStyle}>
                     Password
                   </span>
                   <button
                     type="button"
-                    className="text-[#6B7280] underline decoration-1 underline-offset-2"
+                    className="shrink-0 text-[#6B7280] underline decoration-1 underline-offset-2"
                     style={{ fontSize: '11px', lineHeight: '1.5' }}
                     disabled={loading}
                   >
@@ -425,7 +452,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                   type="password"
                   value={password}
                   onChange={(ev) => setPassword(ev.target.value)}
-                  className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                  className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
                   style={inputStyle}
                   placeholder="Enter your password"
                   disabled={loading}
@@ -439,7 +466,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="mt-1 w-full bg-[#7DBBFF] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-0.5 w-full bg-[#7DBBFF] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}
               >
                 {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
@@ -447,8 +474,8 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             </form>
 
             <p
-              className="mt-6 text-center text-[#9CA3AF]"
-              style={{ fontSize: '11px', lineHeight: '1.5' }}
+              className="mt-auto shrink-0 text-center text-[#9CA3AF]"
+              style={{ fontSize: '11px', lineHeight: '1.45', paddingTop: 'clamp(8px, 1.2vh, 14px)' }}
             >
               By signing in, you agree to our{' '}
               <Link
@@ -457,7 +484,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                 className="underline decoration-1 underline-offset-2 transition hover:text-[#6B7280]"
                 style={{
                   fontSize: '11px',
-                  lineHeight: '1.5',
+                  lineHeight: '1.45',
                   color: '#9CA3AF',
                   fontWeight: 400,
                 }}
@@ -471,7 +498,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                 className="underline decoration-1 underline-offset-2 transition hover:text-[#6B7280]"
                 style={{
                   fontSize: '11px',
-                  lineHeight: '1.5',
+                  lineHeight: '1.45',
                   color: '#9CA3AF',
                   fontWeight: 400,
                 }}
