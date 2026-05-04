@@ -5,7 +5,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 type Mode = 'signin' | 'signup';
 
 export type LoginScreenProps = {
-  onAuthenticated?: () => void;
+  onAuthenticated?: () => void | Promise<void>;
 };
 
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
@@ -33,7 +33,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       if (error) {
         setError(error.message);
       } else {
-        onAuthenticated?.();
+        await Promise.resolve(onAuthenticated?.());
       }
     } else {
       if (!fullName.trim()) {
@@ -49,7 +49,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       if (error) {
         setError(error.message);
       } else if (data.session) {
-        onAuthenticated?.();
+        await Promise.resolve(onAuthenticated?.());
       } else {
         setConfirmSent(true);
       }

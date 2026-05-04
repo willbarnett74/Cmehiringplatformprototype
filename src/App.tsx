@@ -2,8 +2,8 @@ import { lazy, Suspense, useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { OverviewScreen } from './components/OverviewScreen';
-import { LoginScreen } from './components/LoginScreen';
 import { Sparkles, Palette } from 'lucide-react';
+import { consumeRestoreTabFromSession } from './lib/postSignInNavigation';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
 const ApplicantScreen = lazy(() =>
@@ -28,17 +28,39 @@ export default function App() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [session, setSession] = useState<Session | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) return;
-    void supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const restored = consumeRestoreTabFromSession();
+    if (restored) setActiveTab(restored);
+  }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthChecked(true);
+      return;
+    }
+    void supabase.auth.getSession().then(({ data: { session: next } }) => {
+      setSession(next);
+      setAuthChecked(true);
+    });
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!authChecked || !isSupabaseConfigured || !supabase) return;
+    if (session) return;
+    if (activeTab !== 'applicant' && activeTab !== 'employer') return;
+    void navigate('/onboarding/sign-in', {
+      replace: true,
+      state: { restoreTab: activeTab === 'employer' ? 'employer' : 'applicant' },
+    });
+  }, [authChecked, session, activeTab, navigate]);
 
   useEffect(() => {
     if (activeTab !== 'applicant' || !session || !isSupabaseConfigured || !supabase) return;
@@ -58,7 +80,11 @@ export default function App() {
   }, [activeTab, session, navigate]);
 
   const handleNavigateToPath = (tab: 'applicant' | 'employer' | 'assessment') => {
-    setActiveTab(tab);
+    if (tab === 'assessment') {
+      setActiveTab('assessment');
+    } else {
+      setActiveTab(tab);
+    }
   };
 
   return (
@@ -91,7 +117,7 @@ export default function App() {
                     <span className="relative">Overview</span>
                   </button>
                   <button
-                    onClick={() => handleNavigateToPath('applicant')}
+                    onClick={() => setActiveTab('applicant')}
                     className={`px-5 py-2 transition-all relative ${
                       activeTab === 'applicant'
                         ? 'text-white'
@@ -104,7 +130,7 @@ export default function App() {
                     <span className="relative">Applicant View</span>
                   </button>
                   <button
-                    onClick={() => handleNavigateToPath('employer')}
+                    onClick={() => setActiveTab('employer')}
                     className={`px-5 py-2 transition-all relative ${
                       activeTab === 'employer'
                         ? 'text-white'
@@ -168,8 +194,30 @@ export default function App() {
         <main>
           <Suspense fallback={<div className="min-h-[420px] bg-[#fafafa]" />}>
             {activeTab === 'overview' && <OverviewScreen onNavigate={handleNavigateToPath} />}
-            {activeTab === 'applicant' && (session ? <ApplicantScreen /> : <LoginScreen />)}
-            {activeTab === 'employer' && (session ? <EmployerScreen /> : <LoginScreen />)}
+            {activeTab === 'applicant' &&
+              (!isSupabaseConfigured || !supabase ? (
+                <div className="flex min-h-[420px] items-center justify-center bg-[#fafafa] px-4 text-center text-sm text-[#6B7280]">
+                  Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to use Applicant View.
+                </div>
+              ) : !authChecked ? (
+                <div className="flex min-h-[420px] items-center justify-center bg-[#fafafa] text-sm text-[#6B7280]">
+                  Checking session…
+                </div>
+              ) : session ? (
+                <ApplicantScreen />
+              ) : null)}
+            {activeTab === 'employer' &&
+              (!isSupabaseConfigured || !supabase ? (
+                <div className="flex min-h-[420px] items-center justify-center bg-[#fafafa] px-4 text-center text-sm text-[#6B7280]">
+                  Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to use Employer View.
+                </div>
+              ) : !authChecked ? (
+                <div className="flex min-h-[420px] items-center justify-center bg-[#fafafa] text-sm text-[#6B7280]">
+                  Checking session…
+                </div>
+              ) : session ? (
+                <EmployerScreen />
+              ) : null)}
             {activeTab === 'design' && <DesignSystem />}
             {activeTab === 'assessment' && <AssessmentLink />}
             {activeTab === 'pulsecheck' && <PulseCheckForm />}

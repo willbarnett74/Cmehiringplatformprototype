@@ -14,6 +14,7 @@ import { ApplicantScreen } from './components/ApplicantScreen';
 import { OnboardingLayout, profileOnboardingQueryKey } from './onboarding/OnboardingLayout';
 import { OnboardingStepPage } from './onboarding/OnboardingStepPage';
 import { pathForOnboardingDbStep, type OnboardingStepDb } from './lib/onboardingRouting';
+import { navigateAfterSignIn, type SignInLocationState } from './lib/postSignInNavigation';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
 function FullScreenLoading() {
@@ -136,10 +137,14 @@ export function GuestOnly({ children }: { children: ReactNode }) {
 
 function OnboardingSignInPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state as SignInLocationState | null;
+
   return (
     <LoginScreen
-      onAuthenticated={() => {
-        void navigate('/onboarding/welcome', { replace: true });
+      onAuthenticated={async () => {
+        if (!isSupabaseConfigured || !supabase) return;
+        await navigateAfterSignIn(navigate, state, supabase);
       }}
     />
   );
