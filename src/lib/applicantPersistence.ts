@@ -352,6 +352,33 @@ export async function updateApplicantBasicInfo(
   return { error: null };
 }
 
+/** Persists profiles.onboarding_step for URL-backed onboarding (RLS: own row). */
+export async function setProfileOnboardingStep(
+  client: SupabaseClient,
+  userId: string,
+  step: 'welcome' | 'details' | 'how_it_works' | 'completed',
+): Promise<{ error: Error | null }> {
+  const { error } = await client.from('profiles').update({ onboarding_step: step }).eq('id', userId);
+  return { error: error ? new Error(error.message) : null };
+}
+
+/** Marks applicant onboarding finished (server source of truth for route guards). */
+export async function completeApplicantOnboardingWizard(
+  client: SupabaseClient,
+  userId: string,
+): Promise<{ error: Error | null }> {
+  const now = new Date().toISOString();
+  const { error } = await client
+    .from('profiles')
+    .update({
+      onboarding_step: 'completed',
+      onboarding_completed_at: now,
+      onboarding_complete: true,
+    })
+    .eq('id', userId);
+  return { error: error ? new Error(error.message) : null };
+}
+
 /**
  * Save base details collected during the welcome onboarding flow.
  * Updates both the profiles row (full_name) and candidate_profiles row.
