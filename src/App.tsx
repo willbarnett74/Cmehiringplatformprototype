@@ -58,32 +58,21 @@ export default function App() {
     if (activeTab !== 'applicant' && activeTab !== 'employer') return;
     void navigate('/onboarding/sign-in', {
       replace: true,
-      state: { restoreTab: activeTab === 'employer' ? 'employer' : 'applicant' },
+      state: activeTab === 'employer' ? { restoreTab: 'employer' as const } : undefined,
     });
   }, [authChecked, session, activeTab, navigate]);
-
-  useEffect(() => {
-    if (activeTab !== 'applicant' || !session || !isSupabaseConfigured || !supabase) return;
-    void (async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('role, onboarding_completed_at')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (!data) return;
-      const role = data.role as string;
-      const isCandidate = role === 'applicant' || role === 'candidate';
-      if (isCandidate && !data.onboarding_completed_at) {
-        void navigate('/onboarding/welcome', { replace: true });
-      }
-    })();
-  }, [activeTab, session, navigate]);
 
   const handleNavigateToPath = (tab: 'applicant' | 'employer' | 'assessment') => {
     if (tab === 'assessment') {
       setActiveTab('assessment');
-    } else {
-      setActiveTab(tab);
+      return;
+    }
+    if (tab === 'applicant') {
+      void navigate('/onboarding/sign-in');
+      return;
+    }
+    if (tab === 'employer') {
+      void navigate('/onboarding/sign-in', { state: { restoreTab: 'employer' } });
     }
   };
 
