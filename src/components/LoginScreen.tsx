@@ -95,7 +95,7 @@ function SocialOAuthStub({ icon, label }: { icon: ReactNode; label: string }) {
   return (
     <button
       type="button"
-      title="OAuth not configured yet — use email and password"
+      title="Not configured yet — use email and password or Google"
       onClick={(e) => e.preventDefault()}
       className="flex w-full cursor-default items-center justify-center bg-white px-4 py-2 font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA]"
       style={{ ...buttonSurfaceStyle, gap: '10px' }}
@@ -112,11 +112,30 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthBusy, setOauthBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmSent, setConfirmSent] = useState(false);
 
+  const signInWithGoogle = async () => {
+    setError('');
+    if (!isSupabaseConfigured || !supabase) {
+      setError('Sign in is not configured yet. Please contact support.');
+      return;
+    }
+    setOauthBusy(true);
+    const redirectTo = `${window.location.origin}/onboarding/sign-in`;
+    const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    if (oauthErr) {
+      setError(oauthErr.message);
+      setOauthBusy(false);
+    }
+  };
+
   const toggleMode = () => {
-    if (loading) return;
+    if (loading || oauthBusy) return;
     setMode((current) => (current === 'signin' ? 'signup' : 'signin'));
     setError('');
   };
@@ -330,7 +349,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}
             <button
               type="button"
-              disabled={loading}
+              disabled={loading || oauthBusy}
               onClick={toggleMode}
               className="ml-1 font-medium text-[#111827] underline decoration-1 transition hover:text-[#7DBBFF] disabled:opacity-60"
               style={{ textUnderlineOffset: '3px' }}
@@ -360,7 +379,16 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             </p>
 
             <div className="mb-3 flex flex-col" style={{ gap: '8px' }}>
-              <SocialOAuthStub icon={<GoogleLogo />} label="Continue with Google" />
+              <button
+                type="button"
+                disabled={loading || oauthBusy}
+                onClick={() => void signInWithGoogle()}
+                className="flex w-full cursor-pointer items-center justify-center bg-white px-4 py-2 font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA] disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ ...buttonSurfaceStyle, gap: '10px' }}
+              >
+                <GoogleLogo />
+                {oauthBusy ? 'Redirecting…' : 'Continue with Google'}
+              </button>
               <SocialOAuthStub icon={<AppleLogo />} label="Continue with Apple" />
               <SocialOAuthStub icon={<MicrosoftLogo />} label="Continue with Microsoft" />
             </div>
@@ -388,7 +416,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                     className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
                     style={inputStyle}
                     placeholder="Alex Rivera"
-                    disabled={loading}
+                    disabled={loading || oauthBusy}
                     required
                   />
                 </div>
@@ -405,7 +433,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                   className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
                   style={inputStyle}
                   placeholder="you@example.com"
-                  disabled={loading}
+                  disabled={loading || oauthBusy}
                   required
                 />
               </div>
@@ -419,7 +447,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                     type="button"
                     className="text-[#6B7280] underline decoration-1 underline-offset-2"
                     style={{ fontSize: '11px', lineHeight: '1.5' }}
-                    disabled={loading}
+                    disabled={loading || oauthBusy}
                   >
                     Forgot password?
                   </button>
@@ -431,7 +459,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                   className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
                   style={inputStyle}
                   placeholder="Enter your password"
-                  disabled={loading}
+                  disabled={loading || oauthBusy}
                   required
                   minLength={6}
                 />
@@ -441,7 +469,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || oauthBusy}
                 className="w-full bg-[#7DBBFF] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}
               >

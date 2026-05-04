@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import {
   Navigate,
   Outlet,
@@ -104,41 +105,40 @@ export function RequireOnboardingComplete() {
   return <Outlet />;
 }
 
-export function GuestOnly({ children }: { children: ReactNode }) {
-  const [ready, setReady] = useState(false);
-  const [authed, setAuthed] = useState(false);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      setReady(true);
-      setAuthed(false);
-      return;
-    }
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthed(Boolean(session));
-      setReady(true);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthed(Boolean(session));
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (!ready) {
-    return <FullScreenLoading />;
-  }
-  if (authed) {
-    return <Navigate to="/" replace />;
-  }
-  return <>{children}</>;
-}
-
 function OnboardingSignInPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as SignInLocationState | null;
+  const [ready, setReady] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const postAuthRedirectStarted = useRef(false);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setReady(true);
+      return;
+    }
+    void supabase.auth.getSession().then(({ data: { session: next } }) => {
+      setSession(next);
+      setReady(true);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !session || !supabase || postAuthRedirectStarted.current) return;
+    postAuthRedirectStarted.current = true;
+    void navigateAfterSignIn(navigate, state, supabase);
+  }, [ready, session, navigate, state]);
+
+  if (!ready || session) {
+    return <FullScreenLoading />;
+  }
 
   return (
     <LoginScreen
@@ -155,14 +155,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/legal/terms" element={<LegalPlaceholder title="Terms" />} />
       <Route path="/legal/privacy" element={<LegalPlaceholder title="Privacy policy" />} />
-      <Route
-        path="/onboarding/sign-in"
-        element={
-          <GuestOnly>
-            <OnboardingSignInPage />
-          </GuestOnly>
-        }
-      />
+      <Route path="/onboarding/sign-in" element={<OnboardingSignInPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/onboarding" element={<OnboardingLayout />}>
           <Route path="welcome" element={<OnboardingStepPage uiStep="welcome" />} />
