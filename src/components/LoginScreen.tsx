@@ -334,12 +334,12 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         <section
           className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white"
           style={{
-            paddingBlock: 'clamp(12px, 2vh, 36px)',
+            paddingBlock: 'clamp(20px, 3.5vh, 56px)',
             paddingInline: 'clamp(20px, 4.5vw, 96px)',
           }}
         >
           <div
-            className="absolute z-10 text-[#6B7280]"
+            className="absolute z-10 max-w-[calc(100%-1.5rem)] text-right text-[#6B7280] sm:max-w-none"
             style={{ top: 'clamp(16px, 2vh, 24px)', right: 'clamp(16px, 2.5vw, 28px)', fontSize: '12px', lineHeight: '1.5' }}
           >
             {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}
@@ -355,140 +355,146 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           </div>
 
           <div
-            className={`flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto ${
-              mode === 'signin' ? 'justify-center' : ''
-            }`}
-            style={{
-              paddingTop: mode === 'signin' ? 'clamp(24px, 3.5vh, 44px)' : 'clamp(32px, 5vh, 56px)',
-            }}
+            className="flex min-h-0 flex-1 flex-col overflow-x-hidden"
+            style={{ paddingTop: 'clamp(40px, 5.5vh, 60px)' }}
           >
-            <h2
-              className="mb-0.5 font-medium text-[#111827]"
-              style={{ fontSize: 'clamp(1.125rem, 0.95rem + 0.55vw, 1.5rem)', lineHeight: '1.35' }}
-            >
-              {mode === 'signin' ? 'Sign in' : 'Create account'}
-            </h2>
-            <p
-              className="text-[#6B7280]"
-              style={{
-                marginBottom: mode === 'signin' ? 'clamp(6px, 1vh, 12px)' : 'clamp(10px, 1.5vh, 16px)',
-                fontSize: 'clamp(12px, 0.75rem + 0.35vw, 15px)',
-                lineHeight: '1.4',
-              }}
-            >
-              {mode === 'signin'
-                ? 'Welcome back. Continue where you left off.'
-                : 'Get started in under a minute.'}
-            </p>
-
-            <div className={`mb-2 grid w-full grid-cols-3 gap-1.5 sm:gap-2 ${mode === 'signin' ? 'max-w-full' : ''}`}>
-              <SocialOAuthStub
-                icon={<GoogleLogo />}
-                label="Continue with Google — OAuth not configured; use email and password"
-                shortLabel="Google"
-                dense={mode === 'signin'}
-              />
-              <SocialOAuthStub
-                icon={<AppleLogo />}
-                label="Continue with Apple — OAuth not configured; use email and password"
-                shortLabel="Apple"
-                dense={mode === 'signin'}
-              />
-              <SocialOAuthStub
-                icon={<MicrosoftLogo />}
-                label="Continue with Microsoft — OAuth not configured; use email and password"
-                shortLabel="Microsoft"
-                dense={mode === 'signin'}
-              />
-            </div>
-
-            <div className="mb-2 flex items-center gap-2">
-              <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
-              <span
-                className="text-[#9CA3AF]"
-                style={{ fontSize: '11px', letterSpacing: '0.06em', lineHeight: '1.5' }}
+            <div className="shrink-0">
+              <h2
+                className="mb-0.5 font-medium text-[#111827]"
+                style={{ fontSize: 'clamp(1.125rem, 0.95rem + 0.55vw, 1.5rem)', lineHeight: '1.35' }}
               >
-                OR
-              </span>
-              <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
+                {mode === 'signin' ? 'Sign in' : 'Create account'}
+              </h2>
+              <p
+                className="text-[#6B7280]"
+                style={{
+                  marginBottom: mode === 'signin' ? 'clamp(10px, 1.75vh, 18px)' : 'clamp(12px, 2vh, 20px)',
+                  fontSize: 'clamp(12px, 0.75rem + 0.35vw, 15px)',
+                  lineHeight: '1.4',
+                }}
+              >
+                {mode === 'signin'
+                  ? 'Welcome back. Continue where you left off.'
+                  : 'Get started in under a minute.'}
+              </p>
             </div>
 
-            <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: mode === 'signin' ? 8 : 10 }}>
-              {mode === 'signup' && (
-                <div>
-                  <span className="mb-1 block font-medium text-[#6B7280]" style={labelStyle}>
-                    Full name
-                  </span>
-                  <input
-                    value={fullName}
-                    onChange={(ev) => setFullName(ev.target.value)}
-                    className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
-                    style={inputStyle}
-                    placeholder="Alex Rivera"
-                    disabled={loading}
-                    required
+            <div
+              className={`flex min-h-0 w-full flex-1 flex-col ${
+                mode === 'signin' ? 'justify-center' : 'justify-start overflow-y-auto'
+              }`}
+            >
+              <div className="w-full shrink-0">
+                <div className="mb-2 grid w-full grid-cols-3 gap-1.5 sm:gap-2">
+                  <SocialOAuthStub
+                    icon={<GoogleLogo />}
+                    label="Continue with Google — OAuth not configured; use email and password"
+                    shortLabel="Google"
+                    dense={mode === 'signin'}
+                  />
+                  <SocialOAuthStub
+                    icon={<AppleLogo />}
+                    label="Continue with Apple — OAuth not configured; use email and password"
+                    shortLabel="Apple"
+                    dense={mode === 'signin'}
+                  />
+                  <SocialOAuthStub
+                    icon={<MicrosoftLogo />}
+                    label="Continue with Microsoft — OAuth not configured; use email and password"
+                    shortLabel="Microsoft"
+                    dense={mode === 'signin'}
                   />
                 </div>
-              )}
 
-              <div>
-                <span className="mb-1 block font-medium text-[#6B7280]" style={labelStyle}>
-                  Email address
-                </span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(ev) => setEmail(ev.target.value)}
-                  className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
-                  style={inputStyle}
-                  placeholder="you@example.com"
-                  disabled={loading}
-                  required
-                />
-              </div>
-
-              <div>
-                <div className="mb-1 flex items-baseline justify-between gap-2">
-                  <span className="font-medium text-[#6B7280]" style={labelStyle}>
-                    Password
-                  </span>
-                  <button
-                    type="button"
-                    className="shrink-0 text-[#6B7280] underline decoration-1 underline-offset-2"
-                    style={{ fontSize: '11px', lineHeight: '1.5' }}
-                    disabled={loading}
+                <div className="mb-2 flex items-center gap-2">
+                  <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
+                  <span
+                    className="text-[#9CA3AF]"
+                    style={{ fontSize: '11px', letterSpacing: '0.06em', lineHeight: '1.5' }}
                   >
-                    Forgot password?
-                  </button>
+                    OR
+                  </span>
+                  <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
                 </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(ev) => setPassword(ev.target.value)}
-                  className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
-                  style={inputStyle}
-                  placeholder="Enter your password"
-                  disabled={loading}
-                  required
-                  minLength={6}
-                />
+
+                <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: mode === 'signin' ? 8 : 10 }}>
+                  {mode === 'signup' && (
+                    <div>
+                      <span className="mb-1 block font-medium text-[#6B7280]" style={labelStyle}>
+                        Full name
+                      </span>
+                      <input
+                        value={fullName}
+                        onChange={(ev) => setFullName(ev.target.value)}
+                        className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                        style={inputStyle}
+                        placeholder="Alex Rivera"
+                        disabled={loading}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <span className="mb-1 block font-medium text-[#6B7280]" style={labelStyle}>
+                      Email address
+                    </span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(ev) => setEmail(ev.target.value)}
+                      className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                      style={inputStyle}
+                      placeholder="you@example.com"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <div className="mb-1 flex items-baseline justify-between gap-2">
+                      <span className="font-medium text-[#6B7280]" style={labelStyle}>
+                        Password
+                      </span>
+                      <button
+                        type="button"
+                        className="shrink-0 text-[#6B7280] underline decoration-1 underline-offset-2"
+                        style={{ fontSize: '11px', lineHeight: '1.5' }}
+                        disabled={loading}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(ev) => setPassword(ev.target.value)}
+                      className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                      style={inputStyle}
+                      placeholder="Enter your password"
+                      disabled={loading}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  {error && <p className="text-xs text-red-600">{error}</p>}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="mt-0.5 w-full bg-[#7DBBFF] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}
+                  >
+                    {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
+                  </button>
+                </form>
               </div>
-
-              {error && <p className="text-xs text-red-600">{error}</p>}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="mt-0.5 w-full bg-[#7DBBFF] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
-                style={{ borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}
-              >
-                {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
-              </button>
-            </form>
+            </div>
 
             <p
-              className={`shrink-0 text-center text-[#9CA3AF] ${mode === 'signin' ? 'mt-2' : 'mt-auto pt-2'}`}
-              style={{ fontSize: '11px', lineHeight: '1.45', paddingTop: mode === 'signup' ? 'clamp(8px, 1.2vh, 14px)' : undefined }}
+              className="shrink-0 pt-3 text-center text-[#9CA3AF] sm:pt-4"
+              style={{ fontSize: '11px', lineHeight: '1.45' }}
             >
               By signing in, you agree to our{' '}
               <Link
