@@ -1,9 +1,9 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { useNavigate } from 'react-router-dom';
 import { OverviewScreen } from './components/OverviewScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { Sparkles, Palette } from 'lucide-react';
-import { UserProfileProvider } from './contexts/UserProfileContext';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
 const ApplicantScreen = lazy(() =>
@@ -25,38 +25,57 @@ const PulseCheckForm = lazy(() =>
 type Tab = 'overview' | 'applicant' | 'employer' | 'design' | 'assessment' | 'pulsecheck';
 
 export default function App() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
     void supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'applicant' || !session || !isSupabaseConfigured || !supabase) return;
+    void (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('role, onboarding_completed_at')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (!data) return;
+      const role = data.role as string;
+      const isCandidate = role === 'applicant' || role === 'candidate';
+      if (isCandidate && !data.onboarding_completed_at) {
+        void navigate('/onboarding/welcome', { replace: true });
+      }
+    })();
+  }, [activeTab, session, navigate]);
 
   const handleNavigateToPath = (tab: 'applicant' | 'employer' | 'assessment') => {
     setActiveTab(tab);
   };
 
   return (
-    <UserProfileProvider>
-      <div className="min-h-screen bg-[#0a0a0f] text-white">
-        {/* Top Navigation */}
-        <nav className="border-b border-white/5 bg-[#0a0a0f]/60 backdrop-blur-2xl sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-8 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-12">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-teal-500 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
-                  <h1 className="bg-gradient-to-r from-purple-400 to-teal-400 bg-clip-text text-transparent">
-                    CMe
-                  </h1>
+    <div className="min-h-screen bg-[#0a0a0f] text-white">
+      {/* Top Navigation */}
+      <nav className="border-b border-white/5 bg-[#0a0a0f]/60 backdrop-blur-2xl sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-8 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-12">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-teal-500 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-white" />
                 </div>
+                <h1 className="bg-gradient-to-r from-purple-400 to-teal-400 bg-clip-text text-transparent">
+                  CMe
+                </h1>
+              </div>
                 <div className="flex gap-1">
                   <button
                     onClick={() => setActiveTab('overview')}
@@ -156,7 +175,6 @@ export default function App() {
             {activeTab === 'pulsecheck' && <PulseCheckForm />}
           </Suspense>
         </main>
-      </div>
-    </UserProfileProvider>
+    </div>
   );
 }

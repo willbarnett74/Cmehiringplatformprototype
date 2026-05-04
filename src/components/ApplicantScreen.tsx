@@ -45,7 +45,12 @@ import {
  *   - Subframe 6: 'Step 6 – Signature Traits'
  */
 
-export function ApplicantScreen() {
+export function ApplicantScreen({
+  entry = 'default',
+}: {
+  /** Use profileBuilderOnly for /profile-builder route after server confirms onboarding. */
+  entry?: 'default' | 'profileBuilderOnly';
+} = {}) {
   const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, replaceProfileData } =
     useUserProfile();
   const [activeSection, setActiveSection] = useState<
@@ -112,28 +117,53 @@ export function ApplicantScreen() {
             ? sitRow.current_situation
             : '',
       );
+      const { data: metaRow } = await client
+        .from('profiles')
+        .select('onboarding_completed_at')
+        .eq('id', uid)
+        .maybeSingle();
+      const serverOnboardingDone = Boolean(metaRow?.onboarding_completed_at);
+
       const loaded = await loadApplicantProfileFromSupabase(client, id);
       if (loaded) {
         replaceProfileData(loaded.profile);
         setDbTraitScores(loaded.traitScores);
-        if (!loaded.profile.intakeData.isComplete && !localStorage.getItem(`cme_welcomed_${uid}`)) {
+        if (
+          entry !== 'profileBuilderOnly' &&
+          !loaded.profile.intakeData.isComplete &&
+          !serverOnboardingDone &&
+          !localStorage.getItem(`cme_welcomed_${uid}`)
+        ) {
           setShowWelcome(true);
         }
       }
     });
-  }, []);
-  
+  }, [entry, replaceProfileData]);
+
+  // Deep-link: land directly in profile builder (must match deps above for entry)
+  useEffect(() => {
+    if (entry === 'profileBuilderOnly') {
+      setShowWelcome(false);
+      setActiveSection('profileBuilder');
+      setActiveStep(1);
+    }
+  }, [entry]);
+
   const handleSignOut = async () => {
     if (supabase) await supabase.auth.signOut();
   };
 
   // First-login welcome flow
-  if (showWelcome && userId && applicantProfileId) {
+  if (showWelcome && userId && applicantProfileId && entry === 'default') {
     return (
       <ApplicantWelcomePage
         userId={userId}
         profileId={applicantProfileId}
-        onComplete={() => setShowWelcome(false)}
+        onComplete={() => {
+          setShowWelcome(false);
+          setActiveSection('profileBuilder');
+          setActiveStep(1);
+        }}
       />
     );
   }
