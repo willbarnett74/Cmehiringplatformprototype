@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import App from './App';
 import { LoginScreen } from './components/LoginScreen';
 import { ApplicantScreen } from './components/ApplicantScreen';
-import { OnboardingLayout, profileOnboardingQueryKey } from './onboarding/OnboardingLayout';
+import { OnboardingLayout, PROFILE_ONBOARDING_QUERY_ROOT } from './onboarding/OnboardingLayout';
 import { OnboardingStepPage } from './onboarding/OnboardingStepPage';
 import { pathForOnboardingDbStep, type OnboardingStepDb } from './lib/onboardingRouting';
 import { navigateAfterSignIn, type SignInLocationState } from './lib/postSignInNavigation';
@@ -68,19 +68,36 @@ export function RequireAuth() {
 }
 
 export function RequireOnboardingComplete() {
+  const [authReady, setAuthReady] = useState(false);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthReady(true);
+      setSessionUserId(null);
+      return;
+    }
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      setSessionUserId(session?.user?.id ?? null);
+      setAuthReady(true);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSessionUserId(session?.user?.id ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: profileOnboardingQueryKey,
-    enabled: Boolean(isSupabaseConfigured && supabase),
+    queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, sessionUserId ?? ''],
+    enabled: Boolean(isSupabaseConfigured && supabase && authReady && sessionUserId),
     queryFn: async () => {
-      if (!supabase) throw new Error('Supabase not configured');
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user?.id) return null;
+      if (!supabase || !sessionUserId) throw new Error('Not authenticated');
       const { data: row, error } = await supabase
         .from('profiles')
         .select('onboarding_step, onboarding_completed_at')
-        .eq('id', session.user.id)
+        .eq('id', sessionUserId)
         .single();
       if (error) throw error;
       return {
@@ -93,6 +110,15 @@ export function RequireOnboardingComplete() {
   if (!isSupabaseConfigured || !supabase) {
     return <Navigate to="/onboarding/sign-in" replace />;
   }
+
+  if (!authReady) {
+    return <FullScreenLoading />;
+  }
+
+  if (!sessionUserId) {
+    return <Navigate to="/onboarding/sign-in" replace />;
+  }
+
   if (isLoading) {
     return <FullScreenLoading />;
   }

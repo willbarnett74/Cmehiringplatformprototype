@@ -10,10 +10,11 @@ import {
 import { pathForOnboardingDbStep } from '../lib/onboardingRouting';
 import type { WelcomeUiStep } from '../lib/onboardingRouting';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import { profileOnboardingQueryKey, type OnboardingOutletContext } from './OnboardingLayout';
+import { PROFILE_ONBOARDING_QUERY_ROOT, type OnboardingOutletContext } from './OnboardingLayout';
 
 export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
-  const { userId } = useOutletContext<OnboardingOutletContext>();
+  const ctx = useOutletContext<OnboardingOutletContext | undefined>();
+  const userId = ctx?.userId;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -53,11 +54,26 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
     });
   };
 
+  if (!userId) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fafafa] px-6 text-center">
+        <p className="max-w-md text-sm text-[#6B7280]">Something went wrong loading your session. Try refreshing.</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="rounded-lg bg-[#7DBBFF] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#5aaeff]"
+        >
+          Refresh
+        </button>
+      </div>
+    );
+  }
+
   const goToOnboardingStep = async (next: 'welcome' | 'details' | 'how_it_works') => {
     if (!supabase) return;
     const { error } = await setProfileOnboardingStep(supabase, userId, next);
     if (error) console.warn('[CMe] setProfileOnboardingStep:', error);
-    await queryClient.invalidateQueries({ queryKey: profileOnboardingQueryKey });
+    await queryClient.invalidateQueries({ queryKey: PROFILE_ONBOARDING_QUERY_ROOT });
     navigate(pathForOnboardingDbStep(next));
   };
 
@@ -65,7 +81,7 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
     if (!supabase) return;
     const { error } = await completeApplicantOnboardingWizard(supabase, userId);
     if (error) console.warn('[CMe] completeApplicantOnboardingWizard:', error);
-    await queryClient.invalidateQueries({ queryKey: profileOnboardingQueryKey });
+    await queryClient.invalidateQueries({ queryKey: PROFILE_ONBOARDING_QUERY_ROOT });
     navigate('/profile-builder', { replace: true });
   };
 
