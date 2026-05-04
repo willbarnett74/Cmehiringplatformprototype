@@ -4,7 +4,11 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 type Mode = 'signin' | 'signup';
 
-export function LoginScreen() {
+export type LoginScreenProps = {
+  onAuthenticated?: () => void;
+};
+
+export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const [mode, setMode] = useState<Mode>('signin');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -26,20 +30,26 @@ export function LoginScreen() {
 
     if (mode === 'signin') {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
+      if (error) {
+        setError(error.message);
+      } else {
+        onAuthenticated?.();
+      }
     } else {
       if (!fullName.trim()) {
         setError('Please enter your full name.');
         setLoading(false);
         return;
       }
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { full_name: fullName, role: 'candidate' } },
       });
       if (error) {
         setError(error.message);
+      } else if (data.session) {
+        onAuthenticated?.();
       } else {
         setConfirmSent(true);
       }

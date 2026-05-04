@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Compass, ArrowRight, MapPin, Briefcase, User, Calendar, ChevronLeft, X } from 'lucide-react';
+import { Compass, ArrowRight, Info, MapPin, Briefcase, User, Calendar, ChevronLeft, X } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { saveBaseDetails } from '../../lib/applicantPersistence';
+import type { WelcomeUiStep } from '../../lib/onboardingRouting';
+import { dbStepFromWelcomeUi } from '../../lib/onboardingRouting';
+
+export interface ApplicantWelcomeRouteSync {
+  activeStep: WelcomeUiStep;
+  goToOnboardingStep: (next: 'welcome' | 'details' | 'how_it_works') => Promise<void>;
+  finishServerOnboarding: () => Promise<void>;
+}
 
 interface ApplicantWelcomePageProps {
   userId: string;
@@ -9,6 +17,8 @@ interface ApplicantWelcomePageProps {
   onComplete: () => void;
   /** When true, renders as a modal overlay and skips the welcome screen */
   editMode?: boolean;
+  /** URL-driven onboarding: step + server persistence handled by parent */
+  routeSync?: ApplicantWelcomeRouteSync;
 }
 
 const AVAILABILITY_OPTIONS = [
@@ -18,14 +28,32 @@ const AVAILABILITY_OPTIONS = [
   { value: 'not_looking', label: 'Not looking right now' },
 ];
 
-export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode = false }: ApplicantWelcomePageProps) {
+export function ApplicantWelcomePage({
+  userId,
+  profileId,
+  onComplete,
+  editMode = false,
+  routeSync,
+}: ApplicantWelcomePageProps) {
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [currentRole, setCurrentRole] = useState('');
   const [age, setAge] = useState('');
   const [availability, setAvailability] = useState('');
   const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState<'welcome' | 'details'>(editMode ? 'details' : 'welcome');
+  const [internalStep, setInternalStep] = useState<'welcome' | 'details' | 'how-it-works'>(
+    editMode ? 'details' : 'welcome',
+  );
+
+  const step = routeSync && !editMode ? routeSync.activeStep : internalStep;
+
+  const goToUiStep = (next: WelcomeUiStep) => {
+    if (routeSync && !editMode) {
+      void routeSync.goToOnboardingStep(dbStepFromWelcomeUi(next));
+      return;
+    }
+    setInternalStep(next);
+  };
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -71,12 +99,23 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
         availability: availability || null,
       });
     }
-    // Only mark welcomed on first-time flow, not edit mode
-    if (!editMode) {
-      localStorage.setItem(`cme_welcomed_${userId}`, '1');
-    }
     setSaving(false);
-    onComplete();
+
+    // Edit mode should still close immediately after saving. First-time users see the handoff screen next.
+    if (editMode) {
+      onComplete();
+      return;
+    }
+
+    if (routeSync && !editMode) {
+      await routeSync.goToOnboardingStep('how_it_works');
+      setSaving(false);
+      return;
+    }
+
+    localStorage.setItem(`cme_welcomed_${userId}`, '1');
+    setInternalStep('how-it-works');
+    setSaving(false);
   };
 
   // ─── Details form (shared between welcome flow and edit modal) ────────────
@@ -196,7 +235,7 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
           <span>Save changes</span>
         ) : (
           <>
-            <span>Take me to my dashboard</span>
+            <span>Continue</span>
             <ArrowRight className="w-4 h-4" strokeWidth={2} />
           </>
         )}
@@ -204,7 +243,7 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
 
       {!editMode && (
         <button
-          onClick={() => setStep('welcome')}
+          onClick={() => goToUiStep('welcome')}
           className="w-full mt-3 flex items-center justify-center gap-1.5 text-xs text-[#9CA3AF] hover:text-[#6B7280] transition-colors py-2"
         >
           <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2} />
@@ -297,7 +336,7 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
           </div>
 
           <button
-            onClick={() => setStep('details')}
+            onClick={() => goToUiStep('details')}
             className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-[#7dbbff] text-white hover:bg-[#6aabef] transition-colors font-medium text-sm"
             style={{ borderRadius: '12px' }}
           >
@@ -305,6 +344,173 @@ export function ApplicantWelcomePage({ userId, profileId, onComplete, editMode =
             <ArrowRight className="w-4 h-4" strokeWidth={2} />
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (step === 'how-it-works') {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[#fafafa] px-4 py-8 text-[#111827] antialiased">
+        <div
+          className="grid min-h-[600px] w-full max-w-[1100px] grid-cols-1 overflow-hidden border border-black/[0.08] bg-white md:grid-cols-2"
+          style={{ borderRadius: '20px' }}
+        >
+          <section
+            className="relative flex min-h-[320px] flex-col justify-between overflow-hidden p-10 text-white md:min-h-0 md:p-12"
+            style={{ background: 'linear-gradient(135deg, #0F1419 0%, #1a2332 100%)' }}
+          >
+            <div
+              className="pointer-events-none absolute"
+              style={{
+                top: '-80px',
+                right: '-80px',
+                width: '280px',
+                height: '280px',
+                borderRadius: '50%',
+                background:
+                  'radial-gradient(circle, rgba(125,187,255,0.18) 0%, rgba(125,187,255,0) 70%)',
+              }}
+            />
+            <div
+              className="pointer-events-none absolute"
+              style={{
+                bottom: '-60px',
+                left: '-60px',
+                width: '220px',
+                height: '220px',
+                borderRadius: '50%',
+                background:
+                  'radial-gradient(circle, rgba(125,187,255,0.10) 0%, rgba(125,187,255,0) 70%)',
+              }}
+            />
+
+            <div className="relative">
+              <div className="mb-14 flex items-center gap-2.5">
+                <div
+                  className="flex h-8 w-8 items-center justify-center bg-[#7dbbff]"
+                  style={{ borderRadius: '8px' }}
+                >
+                  <Compass className="h-4 w-4 text-white" strokeWidth={2} />
+                </div>
+                <span className="text-[15px] font-medium">CMe</span>
+              </div>
+
+              <h1 className="mb-4 text-[32px] font-medium leading-[1.15] tracking-tight text-white">
+                Here's how this works.
+              </h1>
+              <p
+                className="max-w-[360px] text-[14px] leading-[1.65]"
+                style={{ color: 'rgba(255,255,255,0.7)' }}
+              >
+                Three short steps. About 45 minutes total. You can pause and come back anytime.
+              </p>
+            </div>
+
+            <div
+              className="relative max-w-[260px] text-[11px] leading-[1.5]"
+              style={{ color: 'rgba(255,255,255,0.4)' }}
+            >
+              Private by default. Only matched employers see your profile.
+            </div>
+          </section>
+
+          <section className="flex flex-col bg-white p-10 md:p-12">
+            <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-[#9CA3AF]">
+              Before you start
+            </div>
+            <h2 className="mb-1.5 text-[18px] font-medium text-[#111827]">Build your profile</h2>
+            <p className="mb-7 text-[13px] leading-[1.55] text-[#6B7280]">
+              This isn't a CV upload. It's a guided flow that captures how you actually work.
+            </p>
+
+            <div className="mb-7 flex flex-col gap-3">
+              {[
+                {
+                  number: '1',
+                  title: 'Tell us how you work',
+                  description: 'Eight short sections on your style, strengths, and what drives you.',
+                  meta: '~45 min',
+                },
+                {
+                  number: '2',
+                  title: 'See your trait profile',
+                  description: 'We turn your answers into a visual profile across six dimensions.',
+                  meta: 'Auto',
+                },
+                {
+                  number: '3',
+                  title: 'Get matched, your way',
+                  description: 'Choose who can see your profile. Only matched employers, never the public.',
+                  meta: 'Your call',
+                },
+              ].map((item) => (
+                <div
+                  key={item.number}
+                  className="grid items-center gap-3.5 px-[18px] py-4"
+                  style={{
+                    border: '0.5px solid rgba(0,0,0,0.08)',
+                    borderRadius: '12px',
+                    gridTemplateColumns: '32px 1fr auto',
+                  }}
+                >
+                  <div
+                    className="flex h-8 w-8 items-center justify-center bg-[#EFF6FF] text-[13px] font-medium text-[#1E40AF]"
+                    style={{ borderRadius: '8px' }}
+                  >
+                    {item.number}
+                  </div>
+                  <div>
+                    <div className="mb-0.5 text-[14px] font-medium text-[#111827]">{item.title}</div>
+                    <div className="text-[12px] leading-[1.5] text-[#6B7280]">{item.description}</div>
+                  </div>
+                  <div className="text-[11px] text-[#9CA3AF]">{item.meta}</div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              className="mb-6 flex items-start gap-2.5 bg-[#F9FAFB] px-3.5 py-3"
+              style={{ borderRadius: '10px' }}
+            >
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#6B7280]" strokeWidth={2} />
+              <div className="text-[12px] leading-[1.55] text-[#6B7280]">
+                Answer honestly. There are no good or bad traits — only ones that fit different roles.
+                Trying to &quot;look good&quot; produces a profile that won't match you well.
+              </div>
+            </div>
+
+            <div
+              className="mt-auto flex items-center justify-between pt-5"
+              style={{ borderTop: '0.5px solid rgba(0,0,0,0.08)' }}
+            >
+              <div className="text-[12px] text-[#9CA3AF]">Progress saves automatically.</div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (routeSync && !editMode) {
+                    void routeSync.finishServerOnboarding();
+                    return;
+                  }
+                  onComplete();
+                }}
+                className="inline-flex items-center gap-1.5 border-0 bg-[#7dbbff] px-[18px] py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-[#5aaeff]"
+                style={{ borderRadius: '10px' }}
+              >
+                Start building
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-white" strokeWidth={2} />
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => goToUiStep('details')}
+          className="mt-6 flex items-center justify-center gap-1.5 text-xs text-[#9CA3AF] transition-colors hover:text-[#6B7280]"
+        >
+          <ChevronLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+          Back
+        </button>
       </div>
     );
   }
