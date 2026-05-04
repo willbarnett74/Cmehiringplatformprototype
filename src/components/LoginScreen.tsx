@@ -12,12 +12,14 @@ export type LoginScreenProps = {
 const systemFont =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
 
+const pagePadY = 'clamp(16px, 2.5vw, 48px)';
+/** Fits within the viewport; avoids a 640px-tall card on short windows */
 const splitCardGridStyle: CSSProperties = {
   gridTemplateRows: 'minmax(0, 1fr)',
   boxSizing: 'border-box',
-  height: 'clamp(640px, 78vh, 960px)',
-  minHeight: 'clamp(640px, 78vh, 960px)',
-  maxHeight: 'clamp(640px, 78vh, 960px)',
+  height: `min(960px, calc(100dvh - 2 * ${pagePadY}))`,
+  minHeight: `min(640px, calc(100dvh - 2 * ${pagePadY}))`,
+  maxHeight: `calc(100dvh - 2 * ${pagePadY})`,
   width: '100%',
   maxWidth: 'min(1680px, calc(100vw - clamp(32px, 5vw, 96px)))',
   border: '1px solid rgba(0,0,0,0.08)',
@@ -88,10 +90,12 @@ function SocialOAuthStub({
   icon,
   label,
   shortLabel,
+  dense,
 }: {
   icon: ReactNode;
   label: string;
   shortLabel: string;
+  dense?: boolean;
 }) {
   return (
     <button
@@ -99,7 +103,9 @@ function SocialOAuthStub({
       title={label}
       aria-label={label}
       onClick={(e) => e.preventDefault()}
-      className="flex min-w-0 flex-1 cursor-default flex-col items-center justify-center gap-1 bg-white py-2 font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA] sm:flex-row sm:gap-1.5 sm:py-2"
+      className={`flex min-w-0 flex-1 cursor-default flex-col items-center justify-center gap-0.5 bg-white font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA] sm:flex-row sm:gap-1.5 ${
+        dense ? 'py-1.5 sm:py-1.5' : 'py-2 sm:py-2'
+      }`}
       style={{
         border: '1px solid rgba(0,0,0,0.12)',
         borderRadius: '10px',
@@ -215,8 +221,8 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#111827]"
-      style={{ fontFamily: systemFont, padding: 'clamp(16px, 2.5vw, 48px)' }}
+      className="flex min-h-dvh items-center justify-center overflow-auto bg-[#fafafa] text-[#111827]"
+      style={{ fontFamily: systemFont, padding: pagePadY }}
     >
       <div
         className="grid w-full grid-cols-1 overflow-hidden bg-white md:grid-cols-2"
@@ -328,8 +334,8 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         <section
           className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white"
           style={{
-            paddingBlock: 'clamp(16px, 2.5vh, 40px)',
-            paddingInline: 'clamp(24px, 4.5vw, 96px)',
+            paddingBlock: 'clamp(12px, 2vh, 36px)',
+            paddingInline: 'clamp(20px, 4.5vw, 96px)',
           }}
         >
           <div
@@ -349,21 +355,25 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           </div>
 
           <div
-            className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto"
-            style={{ paddingTop: 'clamp(40px, 6vh, 56px)' }}
+            className={`flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto ${
+              mode === 'signin' ? 'justify-center' : ''
+            }`}
+            style={{
+              paddingTop: mode === 'signin' ? 'clamp(24px, 3.5vh, 44px)' : 'clamp(32px, 5vh, 56px)',
+            }}
           >
             <h2
-              className="mb-1 font-medium text-[#111827]"
-              style={{ fontSize: 'clamp(1.125rem, 0.95rem + 0.55vw, 1.5rem)', lineHeight: '1.4' }}
+              className="mb-0.5 font-medium text-[#111827]"
+              style={{ fontSize: 'clamp(1.125rem, 0.95rem + 0.55vw, 1.5rem)', lineHeight: '1.35' }}
             >
               {mode === 'signin' ? 'Sign in' : 'Create account'}
             </h2>
             <p
               className="text-[#6B7280]"
               style={{
-                marginBottom: 'clamp(10px, 1.5vh, 16px)',
+                marginBottom: mode === 'signin' ? 'clamp(6px, 1vh, 12px)' : 'clamp(10px, 1.5vh, 16px)',
                 fontSize: 'clamp(12px, 0.75rem + 0.35vw, 15px)',
-                lineHeight: '1.45',
+                lineHeight: '1.4',
               }}
             >
               {mode === 'signin'
@@ -371,25 +381,28 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                 : 'Get started in under a minute.'}
             </p>
 
-            <div className="mb-3 grid w-full grid-cols-3 gap-2">
+            <div className={`mb-2 grid w-full grid-cols-3 gap-1.5 sm:gap-2 ${mode === 'signin' ? 'max-w-full' : ''}`}>
               <SocialOAuthStub
                 icon={<GoogleLogo />}
                 label="Continue with Google — OAuth not configured; use email and password"
                 shortLabel="Google"
+                dense={mode === 'signin'}
               />
               <SocialOAuthStub
                 icon={<AppleLogo />}
                 label="Continue with Apple — OAuth not configured; use email and password"
                 shortLabel="Apple"
+                dense={mode === 'signin'}
               />
               <SocialOAuthStub
                 icon={<MicrosoftLogo />}
                 label="Continue with Microsoft — OAuth not configured; use email and password"
                 shortLabel="Microsoft"
+                dense={mode === 'signin'}
               />
             </div>
 
-            <div className="mb-3 flex items-center gap-2">
+            <div className="mb-2 flex items-center gap-2">
               <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
               <span
                 className="text-[#9CA3AF]"
@@ -400,7 +413,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
             </div>
 
-            <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: '10px' }}>
+            <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: mode === 'signin' ? 8 : 10 }}>
               {mode === 'signup' && (
                 <div>
                   <span className="mb-1 block font-medium text-[#6B7280]" style={labelStyle}>
@@ -474,8 +487,8 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             </form>
 
             <p
-              className="mt-auto shrink-0 text-center text-[#9CA3AF]"
-              style={{ fontSize: '11px', lineHeight: '1.45', paddingTop: 'clamp(8px, 1.2vh, 14px)' }}
+              className={`shrink-0 text-center text-[#9CA3AF] ${mode === 'signin' ? 'mt-2' : 'mt-auto pt-2'}`}
+              style={{ fontSize: '11px', lineHeight: '1.45', paddingTop: mode === 'signup' ? 'clamp(8px, 1.2vh, 14px)' : undefined }}
             >
               By signing in, you agree to our{' '}
               <Link
