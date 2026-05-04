@@ -14,7 +14,8 @@ import { LoginScreen } from './components/LoginScreen';
 import { ApplicantScreen } from './components/ApplicantScreen';
 import { OnboardingLayout, PROFILE_ONBOARDING_QUERY_ROOT } from './onboarding/OnboardingLayout';
 import { OnboardingStepPage } from './onboarding/OnboardingStepPage';
-import { pathForOnboardingDbStep, type OnboardingStepDb } from './lib/onboardingRouting';
+import { fetchProfileOnboardingMeta } from './onboarding/profileOnboardingMeta';
+import { pathForOnboardingDbStep } from './lib/onboardingRouting';
 import { navigateAfterSignIn, type SignInLocationState } from './lib/postSignInNavigation';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
@@ -92,18 +93,10 @@ export function RequireOnboardingComplete() {
   const { data, isLoading, isError } = useQuery({
     queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, sessionUserId ?? ''],
     enabled: Boolean(isSupabaseConfigured && supabase && authReady && sessionUserId),
+    retry: false,
     queryFn: async () => {
       if (!supabase || !sessionUserId) throw new Error('Not authenticated');
-      const { data: row, error } = await supabase
-        .from('profiles')
-        .select('onboarding_step, onboarding_completed_at')
-        .eq('id', sessionUserId)
-        .single();
-      if (error) throw error;
-      return {
-        onboarding_step: row.onboarding_step as OnboardingStepDb,
-        onboarding_completed_at: row.onboarding_completed_at as string | null,
-      };
+      return fetchProfileOnboardingMeta(supabase, sessionUserId);
     },
   });
 

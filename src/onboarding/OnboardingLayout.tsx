@@ -2,10 +2,8 @@ import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import {
-  pathForOnboardingDbStep,
-  type OnboardingStepDb,
-} from '../lib/onboardingRouting';
+import { pathForOnboardingDbStep } from '../lib/onboardingRouting';
+import { fetchProfileOnboardingMeta } from './profileOnboardingMeta';
 
 /** Prefix for React Query; use in invalidateQueries to bust all user-specific onboarding rows. */
 export const PROFILE_ONBOARDING_QUERY_ROOT = ['profile-onboarding-meta'] as const;
@@ -46,19 +44,10 @@ export function OnboardingLayout() {
   const { data, isLoading, isError } = useQuery({
     queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, sessionUserId ?? ''],
     enabled: Boolean(isSupabaseConfigured && supabase && authReady && sessionUserId),
+    retry: false,
     queryFn: async () => {
       if (!supabase || !sessionUserId) throw new Error('Not authenticated');
-      const { data: row, error } = await supabase
-        .from('profiles')
-        .select('onboarding_step, onboarding_completed_at')
-        .eq('id', sessionUserId)
-        .single();
-      if (error) throw error;
-      return {
-        userId: sessionUserId,
-        onboarding_step: row.onboarding_step as OnboardingStepDb,
-        onboarding_completed_at: row.onboarding_completed_at as string | null,
-      };
+      return fetchProfileOnboardingMeta(supabase, sessionUserId);
     },
   });
 
