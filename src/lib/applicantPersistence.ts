@@ -76,6 +76,17 @@ export async function ensureApplicantProfile(
     .single();
 
   if (insErr) {
+    const msg = insErr.message ?? '';
+    const isDuplicate =
+      insErr.code === '23505' || msg.toLowerCase().includes('duplicate') || msg.includes('unique');
+    if (isDuplicate) {
+      const { data: row, error: reselErr } = await client
+        .from('candidate_profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!reselErr && row?.id) return row.id as string;
+    }
     return fail(`[CMe] candidate_profiles insert failed: ${insErr.message}`);
   }
   return created.id;
