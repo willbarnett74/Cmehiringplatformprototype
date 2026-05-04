@@ -12,18 +12,23 @@ export type LoginScreenProps = {
 const systemFont =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
 
-const pagePadY = 'clamp(16px, 2.5vw, 48px)';
-/** Fits within the viewport; avoids a 640px-tall card on short windows */
 const splitCardGridStyle: CSSProperties = {
   gridTemplateRows: 'minmax(0, 1fr)',
   boxSizing: 'border-box',
-  height: `min(960px, calc(100dvh - 2 * ${pagePadY}))`,
-  minHeight: `min(640px, calc(100dvh - 2 * ${pagePadY}))`,
-  maxHeight: `calc(100dvh - 2 * ${pagePadY})`,
+  height: 'clamp(640px, 78vh, 960px)',
+  minHeight: 'clamp(640px, 78vh, 960px)',
+  maxHeight: 'clamp(640px, 78vh, 960px)',
   width: '100%',
   maxWidth: 'min(1680px, calc(100vw - clamp(32px, 5vw, 96px)))',
   border: '1px solid rgba(0,0,0,0.08)',
   borderRadius: '20px',
+};
+
+const buttonSurfaceStyle: CSSProperties = {
+  border: '1px solid rgba(0,0,0,0.12)',
+  borderRadius: '10px',
+  fontSize: '13px',
+  lineHeight: '1.5',
 };
 
 const inputStyle: CSSProperties = {
@@ -86,37 +91,17 @@ function MicrosoftLogo() {
   );
 }
 
-function SocialOAuthStub({
-  icon,
-  label,
-  shortLabel,
-  dense,
-}: {
-  icon: ReactNode;
-  label: string;
-  shortLabel: string;
-  dense?: boolean;
-}) {
+function SocialOAuthStub({ icon, label }: { icon: ReactNode; label: string }) {
   return (
     <button
       type="button"
-      title={label}
-      aria-label={label}
+      title="OAuth not configured yet — use email and password"
       onClick={(e) => e.preventDefault()}
-      className={`flex min-w-0 flex-1 cursor-default flex-col items-center justify-center gap-0.5 bg-white font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA] sm:flex-row sm:gap-1.5 ${
-        dense ? 'py-1.5 sm:py-1.5' : 'py-2 sm:py-2'
-      }`}
-      style={{
-        border: '1px solid rgba(0,0,0,0.12)',
-        borderRadius: '10px',
-        fontSize: 'clamp(10px, 0.65rem + 0.2vw, 12px)',
-        lineHeight: '1.35',
-        paddingLeft: 'clamp(4px, 1vw, 8px)',
-        paddingRight: 'clamp(4px, 1vw, 8px)',
-      }}
+      className="flex w-full cursor-default items-center justify-center bg-white px-4 py-2 font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA]"
+      style={{ ...buttonSurfaceStyle, gap: '10px' }}
     >
       {icon}
-      <span className="max-w-full truncate text-center">{shortLabel}</span>
+      {label}
     </button>
   );
 }
@@ -221,8 +206,8 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
   return (
     <div
-      className="flex min-h-dvh items-center justify-center overflow-auto bg-[#fafafa] text-[#111827]"
-      style={{ fontFamily: systemFont, padding: pagePadY }}
+      className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#111827]"
+      style={{ fontFamily: systemFont, padding: 'clamp(16px, 2.5vw, 48px)' }}
     >
       <div
         className="grid w-full grid-cols-1 overflow-hidden bg-white md:grid-cols-2"
@@ -334,13 +319,13 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         <section
           className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white"
           style={{
-            paddingBlock: 'clamp(20px, 3.5vh, 56px)',
-            paddingInline: 'clamp(20px, 4.5vw, 96px)',
+            padding:
+              'clamp(20px, 3vw, 64px) clamp(28px, 4.5vw, 96px) clamp(24px, 3.5vw, 72px)',
           }}
         >
           <div
-            className="absolute z-10 max-w-[calc(100%-1.5rem)] text-right text-[#6B7280] sm:max-w-none"
-            style={{ top: 'clamp(16px, 2vh, 24px)', right: 'clamp(16px, 2.5vw, 28px)', fontSize: '12px', lineHeight: '1.5' }}
+            className="absolute z-10 text-[#6B7280]"
+            style={{ top: '20px', right: '24px', fontSize: '12px', lineHeight: '1.5' }}
           >
             {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}
             <button
@@ -354,147 +339,119 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             </button>
           </div>
 
-          <div
-            className="flex min-h-0 flex-1 flex-col overflow-x-hidden"
-            style={{ paddingTop: 'clamp(40px, 5.5vh, 60px)' }}
-          >
-            <div className="shrink-0">
-              <h2
-                className="mb-0.5 font-medium text-[#111827]"
-                style={{ fontSize: 'clamp(1.125rem, 0.95rem + 0.55vw, 1.5rem)', lineHeight: '1.35' }}
-              >
-                {mode === 'signin' ? 'Sign in' : 'Create account'}
-              </h2>
-              <p
-                className="text-[#6B7280]"
-                style={{
-                  marginBottom: mode === 'signin' ? 'clamp(10px, 1.75vh, 18px)' : 'clamp(12px, 2vh, 20px)',
-                  fontSize: 'clamp(12px, 0.75rem + 0.35vw, 15px)',
-                  lineHeight: '1.4',
-                }}
-              >
-                {mode === 'signin'
-                  ? 'Welcome back. Continue where you left off.'
-                  : 'Get started in under a minute.'}
-              </p>
-            </div>
-
-            <div
-              className={`flex min-h-0 w-full flex-1 flex-col ${
-                mode === 'signin' ? 'justify-center' : 'justify-start overflow-y-auto'
-              }`}
+          <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <h2
+              className="mb-1 font-medium text-[#111827]"
+              style={{ fontSize: 'clamp(1.125rem, 0.95rem + 0.55vw, 1.5rem)', lineHeight: '1.5' }}
             >
-              <div className="w-full shrink-0">
-                <div className="mb-2 grid w-full grid-cols-3 gap-1.5 sm:gap-2">
-                  <SocialOAuthStub
-                    icon={<GoogleLogo />}
-                    label="Continue with Google — OAuth not configured; use email and password"
-                    shortLabel="Google"
-                    dense={mode === 'signin'}
-                  />
-                  <SocialOAuthStub
-                    icon={<AppleLogo />}
-                    label="Continue with Apple — OAuth not configured; use email and password"
-                    shortLabel="Apple"
-                    dense={mode === 'signin'}
-                  />
-                  <SocialOAuthStub
-                    icon={<MicrosoftLogo />}
-                    label="Continue with Microsoft — OAuth not configured; use email and password"
-                    shortLabel="Microsoft"
-                    dense={mode === 'signin'}
-                  />
-                </div>
+              {mode === 'signin' ? 'Sign in' : 'Create account'}
+            </h2>
+            <p
+              className="text-[#6B7280]"
+              style={{
+                marginBottom: '16px',
+                fontSize: 'clamp(12px, 0.75rem + 0.35vw, 15px)',
+                lineHeight: '1.5',
+              }}
+            >
+              {mode === 'signin'
+                ? 'Welcome back. Continue where you left off.'
+                : 'Get started in under a minute.'}
+            </p>
 
-                <div className="mb-2 flex items-center gap-2">
-                  <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
-                  <span
-                    className="text-[#9CA3AF]"
-                    style={{ fontSize: '11px', letterSpacing: '0.06em', lineHeight: '1.5' }}
-                  >
-                    OR
-                  </span>
-                  <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
-                </div>
-
-                <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: mode === 'signin' ? 8 : 10 }}>
-                  {mode === 'signup' && (
-                    <div>
-                      <span className="mb-1 block font-medium text-[#6B7280]" style={labelStyle}>
-                        Full name
-                      </span>
-                      <input
-                        value={fullName}
-                        onChange={(ev) => setFullName(ev.target.value)}
-                        className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
-                        style={inputStyle}
-                        placeholder="Alex Rivera"
-                        disabled={loading}
-                        required
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <span className="mb-1 block font-medium text-[#6B7280]" style={labelStyle}>
-                      Email address
-                    </span>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(ev) => setEmail(ev.target.value)}
-                      className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
-                      style={inputStyle}
-                      placeholder="you@example.com"
-                      disabled={loading}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <div className="mb-1 flex items-baseline justify-between gap-2">
-                      <span className="font-medium text-[#6B7280]" style={labelStyle}>
-                        Password
-                      </span>
-                      <button
-                        type="button"
-                        className="shrink-0 text-[#6B7280] underline decoration-1 underline-offset-2"
-                        style={{ fontSize: '11px', lineHeight: '1.5' }}
-                        disabled={loading}
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(ev) => setPassword(ev.target.value)}
-                      className="box-border w-full bg-white px-3 py-2 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
-                      style={inputStyle}
-                      placeholder="Enter your password"
-                      disabled={loading}
-                      required
-                      minLength={6}
-                    />
-                  </div>
-
-                  {error && <p className="text-xs text-red-600">{error}</p>}
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="mt-0.5 w-full bg-[#7DBBFF] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
-                    style={{ borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}
-                  >
-                    {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
-                  </button>
-                </form>
-              </div>
+            <div className="mb-3 flex flex-col" style={{ gap: '8px' }}>
+              <SocialOAuthStub icon={<GoogleLogo />} label="Continue with Google" />
+              <SocialOAuthStub icon={<AppleLogo />} label="Continue with Apple" />
+              <SocialOAuthStub icon={<MicrosoftLogo />} label="Continue with Microsoft" />
             </div>
+
+            <div className="mb-3 flex items-center gap-3">
+              <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
+              <span
+                className="text-[#9CA3AF]"
+                style={{ fontSize: '11px', letterSpacing: '0.06em', lineHeight: '1.5' }}
+              >
+                OR
+              </span>
+              <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.1)', flex: 1 }} />
+            </div>
+
+            <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: '12px' }}>
+              {mode === 'signup' && (
+                <div>
+                  <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
+                    Full name
+                  </span>
+                  <input
+                    value={fullName}
+                    onChange={(ev) => setFullName(ev.target.value)}
+                    className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                    style={inputStyle}
+                    placeholder="Alex Rivera"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+              )}
+
+              <div>
+                <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
+                  Email address
+                </span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(ev) => setEmail(ev.target.value)}
+                  className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                  style={inputStyle}
+                  placeholder="you@example.com"
+                  disabled={loading}
+                  required
+                />
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-baseline justify-between">
+                  <span className="font-medium text-[#6B7280]" style={labelStyle}>
+                    Password
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[#6B7280] underline decoration-1 underline-offset-2"
+                    style={{ fontSize: '11px', lineHeight: '1.5' }}
+                    disabled={loading}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(ev) => setPassword(ev.target.value)}
+                  className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                  style={inputStyle}
+                  placeholder="Enter your password"
+                  disabled={loading}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              {error && <p className="text-xs text-red-600">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-[#7DBBFF] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}
+              >
+                {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
+              </button>
+            </form>
 
             <p
-              className="shrink-0 pt-3 text-center text-[#9CA3AF] sm:pt-4"
-              style={{ fontSize: '11px', lineHeight: '1.45' }}
+              className="mt-auto pt-4 text-center text-[#9CA3AF]"
+              style={{ fontSize: '11px', lineHeight: '1.5' }}
             >
               By signing in, you agree to our{' '}
               <Link
@@ -503,7 +460,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                 className="underline decoration-1 underline-offset-2 transition hover:text-[#6B7280]"
                 style={{
                   fontSize: '11px',
-                  lineHeight: '1.45',
+                  lineHeight: '1.5',
                   color: '#9CA3AF',
                   fontWeight: 400,
                 }}
@@ -517,7 +474,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                 className="underline decoration-1 underline-offset-2 transition hover:text-[#6B7280]"
                 style={{
                   fontSize: '11px',
-                  lineHeight: '1.45',
+                  lineHeight: '1.5',
                   color: '#9CA3AF',
                   fontWeight: 400,
                 }}
