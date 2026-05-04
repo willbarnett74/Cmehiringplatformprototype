@@ -392,7 +392,8 @@ export async function saveBaseDetails(
     location: string | null;
     current_situation: string | null;
     job_title?: string | null;
-    age: number | null;
+    /** Omit to leave `candidate_profiles.age` unchanged. */
+    age?: number | null;
     availability: string | null;
   },
 ): Promise<void> {
@@ -400,17 +401,18 @@ export async function saveBaseDetails(
     await client.from('profiles').update({ full_name: fields.full_name }).eq('id', userId);
   }
 
-  const { error } = await client
-    .from('candidate_profiles')
-    .update({
-      location: fields.location,
-      current_situation: fields.current_situation,
-      job_title: fields.job_title ?? fields.current_situation,
-      age: fields.age,
-      availability: fields.availability,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', profileId);
+  const candidateUpdate: Record<string, unknown> = {
+    location: fields.location,
+    current_situation: fields.current_situation,
+    job_title: fields.job_title ?? fields.current_situation,
+    availability: fields.availability,
+    updated_at: new Date().toISOString(),
+  };
+  if ('age' in fields) {
+    candidateUpdate.age = fields.age;
+  }
+
+  const { error } = await client.from('candidate_profiles').update(candidateUpdate).eq('id', profileId);
 
   if (error) {
     console.warn('[CMe] saveBaseDetails failed:', error.message);

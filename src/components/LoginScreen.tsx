@@ -95,9 +95,9 @@ function SocialOAuthStub({ icon, label }: { icon: ReactNode; label: string }) {
   return (
     <button
       type="button"
-      disabled
       title="OAuth not configured yet — use email and password"
-      className="flex w-full cursor-not-allowed items-center justify-center bg-white px-4 py-2.5 font-medium text-[#111827] opacity-60"
+      onClick={(e) => e.preventDefault()}
+      className="flex w-full cursor-default items-center justify-center bg-white px-4 py-2.5 font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA]"
       style={{ ...buttonSurfaceStyle, gap: '10px' }}
     >
       {icon}
@@ -214,7 +214,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         style={splitCardGridStyle}
       >
         <section
-          className="relative flex h-full min-h-[min(280px,40vh)] min-w-0 flex-1 flex-col justify-between overflow-hidden text-white md:min-h-0"
+          className="relative flex h-full min-h-[320px] min-w-0 flex-1 flex-col justify-between overflow-hidden text-white md:min-h-0"
           style={{
             padding: 'clamp(32px, 4.5vw, 96px)',
             background: 'linear-gradient(135deg, #0F1419 0%, #1a2332 100%)',
@@ -246,7 +246,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           <div className="relative">
             <div className="flex items-center" style={{ gap: '10px', marginBottom: '56px' }}>
               <div
-                className="flex h-8 w-8 items-center justify-center bg-[#7DBBFF]"
+                className="flex h-8 w-8 shrink-0 items-center justify-center bg-[#7DBBFF]"
                 style={{ borderRadius: '8px' }}
               >
                 <Compass className="h-4 w-4 text-white" strokeWidth={2} />
@@ -265,7 +265,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             >
               Hire for who they are,
               <br />
-              not just what&apos;s on their CV.
+              <span style={{ color: '#7DBBFF' }}>not just what&apos;s on their CV.</span>
             </h1>
 
             <p
@@ -292,7 +292,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                       background: 'rgba(125,187,255,0.15)',
                     }}
                   >
-                    <Check className="h-3 w-3" strokeWidth={2.5} />
+                    <Check className="h-3 w-3" strokeWidth={2} />
                   </div>
                   <div
                     style={{
@@ -453,6 +453,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               By signing in, you agree to our{' '}
               <Link
                 to="/legal/terms"
+                id="legal-terms"
                 className="underline decoration-1 underline-offset-2 transition hover:text-[#6B7280]"
                 style={{
                   fontSize: '11px',
@@ -466,6 +467,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               and{' '}
               <Link
                 to="/legal/privacy"
+                id="legal-privacy"
                 className="underline decoration-1 underline-offset-2 transition hover:text-[#6B7280]"
                 style={{
                   fontSize: '11px',
