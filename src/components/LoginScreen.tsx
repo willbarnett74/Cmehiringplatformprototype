@@ -13,6 +13,8 @@ export type LoginScreenProps = {
   onAuthenticated?: () => void | Promise<void>;
 };
 
+type Mode = 'signin' | 'signup';
+
 const systemFont =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
 
@@ -250,14 +252,15 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   ];
 
   return (
-    <div
+    <>
+      <div
         className="flex min-h-screen items-center justify-center bg-[var(--cme-onboarding-canvas)] text-[#111827]"
         style={{ fontFamily: systemFont, padding: 'clamp(16px, 2.5vw, 48px)' }}
       >
-      <div
-        className="grid w-full grid-cols-1 overflow-hidden bg-white md:grid-cols-2"
-        style={splitCardGridStyle}
-      >
+        <div
+          className="grid w-full grid-cols-1 overflow-hidden bg-white md:grid-cols-2"
+          style={splitCardGridStyle}
+        >
         <section
           className="relative flex h-full min-h-[320px] min-w-0 flex-1 flex-col justify-between overflow-hidden text-white md:min-h-0"
           style={{
