@@ -1,5 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Navigate,
   Outlet,
@@ -11,112 +10,86 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import App from './App';
 import { LoginScreen } from './components/LoginScreen';
+import { LegalBetaPage } from './components/legal/LegalBetaPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ApplicantScreen } from './components/ApplicantScreen';
+import { OnboardingRouteShell } from './components/layout/OnboardingRouteShell';
+import { RouteFlowError, RouteFlowLoading } from './components/shared/RouteFlowState';
 import { OnboardingLayout, PROFILE_ONBOARDING_QUERY_ROOT } from './onboarding/OnboardingLayout';
 import { OnboardingStepPage } from './onboarding/OnboardingStepPage';
+import { AnalyticsEvents, trackEvent } from './lib/analytics';
 import { fetchProfileOnboardingMeta } from './onboarding/profileOnboardingMeta';
 import { pathForOnboardingDbStep } from './lib/onboardingRouting';
 import { navigateAfterSignIn, type SignInLocationState } from './lib/postSignInNavigation';
-import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
-
-function FullScreenLoading() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#6B7280]">
-      Loading…
-    </div>
-  );
-}
-
-function LegalPlaceholder({ title }: { title: string }) {
-  return (
-    <div className="min-h-screen bg-[#fafafa] p-8 text-[#111827]">
-      <h1 className="text-xl font-semibold">{title}</h1>
-      <p className="mt-2 text-sm text-[#6B7280]">Placeholder — replace with your legal content.</p>
-    </div>
-  );
-}
+import { supabase } from './lib/supabaseClient';
+import { useSupabaseSessionBootstrap } from './lib/useSupabaseSessionBootstrap';
 
 export function RequireAuth() {
   const location = useLocation();
-  const [ready, setReady] = useState(false);
-  const [authed, setAuthed] = useState(false);
+  const { ready, session, timedOut, retry, hasClient } = useSupabaseSessionBootstrap();
 
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      setReady(true);
-      setAuthed(false);
-      return;
-    }
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthed(Boolean(session));
-      setReady(true);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthed(Boolean(session));
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (!ready) {
-    return <FullScreenLoading />;
+  if (!hasClient) {
+    return <Navigate to="/onboarding/sign-in" replace state={{ from: location.pathname }} />;
   }
-  if (!isSupabaseConfigured || !supabase || !authed) {
+  if (timedOut) {
+    return (
+      <RouteFlowError
+        message="We couldn’t verify your session. Check your connection and try again."
+        onRetry={retry}
+      />
+    );
+  }
+  if (!ready) {
+    return <RouteFlowLoading message="Checking your session…" />;
+  }
+  if (!session) {
     return <Navigate to="/onboarding/sign-in" replace state={{ from: location.pathname }} />;
   }
   return <Outlet />;
 }
 
 export function RequireOnboardingComplete() {
-  const [authReady, setAuthReady] = useState(false);
-  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const { ready: authReady, session, timedOut, retry: retrySession, hasClient } =
+    useSupabaseSessionBootstrap();
+  const sessionUserId = session?.user?.id ?? null;
 
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      setAuthReady(true);
-      setSessionUserId(null);
-      return;
-    }
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      setSessionUserId(session?.user?.id ?? null);
-      setAuthReady(true);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSessionUserId(session?.user?.id ?? null);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch, isPending } = useQuery({
     queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, sessionUserId ?? ''],
-    enabled: Boolean(isSupabaseConfigured && supabase && authReady && sessionUserId),
-    retry: false,
+    enabled: Boolean(hasClient && supabase && authReady && !timedOut && sessionUserId),
+    retry: 1,
     queryFn: async () => {
       if (!supabase || !sessionUserId) throw new Error('Not authenticated');
       return fetchProfileOnboardingMeta(supabase, sessionUserId);
     },
   });
 
-  if (!isSupabaseConfigured || !supabase) {
+  if (!hasClient || !supabase) {
     return <Navigate to="/onboarding/sign-in" replace />;
   }
-
-  if (!authReady) {
-    return <FullScreenLoading />;
+  if (timedOut) {
+    return (
+      <RouteFlowError
+        message="We couldn’t verify your session. Check your connection and try again."
+        onRetry={retrySession}
+      />
+    );
   }
-
+  if (!authReady) {
+    return <RouteFlowLoading message="Checking your session…" />;
+  }
   if (!sessionUserId) {
     return <Navigate to="/onboarding/sign-in" replace />;
   }
-
-  if (isLoading) {
-    return <FullScreenLoading />;
+  if (isLoading || isPending) {
+    return <RouteFlowLoading message="Loading your profile…" />;
   }
   if (isError || !data) {
-    return <Navigate to="/onboarding/sign-in" replace />;
+    return (
+      <RouteFlowError
+        message="We couldn’t load your onboarding status. Check your connection and try again."
+        onRetry={() => void refetch()}
+      />
+    );
   }
   if (!data.onboarding_completed_at) {
     return <Navigate to={pathForOnboardingDbStep(data.onboarding_step)} replace />;
@@ -128,42 +101,88 @@ function OnboardingSignInPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as SignInLocationState | null;
-  const [ready, setReady] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
-  const postAuthRedirectStarted = useRef(false);
+  const { ready, session, timedOut, retry: retrySession, hasClient } = useSupabaseSessionBootstrap();
+  const [postAuthRetryKey, setPostAuthRetryKey] = useState(0);
+  const [postAuthError, setPostAuthError] = useState<string | null>(null);
+  const oauthReturnFired = useRef(false);
+  /** Capture OAuth/PKCE return before Supabase may strip the URL. */
+  const oauthReturnEligibleRef = useRef(
+    typeof window !== 'undefined' &&
+      (window.location.hash.includes('access_token') || /[?&]code=/.test(window.location.search)),
+  );
+  const redirectStarted = useRef(false);
 
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      setReady(true);
-      return;
-    }
-    void supabase.auth.getSession().then(({ data: { session: next } }) => {
-      setSession(next);
-      setReady(true);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-    });
-    return () => subscription.unsubscribe();
+  const retryPostAuth = useCallback(() => {
+    redirectStarted.current = false;
+    setPostAuthError(null);
+    setPostAuthRetryKey((k) => k + 1);
   }, []);
 
   useEffect(() => {
-    if (!ready || !session || !supabase || postAuthRedirectStarted.current) return;
-    postAuthRedirectStarted.current = true;
-    void navigateAfterSignIn(navigate, state, supabase);
-  }, [ready, session, navigate, state]);
+    if (!hasClient || !supabase) return;
+    if (!ready || !session) return;
+    if (postAuthError) return;
+    if (redirectStarted.current) return;
+    redirectStarted.current = true;
+    let cancelled = false;
 
-  if (!ready || session) {
-    return <FullScreenLoading />;
+    void (async () => {
+      try {
+        if (oauthReturnEligibleRef.current && !oauthReturnFired.current) {
+          oauthReturnFired.current = true;
+          trackEvent(AnalyticsEvents.oauth_return, {});
+        }
+        await navigateAfterSignIn(navigate, state, supabase);
+      } catch (e) {
+        redirectStarted.current = false;
+        if (!cancelled) {
+          setPostAuthError(
+            e instanceof Error ? e.message : 'Something went wrong after sign-in. Please try again.',
+          );
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasClient, ready, session, navigate, state, postAuthError, postAuthRetryKey]);
+
+  if (!hasClient) {
+    return (
+      <OnboardingRouteShell className="flex items-center justify-center px-4 text-center text-[var(--cme-onboarding-muted)]">
+        Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to use sign-in.
+      </OnboardingRouteShell>
+    );
+  }
+  if (timedOut) {
+    return (
+      <RouteFlowError
+        message="We couldn’t verify your session. Check your connection and try again."
+        onRetry={retrySession}
+      />
+    );
+  }
+  if (!ready) {
+    return <RouteFlowLoading message="Checking your session…" />;
+  }
+  if (postAuthError) {
+    return (
+      <RouteFlowError
+        message={postAuthError}
+        onRetry={retryPostAuth}
+        retryLabel="Try again"
+      />
+    );
+  }
+  if (session) {
+    return <RouteFlowLoading message="Finishing sign-in…" />;
   }
 
   return (
     <LoginScreen
-      onAuthenticated={async () => {
-        if (!isSupabaseConfigured || !supabase) return;
-        await navigateAfterSignIn(navigate, state, supabase);
+      onAuthenticated={() => {
+        /* Session updates via useSupabaseSessionBootstrap; effect above runs navigateAfterSignIn. */
       }}
     />
   );
@@ -172,8 +191,9 @@ function OnboardingSignInPage() {
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/legal/terms" element={<LegalPlaceholder title="Terms" />} />
-      <Route path="/legal/privacy" element={<LegalPlaceholder title="Privacy policy" />} />
+      <Route path="/legal/terms" element={<LegalBetaPage variant="terms" />} />
+      <Route path="/legal/privacy" element={<LegalBetaPage variant="privacy" />} />
+      <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
       <Route path="/onboarding/sign-in" element={<OnboardingSignInPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/onboarding" element={<OnboardingLayout />}>

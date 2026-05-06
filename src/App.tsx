@@ -77,9 +77,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen bg-[var(--cme-marketing-shell-bg)] text-white">
       {/* Top Navigation */}
-      <nav className="border-b border-white/5 bg-[#0a0a0f]/60 backdrop-blur-2xl sticky top-0 z-50">
+      <nav className="border-b border-white/5 bg-[var(--cme-marketing-shell-bg)]/60 backdrop-blur-2xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-8 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-12">
@@ -181,15 +181,15 @@ export default function App() {
 
         {/* Screen Content */}
         <main>
-          <Suspense fallback={<div className="min-h-[420px] bg-[#fafafa]" />}>
+          <Suspense fallback={<div className="min-h-[420px] bg-[var(--cme-onboarding-canvas)]" />}>
             {activeTab === 'overview' && <OverviewScreen onNavigate={handleNavigateToPath} />}
             {activeTab === 'applicant' &&
               (!isSupabaseConfigured || !supabase ? (
-                <div className="flex min-h-[420px] items-center justify-center bg-[#fafafa] px-4 text-center text-sm text-[#6B7280]">
+                <div className="flex min-h-[420px] items-center justify-center bg-[var(--cme-onboarding-canvas)] px-4 text-center text-sm text-[var(--cme-onboarding-muted)]">
                   Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to use Applicant View.
                 </div>
               ) : !authChecked ? (
-                <div className="flex min-h-[420px] items-center justify-center bg-[#fafafa] text-sm text-[#6B7280]">
+                <div className="flex min-h-[420px] items-center justify-center bg-[var(--cme-onboarding-canvas)] text-sm text-[var(--cme-onboarding-muted)]">
                   Checking session…
                 </div>
               ) : session ? (
@@ -197,11 +197,11 @@ export default function App() {
               ) : null)}
             {activeTab === 'employer' &&
               (!isSupabaseConfigured || !supabase ? (
-                <div className="flex min-h-[420px] items-center justify-center bg-[#fafafa] px-4 text-center text-sm text-[#6B7280]">
+                <div className="flex min-h-[420px] items-center justify-center bg-[var(--cme-onboarding-canvas)] px-4 text-center text-sm text-[var(--cme-onboarding-muted)]">
                   Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to use Employer View.
                 </div>
               ) : !authChecked ? (
-                <div className="flex min-h-[420px] items-center justify-center bg-[#fafafa] text-sm text-[#6B7280]">
+                <div className="flex min-h-[420px] items-center justify-center bg-[var(--cme-onboarding-canvas)] text-sm text-[var(--cme-onboarding-muted)]">
                   Checking session…
                 </div>
               ) : session ? (

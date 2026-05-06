@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { OnboardingRouteShell } from '../components/layout/OnboardingRouteShell';
+import { RouteFlowError, RouteFlowLoading } from '../components/shared/RouteFlowState';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { useSupabaseSessionBootstrap } from '../lib/useSupabaseSessionBootstrap';
 import { pathForOnboardingDbStep } from '../lib/onboardingRouting';
 import { fetchProfileOnboardingMeta } from './profileOnboardingMeta';
 
@@ -20,31 +23,14 @@ const ONBOARDING_PATHS = ['/onboarding/welcome', '/onboarding/basics', '/onboard
 export function OnboardingLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [authReady, setAuthReady] = useState(false);
-  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const { ready: authReady, session, timedOut, retry: retrySession, hasClient } =
+    useSupabaseSessionBootstrap();
+  const sessionUserId = session?.user?.id ?? null;
 
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      setAuthReady(true);
-      setSessionUserId(null);
-      return;
-    }
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      setSessionUserId(session?.user?.id ?? null);
-      setAuthReady(true);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSessionUserId(session?.user?.id ?? null);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch, isPending } = useQuery({
     queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, sessionUserId ?? ''],
-    enabled: Boolean(isSupabaseConfigured && supabase && authReady && sessionUserId),
-    retry: false,
+    enabled: Boolean(hasClient && supabase && authReady && !timedOut && sessionUserId),
+    retry: 1,
     queryFn: async () => {
       if (!supabase || !sessionUserId) throw new Error('Not authenticated');
       return fetchProfileOnboardingMeta(supabase, sessionUserId);
@@ -61,34 +47,40 @@ export function OnboardingLayout() {
 
   if (!isSupabaseConfigured || !supabase) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] px-4 text-center text-[#6B7280]">
+      <OnboardingRouteShell className="flex items-center justify-center px-4 text-center text-[var(--cme-onboarding-muted)]">
         Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to use onboarding.
-      </div>
+      </OnboardingRouteShell>
+    );
+  }
+
+  if (timedOut) {
+    return (
+      <RouteFlowError
+        message="We couldn’t verify your session. Check your connection and try again."
+        onRetry={retrySession}
+      />
     );
   }
 
   if (!authReady) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#6B7280]">
-        Loading…
-      </div>
-    );
+    return <RouteFlowLoading message="Checking your session…" />;
   }
 
   if (!sessionUserId) {
     return <Navigate to="/onboarding/sign-in" replace />;
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#6B7280]">
-        Loading…
-      </div>
-    );
+  if (isLoading || isPending) {
+    return <RouteFlowLoading message="Loading your profile…" />;
   }
 
   if (isError || !data) {
-    return <Navigate to="/onboarding/sign-in" replace />;
+    return (
+      <RouteFlowError
+        message="We couldn’t load your onboarding status. Check your connection and try again."
+        onRetry={() => void refetch()}
+      />
+    );
   }
 
   if (data.onboarding_completed_at) {

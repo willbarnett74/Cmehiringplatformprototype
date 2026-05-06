@@ -1,9 +1,13 @@
-import { type CSSProperties, type FormEvent, type ReactNode, useState } from 'react';
+import {
+  type CSSProperties,
+  type FormEvent,
+  useEffect,
+  useState,
+} from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Compass } from 'lucide-react';
+import { AnalyticsEvents, trackEvent } from '../lib/analytics';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-
-type Mode = 'signin' | 'signup';
 
 export type LoginScreenProps = {
   onAuthenticated?: () => void | Promise<void>;
@@ -68,44 +72,6 @@ function GoogleLogo() {
   );
 }
 
-function AppleLogo() {
-  return (
-    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="#000" aria-hidden="true">
-        <path d="M17.05 12.04c-.03-3.04 2.49-4.5 2.6-4.57-1.42-2.07-3.62-2.36-4.4-2.39-1.87-.19-3.65 1.1-4.6 1.1-.95 0-2.41-1.07-3.96-1.04-2.04.03-3.92 1.18-4.97 3-2.12 3.67-.54 9.1 1.52 12.08 1.01 1.46 2.21 3.1 3.79 3.04 1.52-.06 2.1-.99 3.94-.99s2.36.99 3.97.96c1.64-.03 2.68-1.49 3.69-2.95 1.16-1.69 1.64-3.33 1.66-3.42-.04-.02-3.18-1.22-3.21-4.83zM14.06 3.34C14.88 2.34 15.43 0.96 15.28-0.42c-1.18.05-2.61.79-3.46 1.78-.76.88-1.43 2.29-1.25 3.64 1.32.1 2.66-.67 3.49-1.66z" />
-      </svg>
-    </span>
-  );
-}
-
-function MicrosoftLogo() {
-  return (
-    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <rect width="7" height="7" x="0.5" y="0.5" fill="#F25022" />
-        <rect width="7" height="7" x="8.5" y="0.5" fill="#7FBA00" />
-        <rect width="7" height="7" x="0.5" y="8.5" fill="#00A4EF" />
-        <rect width="7" height="7" x="8.5" y="8.5" fill="#FFB900" />
-      </svg>
-    </span>
-  );
-}
-
-function SocialOAuthStub({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <button
-      type="button"
-      title="Not configured yet — use email and password or Google"
-      onClick={(e) => e.preventDefault()}
-      className="flex w-full cursor-default items-center justify-center bg-white px-4 py-2 font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA]"
-      style={{ ...buttonSurfaceStyle, gap: '10px' }}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const [mode, setMode] = useState<Mode>('signin');
   const [fullName, setFullName] = useState('');
@@ -115,6 +81,63 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const [oauthBusy, setOauthBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmSent, setConfirmSent] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
+
+  useEffect(() => {
+    if (!forgotOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [forgotOpen]);
+
+  const openForgotPassword = () => {
+    if (loading || oauthBusy) return;
+    setForgotEmail(email.trim());
+    setForgotError('');
+    setForgotSent(false);
+    setForgotOpen(true);
+  };
+
+  const closeForgotPassword = () => {
+    if (forgotBusy) return;
+    setForgotOpen(false);
+    setForgotError('');
+    setForgotSent(false);
+  };
+
+  const submitForgotPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setForgotError('');
+    if (!isSupabaseConfigured || !supabase) {
+      setForgotError('Sign in is not configured yet. Please contact support.');
+      return;
+    }
+    const trimmed = forgotEmail.trim();
+    if (!trimmed) {
+      setForgotError('Please enter your email address.');
+      return;
+    }
+    setForgotBusy(true);
+    try {
+      const redirectTo = `${window.location.origin}/auth/reset-password`;
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(trimmed, {
+        redirectTo,
+      });
+      if (resetErr) {
+        setForgotError(resetErr.message);
+      } else {
+        setForgotSent(true);
+      }
+    } finally {
+      setForgotBusy(false);
+    }
+  };
 
   const signInWithGoogle = async () => {
     setError('');
@@ -122,6 +145,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       setError('Sign in is not configured yet. Please contact support.');
       return;
     }
+    trackEvent(AnalyticsEvents.sign_in_started, { method: 'google' });
     setOauthBusy(true);
     const redirectTo = `${window.location.origin}/onboarding/sign-in`;
     const { error: oauthErr } = await supabase.auth.signInWithOAuth({
@@ -153,6 +177,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
     try {
       if (mode === 'signin') {
+        trackEvent(AnalyticsEvents.sign_in_started, { method: 'password' });
         const { error: signErr } = await supabase.auth.signInWithPassword({ email, password });
         if (signErr) {
           setError(signErr.message);
@@ -165,6 +190,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           setLoading(false);
           return;
         }
+        trackEvent(AnalyticsEvents.sign_in_started, { method: 'password_signup' });
         const { data, error: signUpErr } = await supabase.auth.signUp({
           email,
           password,
@@ -186,7 +212,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   if (confirmSent) {
     return (
       <div
-        className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#111827]"
+        className="flex min-h-screen items-center justify-center bg-[var(--cme-onboarding-canvas)] text-[#111827]"
         style={{ fontFamily: systemFont, padding: 'clamp(16px, 2.5vw, 48px)' }}
       >
         <div className="w-full max-w-sm text-center">
@@ -225,9 +251,9 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#111827]"
-      style={{ fontFamily: systemFont, padding: 'clamp(16px, 2.5vw, 48px)' }}
-    >
+        className="flex min-h-screen items-center justify-center bg-[var(--cme-onboarding-canvas)] text-[#111827]"
+        style={{ fontFamily: systemFont, padding: 'clamp(16px, 2.5vw, 48px)' }}
+      >
       <div
         className="grid w-full grid-cols-1 overflow-hidden bg-white md:grid-cols-2"
         style={splitCardGridStyle}
@@ -389,8 +415,12 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                 <GoogleLogo />
                 {oauthBusy ? 'Redirecting…' : 'Continue with Google'}
               </button>
-              <SocialOAuthStub icon={<AppleLogo />} label="Continue with Apple" />
-              <SocialOAuthStub icon={<MicrosoftLogo />} label="Continue with Microsoft" />
+              <p
+                className="text-center text-[#9CA3AF]"
+                style={{ fontSize: '11px', lineHeight: '1.5' }}
+              >
+                Apple and Microsoft sign-in are coming soon. Use Google or email for now.
+              </p>
             </div>
 
             <div className="mb-3 flex items-center gap-3">
@@ -443,14 +473,21 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                   <span className="font-medium text-[#6B7280]" style={labelStyle}>
                     Password
                   </span>
-                  <button
-                    type="button"
-                    className="text-[#6B7280] underline decoration-1 underline-offset-2"
-                    style={{ fontSize: '11px', lineHeight: '1.5' }}
-                    disabled={loading || oauthBusy}
-                  >
-                    Forgot password?
-                  </button>
+                  {mode === 'signin' ? (
+                    <button
+                      type="button"
+                      className="text-[#6B7280] underline decoration-1 underline-offset-2"
+                      style={{ fontSize: '11px', lineHeight: '1.5' }}
+                      disabled={loading || oauthBusy}
+                      onClick={openForgotPassword}
+                    >
+                      Forgot password?
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '11px' }} aria-hidden="true">
+                      &nbsp;
+                    </span>
+                  )}
                 </div>
                 <input
                   type="password"
@@ -515,5 +552,89 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         </section>
       </div>
     </div>
+    {forgotOpen ? (
+      <div
+        role="presentation"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        onMouseDown={() => {
+          if (!forgotBusy) closeForgotPassword();
+        }}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="forgot-password-title"
+          className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-lg"
+          style={{ fontFamily: systemFont }}
+          onMouseDown={(ev) => ev.stopPropagation()}
+        >
+          <h2 id="forgot-password-title" className="text-base font-semibold text-[#111827]">
+            Reset password
+          </h2>
+          {forgotSent ? (
+            <div className="mt-4">
+              <p className="text-sm text-[#6B7280]">
+                If an account exists for{' '}
+                <span className="font-medium text-[#111827]">{forgotEmail.trim()}</span>, we sent a link to set a
+                new password. Check your inbox and spam folder.
+              </p>
+              <button
+                type="button"
+                className="mt-6 w-full bg-[#7DBBFF] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff]"
+                style={{ borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}
+                onClick={closeForgotPassword}
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <form
+              className="mt-4 flex flex-col"
+              style={{ gap: '12px' }}
+              onSubmit={(e) => void submitForgotPassword(e)}
+            >
+              <p className="text-sm text-[#6B7280]">We will email you a link to choose a new password.</p>
+              <div>
+                <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
+                  Email address
+                </span>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(ev) => setForgotEmail(ev.target.value)}
+                  className="box-border w-full bg-white px-3 py-2.5 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#7dbbff]"
+                  style={inputStyle}
+                  placeholder="you@example.com"
+                  disabled={forgotBusy}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              {forgotError ? <p className="text-xs text-red-600">{forgotError}</p> : null}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={forgotBusy}
+                  className="flex-1 border border-[rgba(0,0,0,0.12)] bg-white px-4 py-2.5 font-medium text-[#111827] transition-colors hover:bg-[#F9F9FA] disabled:opacity-60"
+                  style={{ borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}
+                  onClick={closeForgotPassword}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotBusy}
+                  className="flex-1 bg-[#7DBBFF] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}
+                >
+                  {forgotBusy ? 'Sending…' : 'Send link'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    ) : null}
+  </>
   );
 }

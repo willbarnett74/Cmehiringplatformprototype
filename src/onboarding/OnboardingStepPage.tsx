@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { OnboardingRouteShell } from '../components/layout/OnboardingRouteShell';
+import { RouteFlowInlineLoading } from '../components/shared/RouteFlowState';
 import { ApplicantWelcomePage } from '../components/applicant-pages/ApplicantWelcomePage';
 import {
   completeApplicantOnboardingWizard,
@@ -10,6 +12,7 @@ import {
 import { pathForOnboardingDbStep } from '../lib/onboardingRouting';
 import type { WelcomeUiStep } from '../lib/onboardingRouting';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { AnalyticsEvents, trackEvent } from '../lib/analytics';
 import { PROFILE_ONBOARDING_QUERY_ROOT, type OnboardingOutletContext } from './OnboardingLayout';
 
 export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
@@ -19,6 +22,10 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
   const queryClient = useQueryClient();
   const [profileId, setProfileId] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
+
+  useEffect(() => {
+    trackEvent(AnalyticsEvents.onboarding_step_viewed, { step: uiStep });
+  }, [uiStep]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !userId) return;
@@ -56,8 +63,10 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
 
   if (!userId) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fafafa] px-6 text-center">
-        <p className="max-w-md text-sm text-[#6B7280]">Something went wrong loading your session. Try refreshing.</p>
+      <OnboardingRouteShell className="flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="max-w-md text-sm text-[var(--cme-onboarding-muted)]">
+          Something went wrong loading your session. Try refreshing.
+        </p>
         <button
           type="button"
           onClick={() => window.location.reload()}
@@ -65,7 +74,7 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
         >
           Refresh
         </button>
-      </div>
+      </OnboardingRouteShell>
     );
   }
 
@@ -81,14 +90,15 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
     if (!supabase) return;
     const { error } = await completeApplicantOnboardingWizard(supabase, userId);
     if (error) console.warn('[CMe] completeApplicantOnboardingWizard:', error);
+    else trackEvent(AnalyticsEvents.onboarding_complete, {});
     await queryClient.invalidateQueries({ queryKey: PROFILE_ONBOARDING_QUERY_ROOT });
     navigate('/profile-builder', { replace: true });
   };
 
   if (profileError && !profileId) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fafafa] px-6 text-center text-[#111827]">
-        <p className="max-w-md text-sm text-[#6B7280]">{profileError}</p>
+      <OnboardingRouteShell className="flex flex-col items-center justify-center gap-4 px-6 text-center text-[#111827]">
+        <p className="max-w-md text-sm text-[var(--cme-onboarding-muted)]">{profileError}</p>
         <button
           type="button"
           onClick={retryLoadProfile}
@@ -96,15 +106,15 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
         >
           Try again
         </button>
-      </div>
+      </OnboardingRouteShell>
     );
   }
 
   if (!profileId) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#6B7280]">
-        Loading…
-      </div>
+      <OnboardingRouteShell>
+        <RouteFlowInlineLoading message="Preparing your profile…" />
+      </OnboardingRouteShell>
     );
   }
 

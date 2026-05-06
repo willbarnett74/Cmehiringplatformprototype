@@ -4,6 +4,13 @@
 
 :root {
   --font-size: 16px;
+  /**
+   * CMe route-group surfaces (see OnboardingRouteShell in src/components/layout).
+   * Marketing shell: dark chrome. Onboarding/auth full-bleed: light canvas aligned with LoginScreen / dashboard.
+   */
+  --cme-marketing-shell-bg: #0a0a0f;
+  --cme-onboarding-canvas: #fafafa;
+  --cme-onboarding-muted: #6b7280;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
