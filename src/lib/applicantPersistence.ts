@@ -405,7 +405,7 @@ export function explainProfileOnboardingWriteFailure(raw: string): string {
       (m.includes('could not find') || m.includes('unknown') || m.includes('not find')));
 
   if (unknownColumnOrStaleApi) {
-    return 'Supabase may still be using an old API schema after your SQL change, or this app may be pointed at a different Supabase project. Try: (1) Supabase Dashboard → Project Settings → API → Reload schema, wait one minute. (2) In Vercel, confirm VITE_SUPABASE_URL matches that project. (3) If needed, run migration 20260504183000_profiles_onboarding_urls.sql again on that project.';
+    return "PostgREST doesn't see profiles.onboarding_step yet (schema cache). In Supabase → SQL Editor run: NOTIFY pgrst, 'reload schema'; wait ~30 seconds, refresh this page, try again. Also confirm Vercel's VITE_SUPABASE_URL is this same project. If it still fails, Dashboard → Settings → restart or pause/resume the project.";
   }
 
   console.warn('[CMe] profile onboarding write (unmapped):', raw);
