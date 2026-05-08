@@ -121,13 +121,18 @@ function PreferenceToggle({
 export function EditBasicInfoPage({
   onSaved,
   showPreferencesSection = false,
+  initialUserId = null,
+  initialApplicantProfileId = null,
 }: {
   onSaved?: () => void;
   /** When true (Settings page), show notification / visibility preferences and persist to Supabase. */
   showPreferencesSection?: boolean;
+  /** Parent ApplicantScreen already knows these IDs; use them to avoid a fragile duplicate lookup. */
+  initialUserId?: string | null;
+  initialApplicantProfileId?: string | null;
 } = {}) {
-  const [applicantProfileId, setApplicantProfileId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [applicantProfileId, setApplicantProfileId] = useState<string | null>(initialApplicantProfileId);
+  const [userId, setUserId] = useState<string | null>(initialUserId);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -176,11 +181,11 @@ export function EditBasicInfoPage({
     }
     const client = supabase;
     void client.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.user?.id) {
+      const uid = initialUserId ?? session?.user?.id ?? null;
+      if (!uid) {
         setLoading(false);
         return;
       }
-      const uid = session.user.id;
       setUserId(uid);
 
       // Load from profiles table (name, email)
@@ -207,7 +212,14 @@ export function EditBasicInfoPage({
       }
 
       // Load from candidate_profiles
-      const profileId = await ensureApplicantProfile(client, uid);
+      let profileId: string | null = null;
+      try {
+        profileId = initialApplicantProfileId ?? await ensureApplicantProfile(client, uid, { throwOnError: true });
+      } catch (error) {
+        setSaveError(`Could not load your profile: ${error instanceof Error ? error.message : String(error)}`);
+        setLoading(false);
+        return;
+      }
       setApplicantProfileId(profileId);
 
       if (profileId) {
@@ -238,7 +250,7 @@ export function EditBasicInfoPage({
 
       setLoading(false);
     });
-  }, []);
+  }, [initialUserId, initialApplicantProfileId]);
 
   useEffect(() => {
     if (!pendingPhotoFile) {
@@ -279,7 +291,12 @@ export function EditBasicInfoPage({
 
       let profileId = applicantProfileId;
       if (!profileId) {
-        profileId = await ensureApplicantProfile(client, userId);
+        try {
+          profileId = await ensureApplicantProfile(client, userId, { throwOnError: true });
+        } catch (error) {
+          setSaveError(`Could not load your profile: ${error instanceof Error ? error.message : String(error)}`);
+          return;
+        }
         setApplicantProfileId(profileId);
       }
       if (!profileId) {

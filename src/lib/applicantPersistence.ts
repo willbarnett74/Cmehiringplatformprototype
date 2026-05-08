@@ -24,13 +24,24 @@ function profileRoleFromMetadata(metaRole: string | undefined): 'candidate' | 'e
 export async function ensureApplicantProfile(
   client: SupabaseClient,
   userId: string,
+  options: { throwOnError?: boolean } = {},
 ): Promise<string | null> {
+  const fail = (message: string): null => {
+    console.warn(message);
+    if (options.throwOnError) throw new Error(message.replace(/^\[CMe\]\s*/, ''));
+    return null;
+  };
+
   // 1. Ensure profiles row exists (in case trigger migration hasn't been run)
-  const { data: existingProfileRow } = await client
+  const { data: existingProfileRow, error: profileSelErr } = await client
     .from('profiles')
     .select('id')
     .eq('id', userId)
     .maybeSingle();
+
+  if (profileSelErr) {
+    return fail(`[CMe] profiles select failed: ${profileSelErr.message}`);
+  }
 
   if (!existingProfileRow) {
     const { data: { user } } = await client.auth.getUser();
@@ -42,7 +53,7 @@ export async function ensureApplicantProfile(
       role: profileRoleFromMetadata(metaRole),
     });
     if (profileInsErr) {
-      console.warn('[CMe] profiles insert failed:', profileInsErr.message);
+      return fail(`[CMe] profiles insert failed: ${profileInsErr.message}`);
     }
   }
 
@@ -54,8 +65,7 @@ export async function ensureApplicantProfile(
     .maybeSingle();
 
   if (selErr) {
-    console.warn('[CMe] candidate_profiles select failed:', selErr.message);
-    return null;
+    return fail(`[CMe] candidate_profiles select failed: ${selErr.message}`);
   }
   if (existing?.id) return existing.id;
 
@@ -66,8 +76,18 @@ export async function ensureApplicantProfile(
     .single();
 
   if (insErr) {
-    console.warn('[CMe] candidate_profiles insert failed:', insErr.message);
-    return null;
+    const msg = insErr.message ?? '';
+    const isDuplicate =
+      insErr.code === '23505' || msg.toLowerCase().includes('duplicate') || msg.includes('unique');
+    if (isDuplicate) {
+      const { data: row, error: reselErr } = await client
+        .from('candidate_profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!reselErr && row?.id) return row.id as string;
+    }
+    return fail(`[CMe] candidate_profiles insert failed: ${insErr.message}`);
   }
   return created.id;
 }
@@ -343,6 +363,33 @@ export async function updateApplicantBasicInfo(
   return { error: null };
 }
 
+/** Persists profiles.onboarding_step for URL-backed onboarding (RLS: own row). */
+export async function setProfileOnboardingStep(
+  client: SupabaseClient,
+  userId: string,
+  step: 'welcome' | 'details' | 'how_it_works' | 'completed',
+): Promise<{ error: Error | null }> {
+  const { error } = await client.from('profiles').update({ onboarding_step: step }).eq('id', userId);
+  return { error: error ? new Error(error.message) : null };
+}
+
+/** Marks applicant onboarding finished (server source of truth for route guards). */
+export async function completeApplicantOnboardingWizard(
+  client: SupabaseClient,
+  userId: string,
+): Promise<{ error: Error | null }> {
+  const now = new Date().toISOString();
+  const { error } = await client
+    .from('profiles')
+    .update({
+      onboarding_step: 'completed',
+      onboarding_completed_at: now,
+      onboarding_complete: true,
+    })
+    .eq('id', userId);
+  return { error: error ? new Error(error.message) : null };
+}
+
 /**
  * Save base details collected during the welcome onboarding flow.
  * Updates both the profiles row (full_name) and candidate_profiles row.
@@ -355,7 +402,9 @@ export async function saveBaseDetails(
     full_name: string | null;
     location: string | null;
     current_situation: string | null;
-    age: number | null;
+    job_title?: string | null;
+    /** Omit to leave `candidate_profiles.age` unchanged. */
+    age?: number | null;
     availability: string | null;
   },
 ): Promise<void> {
@@ -363,16 +412,18 @@ export async function saveBaseDetails(
     await client.from('profiles').update({ full_name: fields.full_name }).eq('id', userId);
   }
 
-  const { error } = await client
-    .from('candidate_profiles')
-    .update({
-      location: fields.location,
-      current_situation: fields.current_situation,
-      age: fields.age,
-      availability: fields.availability,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', profileId);
+  const candidateUpdate: Record<string, unknown> = {
+    location: fields.location,
+    current_situation: fields.current_situation,
+    job_title: fields.job_title ?? fields.current_situation,
+    availability: fields.availability,
+    updated_at: new Date().toISOString(),
+  };
+  if ('age' in fields) {
+    candidateUpdate.age = fields.age;
+  }
+
+  const { error } = await client.from('candidate_profiles').update(candidateUpdate).eq('id', profileId);
 
   if (error) {
     console.warn('[CMe] saveBaseDetails failed:', error.message);
