@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { computeIntakeScores, type DimensionScores } from '../utils/intakeScoring';
 import type { IntakeData, UserProfileData } from '../contexts/UserProfileContext';
 import type { CandidateActivityEventType, IntakeFormat } from '../types/supabase';
@@ -363,18 +363,26 @@ export async function updateApplicantBasicInfo(
   return { error: null };
 }
 
-/** User-facing hint when profiles.onboarding_step write fails (RLS, missing migration, etc.). */
+/** Flatten PostgREST errors so matchers see hints/codes (helps stale-schema vs missing-column). */
+export function postgrestErrorToMessage(err: PostgrestError): string {
+  const parts = [err.message];
+  if (err.details) parts.push(`Details: ${err.details}`);
+  if (err.hint) parts.push(`Hint: ${err.hint}`);
+  if (err.code) parts.push(`Code: ${err.code}`);
+  return parts.join(' | ');
+}
+
+/**
+ * User-facing hint when profiles onboarding writes fail.
+ * Avoid matching on bare "onboarding_step" — check constraint messages include that name too.
+ */
 export function explainProfileOnboardingWriteFailure(raw: string): string {
   const m = raw.toLowerCase();
-  if (
-    m.includes('onboarding_step') ||
-    m.includes('onboarding_completed_at') ||
-    m.includes('pgrst204') ||
-    (m.includes('column') && m.includes('does not exist')) ||
-    m.includes('schema cache')
-  ) {
-    return 'Your Supabase project is missing the onboarding fields the app needs to save this step. Ask whoever manages the database to open the Supabase SQL Editor, paste in the contents of supabase/migrations/20260504183000_profiles_onboarding_urls.sql from this repo, and run it.';
+
+  if (m.includes('violates check constraint') || m.includes('violates foreign key constraint')) {
+    return 'The database rejected this update because of a profile rule. Try signing out and signing back in.';
   }
+
   if (
     m.includes('row-level security') ||
     m.includes('violates policy') ||
@@ -383,11 +391,25 @@ export function explainProfileOnboardingWriteFailure(raw: string): string {
   ) {
     return 'Saving was blocked for your account. Try signing out and signing back in.';
   }
-  if (m.includes('profile update affected no rows') || m.includes('no matching rows')) {
-    return 'We could not update your profile. Try signing out and signing back in.';
+
+  if (m.includes('profile update affected no rows')) {
+    return 'No profile row was updated (often a sign-in mismatch). Try signing out and signing back in. Confirm Vercel uses the same Supabase project where you ran the SQL.';
   }
+
+  const unknownColumnOrStaleApi =
+    m.includes('pgrst204') ||
+    (m.includes('could not find') && m.includes('column')) ||
+    (m.includes('column') && m.includes('does not exist')) ||
+    m.includes('42703') ||
+    (m.includes('schema cache') &&
+      (m.includes('could not find') || m.includes('unknown') || m.includes('not find')));
+
+  if (unknownColumnOrStaleApi) {
+    return 'Supabase may still be using an old API schema after your SQL change, or this app may be pointed at a different Supabase project. Try: (1) Supabase Dashboard → Project Settings → API → Reload schema, wait one minute. (2) In Vercel, confirm VITE_SUPABASE_URL matches that project. (3) If needed, run migration 20260504183000_profiles_onboarding_urls.sql again on that project.';
+  }
+
   console.warn('[CMe] profile onboarding write (unmapped):', raw);
-  return "We couldn't save your progress. Check your connection and try again.";
+  return "We couldn't save your progress. Open Technical details below if you need to share the error.";
 }
 
 /** Persists profiles.onboarding_step for URL-backed onboarding (RLS: own row). */
@@ -403,9 +425,11 @@ export async function setProfileOnboardingStep(
     .select('id')
     .maybeSingle();
   if (error) {
-    return { error: new Error(error.message) };
+    console.warn('[CMe] setProfileOnboardingStep PostgREST:', error.code, error.message, error.details, error.hint);
+    return { error: new Error(postgrestErrorToMessage(error)) };
   }
   if (!data) {
+    console.warn('[CMe] setProfileOnboardingStep: zero rows updated', { userId });
     return { error: new Error('profile update affected no rows') };
   }
   return { error: null };
@@ -428,9 +452,17 @@ export async function completeApplicantOnboardingWizard(
     .select('id')
     .maybeSingle();
   if (error) {
-    return { error: new Error(error.message) };
+    console.warn(
+      '[CMe] completeApplicantOnboardingWizard PostgREST:',
+      error.code,
+      error.message,
+      error.details,
+      error.hint,
+    );
+    return { error: new Error(postgrestErrorToMessage(error)) };
   }
   if (!data) {
+    console.warn('[CMe] completeApplicantOnboardingWizard: zero rows updated', { userId });
     return { error: new Error('profile update affected no rows') };
   }
   return { error: null };

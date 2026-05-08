@@ -26,6 +26,7 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [routeSyncBusy, setRouteSyncBusy] = useState(false);
   const [routeSyncError, setRouteSyncError] = useState<string | null>(null);
+  const [routeSyncErrorDetail, setRouteSyncErrorDetail] = useState<string | null>(null);
 
   useEffect(() => {
     trackEvent(AnalyticsEvents.onboarding_step_viewed, { step: uiStep });
@@ -85,11 +86,13 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
   const goToOnboardingStep = async (next: 'welcome' | 'details' | 'how_it_works') => {
     if (!supabase) return;
     setRouteSyncError(null);
+    setRouteSyncErrorDetail(null);
     setRouteSyncBusy(true);
     try {
       const { error } = await setProfileOnboardingStep(supabase, userId, next);
       if (error) {
         console.warn('[CMe] setProfileOnboardingStep:', error);
+        setRouteSyncErrorDetail(error.message);
         setRouteSyncError(explainProfileOnboardingWriteFailure(error.message));
         return;
       }
@@ -109,11 +112,13 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
   const finishServerOnboarding = async () => {
     if (!supabase) return;
     setRouteSyncError(null);
+    setRouteSyncErrorDetail(null);
     setRouteSyncBusy(true);
     try {
       const { error } = await completeApplicantOnboardingWizard(supabase, userId);
       if (error) {
         console.warn('[CMe] completeApplicantOnboardingWizard:', error);
+        setRouteSyncErrorDetail(error.message);
         setRouteSyncError(explainProfileOnboardingWriteFailure(error.message));
         return;
       }
@@ -172,7 +177,11 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
       }}
       routeSyncBusy={routeSyncBusy}
       routeSyncError={routeSyncError}
-      onDismissRouteSyncError={() => setRouteSyncError(null)}
+      routeSyncErrorDetail={routeSyncErrorDetail}
+      onDismissRouteSyncError={() => {
+        setRouteSyncError(null);
+        setRouteSyncErrorDetail(null);
+      }}
     />
   );
 }

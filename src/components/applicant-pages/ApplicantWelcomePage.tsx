@@ -38,7 +38,47 @@ interface ApplicantWelcomePageProps {
   /** True while onboarding_step / completion is being saved (URL-synced flow). */
   routeSyncBusy?: boolean;
   routeSyncError?: string | null;
+  /** Raw PostgREST / server message for expand Technical details */
+  routeSyncErrorDetail?: string | null;
   onDismissRouteSyncError?: () => void;
+}
+
+function RouteSyncErrorBanner({
+  routeSync,
+  editMode,
+  routeSyncError,
+  routeSyncErrorDetail,
+  onDismissRouteSyncError,
+}: {
+  routeSync?: ApplicantWelcomeRouteSync;
+  editMode: boolean;
+  routeSyncError: string | null;
+  routeSyncErrorDetail: string | null;
+  onDismissRouteSyncError?: () => void;
+}) {
+  if (!routeSync || editMode || !routeSyncError) return null;
+  return (
+    <div className="rounded-xl border border-red-100 bg-red-50/90 px-3 py-2 text-left text-sm text-red-900">
+      <p className="leading-snug">{routeSyncError}</p>
+      {routeSyncErrorDetail ? (
+        <details className="mt-2 text-xs">
+          <summary className="cursor-pointer font-medium text-red-900/90">Technical details</summary>
+          <pre className="mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-snug text-red-950/85">
+            {routeSyncErrorDetail}
+          </pre>
+        </details>
+      ) : null}
+      {onDismissRouteSyncError ? (
+        <button
+          type="button"
+          onClick={onDismissRouteSyncError}
+          className="mt-1.5 text-xs font-medium text-red-800 underline decoration-red-800/50 underline-offset-2 hover:text-red-950"
+        >
+          Dismiss
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 /** Keeps eyebrow alignment nudges from drifting under fonts / observers and clipping CTAs. */
@@ -185,6 +225,7 @@ function ApplicantWelcomePage({
   routeSync,
   routeSyncBusy = false,
   routeSyncError = null,
+  routeSyncErrorDetail = null,
   onDismissRouteSyncError,
 }: ApplicantWelcomePageProps) {
   const [name, setName] = useState('');
@@ -557,20 +598,13 @@ function ApplicantWelcomePage({
               className="relative z-10 mt-auto flex shrink-0 flex-col gap-2"
               style={{ borderTop: '0.5px solid rgba(0,0,0,0.08)', paddingTop: '22px' }}
             >
-              {routeSync && !editMode && routeSyncError ? (
-                <div className="rounded-xl border border-red-100 bg-red-50/90 px-3 py-2 text-left text-sm text-red-900">
-                  <p className="leading-snug">{routeSyncError}</p>
-                  {onDismissRouteSyncError ? (
-                    <button
-                      type="button"
-                      onClick={onDismissRouteSyncError}
-                      className="mt-1.5 text-xs font-medium text-red-800 underline decoration-red-800/50 underline-offset-2 hover:text-red-950"
-                    >
-                      Dismiss
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+              <RouteSyncErrorBanner
+                routeSync={routeSync}
+                editMode={editMode}
+                routeSyncError={routeSyncError}
+                routeSyncErrorDetail={routeSyncErrorDetail}
+                onDismissRouteSyncError={onDismissRouteSyncError}
+              />
               <div className="flex w-full items-center justify-between gap-3">
                 <div
                   className="flex min-h-10 items-center text-[#9CA3AF]"
@@ -765,20 +799,13 @@ function ApplicantWelcomePage({
               className="relative z-10 flex shrink-0 flex-col gap-2"
               style={{ borderTop: '0.5px solid rgba(0,0,0,0.08)', paddingTop: '22px' }}
             >
-              {routeSync && !editMode && routeSyncError ? (
-                <div className="rounded-xl border border-red-100 bg-red-50/90 px-3 py-2 text-left text-sm text-red-900">
-                  <p className="leading-snug">{routeSyncError}</p>
-                  {onDismissRouteSyncError ? (
-                    <button
-                      type="button"
-                      onClick={onDismissRouteSyncError}
-                      className="mt-1.5 text-xs font-medium text-red-800 underline decoration-red-800/50 underline-offset-2 hover:text-red-950"
-                    >
-                      Dismiss
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+              <RouteSyncErrorBanner
+                routeSync={routeSync}
+                editMode={editMode}
+                routeSyncError={routeSyncError}
+                routeSyncErrorDetail={routeSyncErrorDetail}
+                onDismissRouteSyncError={onDismissRouteSyncError}
+              />
               <div className="flex w-full items-center justify-between gap-3">
                 <div
                   className="flex min-h-10 items-center text-[#9CA3AF]"
@@ -932,20 +959,13 @@ function ApplicantWelcomePage({
             className="relative z-10 flex shrink-0 flex-col gap-2"
             style={{ borderTop: '0.5px solid rgba(0,0,0,0.08)', paddingTop: '22px' }}
           >
-            {routeSync && !editMode && routeSyncError ? (
-              <div className="rounded-xl border border-red-100 bg-red-50/90 px-3 py-2 text-left text-sm text-red-900">
-                <p className="leading-snug">{routeSyncError}</p>
-                {onDismissRouteSyncError ? (
-                  <button
-                    type="button"
-                    onClick={onDismissRouteSyncError}
-                    className="mt-1.5 text-xs font-medium text-red-800 underline decoration-red-800/50 underline-offset-2 hover:text-red-950"
-                  >
-                    Dismiss
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
+            <RouteSyncErrorBanner
+              routeSync={routeSync}
+              editMode={editMode}
+              routeSyncError={routeSyncError}
+              routeSyncErrorDetail={routeSyncErrorDetail}
+              onDismissRouteSyncError={onDismissRouteSyncError}
+            />
             <div className="flex w-full items-center justify-between gap-3">
               <div
                 className="flex min-h-10 items-center text-[#9CA3AF]"
