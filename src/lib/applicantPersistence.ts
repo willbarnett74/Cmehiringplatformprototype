@@ -363,14 +363,52 @@ export async function updateApplicantBasicInfo(
   return { error: null };
 }
 
+/** User-facing hint when profiles.onboarding_step write fails (RLS, missing migration, etc.). */
+export function explainProfileOnboardingWriteFailure(raw: string): string {
+  const m = raw.toLowerCase();
+  if (
+    m.includes('onboarding_step') ||
+    m.includes('onboarding_completed_at') ||
+    m.includes('pgrst204') ||
+    (m.includes('column') && m.includes('does not exist')) ||
+    m.includes('schema cache')
+  ) {
+    return 'Your Supabase project is missing the onboarding fields the app needs to save this step. Ask whoever manages the database to open the Supabase SQL Editor, paste in the contents of supabase/migrations/20260504183000_profiles_onboarding_urls.sql from this repo, and run it.';
+  }
+  if (
+    m.includes('row-level security') ||
+    m.includes('violates policy') ||
+    m.includes('permission denied') ||
+    m.includes('42501')
+  ) {
+    return 'Saving was blocked for your account. Try signing out and signing back in.';
+  }
+  if (m.includes('profile update affected no rows') || m.includes('no matching rows')) {
+    return 'We could not update your profile. Try signing out and signing back in.';
+  }
+  console.warn('[CMe] profile onboarding write (unmapped):', raw);
+  return "We couldn't save your progress. Check your connection and try again.";
+}
+
 /** Persists profiles.onboarding_step for URL-backed onboarding (RLS: own row). */
 export async function setProfileOnboardingStep(
   client: SupabaseClient,
   userId: string,
   step: 'welcome' | 'details' | 'how_it_works' | 'completed',
 ): Promise<{ error: Error | null }> {
-  const { error } = await client.from('profiles').update({ onboarding_step: step }).eq('id', userId);
-  return { error: error ? new Error(error.message) : null };
+  const { data, error } = await client
+    .from('profiles')
+    .update({ onboarding_step: step })
+    .eq('id', userId)
+    .select('id')
+    .maybeSingle();
+  if (error) {
+    return { error: new Error(error.message) };
+  }
+  if (!data) {
+    return { error: new Error('profile update affected no rows') };
+  }
+  return { error: null };
 }
 
 /** Marks applicant onboarding finished (server source of truth for route guards). */
@@ -379,15 +417,23 @@ export async function completeApplicantOnboardingWizard(
   userId: string,
 ): Promise<{ error: Error | null }> {
   const now = new Date().toISOString();
-  const { error } = await client
+  const { data, error } = await client
     .from('profiles')
     .update({
       onboarding_step: 'completed',
       onboarding_completed_at: now,
       onboarding_complete: true,
     })
-    .eq('id', userId);
-  return { error: error ? new Error(error.message) : null };
+    .eq('id', userId)
+    .select('id')
+    .maybeSingle();
+  if (error) {
+    return { error: new Error(error.message) };
+  }
+  if (!data) {
+    return { error: new Error('profile update affected no rows') };
+  }
+  return { error: null };
 }
 
 /**

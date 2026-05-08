@@ -7,6 +7,7 @@ import ApplicantWelcomePage from '../components/applicant-pages/ApplicantWelcome
 import {
   completeApplicantOnboardingWizard,
   ensureApplicantProfile,
+  explainProfileOnboardingWriteFailure,
   setProfileOnboardingStep,
 } from '../lib/applicantPersistence';
 import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from '../lib/onboardingRouting';
@@ -89,7 +90,7 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
       const { error } = await setProfileOnboardingStep(supabase, userId, next);
       if (error) {
         console.warn('[CMe] setProfileOnboardingStep:', error);
-        setRouteSyncError("We couldn't save your progress. Check your connection and try again.");
+        setRouteSyncError(explainProfileOnboardingWriteFailure(error.message));
         return;
       }
       // Keep React Query in sync with the server before the next paint so OnboardingLayout
@@ -113,7 +114,7 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
       const { error } = await completeApplicantOnboardingWizard(supabase, userId);
       if (error) {
         console.warn('[CMe] completeApplicantOnboardingWizard:', error);
-        setRouteSyncError("We couldn't finish onboarding. Check your connection and try again.");
+        setRouteSyncError(explainProfileOnboardingWriteFailure(error.message));
         return;
       }
       trackEvent(AnalyticsEvents.onboarding_complete, {});
