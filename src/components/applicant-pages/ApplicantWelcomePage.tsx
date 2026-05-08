@@ -170,7 +170,7 @@ function TextField({
   );
 }
 
-export function ApplicantWelcomePage({
+function ApplicantWelcomePage({
   userId,
   profileId,
   onComplete,
@@ -297,11 +297,7 @@ export function ApplicantWelcomePage({
 
     if (routeSync && !editMode) {
       await routeSync.goToOnboardingStep('how_it_works');
-      return;
     }
-
-    localStorage.setItem(`cme_welcomed_${userId}`, '1');
-    setInternalStep('how-it-works');
   };
 
   const detailsFormInner = (
@@ -936,3 +932,5 @@ export function ApplicantWelcomePage({
     </div>
   );
 }
+
+export default ApplicantWelcomePage;

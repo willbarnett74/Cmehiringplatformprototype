@@ -3,13 +3,13 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { OnboardingRouteShell } from '../components/layout/OnboardingRouteShell';
 import { RouteFlowInlineLoading } from '../components/shared/RouteFlowState';
-import { ApplicantWelcomePage } from '../components/applicant-pages/ApplicantWelcomePage';
+import ApplicantWelcomePage from '../components/applicant-pages/ApplicantWelcomePage';
 import {
   completeApplicantOnboardingWizard,
   ensureApplicantProfile,
   setProfileOnboardingStep,
 } from '../lib/applicantPersistence';
-import { pathForOnboardingDbStep } from '../lib/onboardingRouting';
+import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from '../lib/onboardingRouting';
 import type { WelcomeUiStep } from '../lib/onboardingRouting';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { AnalyticsEvents, trackEvent } from '../lib/analytics';
@@ -92,7 +92,7 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
     if (error) console.warn('[CMe] completeApplicantOnboardingWizard:', error);
     else trackEvent(AnalyticsEvents.onboarding_complete, {});
     await queryClient.invalidateQueries({ queryKey: PROFILE_ONBOARDING_QUERY_ROOT });
-    navigate('/profile-builder', { replace: true });
+    navigate(APPLICANT_PORTAL_PATH, { replace: true });
   };
 
   if (profileError && !profileId) {
@@ -122,7 +122,7 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
     <ApplicantWelcomePage
       userId={userId}
       profileId={profileId}
-      onComplete={() => navigate('/profile-builder', { replace: true })}
+      onComplete={() => navigate(APPLICANT_PORTAL_PATH, { replace: true })}
       routeSync={{
         activeStep: uiStep,
         goToOnboardingStep,

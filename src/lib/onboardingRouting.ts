@@ -1,3 +1,6 @@
+/** Logged-in applicant shell (dashboard, profile builder, etc.) */
+export const APPLICANT_PORTAL_PATH = '/applicant-portal';
+
 /** DB values on public.profiles.onboarding_step */
 export type OnboardingStepDb = 'welcome' | 'details' | 'how_it_works' | 'completed';
 
@@ -31,7 +34,7 @@ export function pathForOnboardingDbStep(step: OnboardingStepDb): string {
     case 'how_it_works':
       return '/onboarding/how-it-works';
     case 'completed':
-      return '/profile-builder';
+      return APPLICANT_PORTAL_PATH;
     default:
       return '/onboarding/welcome';
   }

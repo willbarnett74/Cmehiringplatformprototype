@@ -6,7 +6,7 @@ import { navigateAfterSignIn } from '../lib/postSignInNavigation';
 
 /**
  * Supabase Dashboard → Authentication → URL Configuration → Redirect URLs must include:
- * - http://localhost:5173/auth/reset-password (or your Vite dev port)
+ * - http://localhost:5174/auth/reset-password (matches vite.config.ts port)
  * - https://<production-host>/auth/reset-password
  *
  * Must match redirectTo passed from resetPasswordForEmail in LoginScreen.

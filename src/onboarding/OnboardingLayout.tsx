@@ -5,7 +5,7 @@ import { OnboardingRouteShell } from '../components/layout/OnboardingRouteShell'
 import { RouteFlowError, RouteFlowLoading } from '../components/shared/RouteFlowState';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { useSupabaseSessionBootstrap } from '../lib/useSupabaseSessionBootstrap';
-import { pathForOnboardingDbStep } from '../lib/onboardingRouting';
+import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from '../lib/onboardingRouting';
 import { fetchProfileOnboardingMeta } from './profileOnboardingMeta';
 
 /** Prefix for React Query; use in invalidateQueries to bust all user-specific onboarding rows. */
@@ -84,7 +84,7 @@ export function OnboardingLayout() {
   }
 
   if (data.onboarding_completed_at) {
-    return <Navigate to="/profile-builder" replace />;
+    return <Navigate to={APPLICANT_PORTAL_PATH} replace />;
   }
 
   return <Outlet context={{ userId: data.userId } as OnboardingOutletContext} />;

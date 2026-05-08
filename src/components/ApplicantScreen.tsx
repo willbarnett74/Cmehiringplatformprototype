@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { IntakeSection1 } from './applicant-pages/intake/IntakeSection1';
 import { IntakeSection2 } from './applicant-pages/intake/IntakeSection2';
 import { IntakeSection3 } from './applicant-pages/intake/IntakeSection3';
@@ -18,8 +19,9 @@ import { LayoutDashboard, User, Settings, Compass, Layers, LogOut, X, Globe } fr
 import { NotificationBell } from './shared/NotificationBell';
 import { DashboardContent } from './applicant-pages/DashboardContent';
 import { EditBasicInfoPage } from './applicant-pages/EditBasicInfoPage';
-import { ApplicantWelcomePage } from './applicant-pages/ApplicantWelcomePage';
 import { useUserProfile } from '../contexts/UserProfileContext';
+import { pathForOnboardingDbStep } from '../lib/onboardingRouting';
+import { fetchProfileOnboardingMeta } from '../onboarding/profileOnboardingMeta';
 import { computeIntakeScores, computeMotivationalFitAverage } from '../utils/intakeScoring';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import {
@@ -45,12 +47,8 @@ import {
  *   - Subframe 6: 'Step 6 – Signature Traits'
  */
 
-export function ApplicantScreen({
-  entry = 'default',
-}: {
-  /** Use profileBuilderOnly for /profile-builder route after server confirms onboarding. */
-  entry?: 'default' | 'profileBuilderOnly';
-} = {}) {
+export function ApplicantScreen() {
+  const navigate = useNavigate();
   const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, replaceProfileData } =
     useUserProfile();
   const [activeSection, setActiveSection] = useState<
@@ -60,7 +58,6 @@ export function ApplicantScreen({
   const [applicantProfileId, setApplicantProfileId] = useState<string | null>(null);
   const [dbTraitScores, setDbTraitScores] = useState<import('../utils/intakeScoring').DimensionScores | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [showWelcome, setShowWelcome] = useState(false);
   const [showEditBasicInfo, setShowEditBasicInfo] = useState(false);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<number | null>(null);
   const [selectedOpportunityEngagementId, setSelectedOpportunityEngagementId] = useState<string | null>(null);
@@ -100,6 +97,17 @@ export function ApplicantScreen({
       if (!session?.user?.id) return;
       const uid = session.user.id;
       setUserId(uid);
+
+      try {
+        const meta = await fetchProfileOnboardingMeta(client, uid);
+        if (!meta.onboarding_completed_at) {
+          navigate(pathForOnboardingDbStep(meta.onboarding_step), { replace: true });
+          return;
+        }
+      } catch {
+        /* allow shell if meta unavailable */
+      }
+
       const { data: profileRow } = await client.from('profiles').select('full_name').eq('id', uid).maybeSingle();
       setUserName(typeof profileRow?.full_name === 'string' ? profileRow.full_name : '');
       const id = await ensureApplicantProfile(client, uid);
@@ -117,56 +125,21 @@ export function ApplicantScreen({
             ? sitRow.current_situation
             : '',
       );
-      const { data: metaRow } = await client
-        .from('profiles')
-        .select('onboarding_completed_at')
-        .eq('id', uid)
-        .maybeSingle();
-      const serverOnboardingDone = Boolean(metaRow?.onboarding_completed_at);
 
       const loaded = await loadApplicantProfileFromSupabase(client, id);
       if (loaded) {
         replaceProfileData(loaded.profile);
         setDbTraitScores(loaded.traitScores);
-        if (
-          entry !== 'profileBuilderOnly' &&
-          !loaded.profile.intakeData.isComplete &&
-          !serverOnboardingDone &&
-          !localStorage.getItem(`cme_welcomed_${uid}`)
-        ) {
-          setShowWelcome(true);
-        }
       }
     });
-  }, [entry, replaceProfileData]);
-
-  // Deep-link: land directly in profile builder (must match deps above for entry)
-  useEffect(() => {
-    if (entry === 'profileBuilderOnly') {
-      setShowWelcome(false);
-      setActiveSection('profileBuilder');
-      setActiveStep(1);
-    }
-  }, [entry]);
+  }, [navigate, replaceProfileData]);
 
   const handleSignOut = async () => {
-    if (supabase) await supabase.auth.signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+      navigate('/onboarding/sign-in', { replace: true });
+    }
   };
-
-  // First-login welcome flow
-  if (showWelcome && userId && applicantProfileId && entry === 'default') {
-    return (
-      <ApplicantWelcomePage
-        userId={userId}
-        profileId={applicantProfileId}
-        onComplete={() => {
-          setShowWelcome(false);
-          setActiveSection('profileBuilder');
-          setActiveStep(1);
-        }}
-      />
-    );
-  }
 
   // Safety check - ensure profileData is available
   if (!profileData) {
@@ -467,11 +440,9 @@ export function ApplicantScreen({
       )}
 
       <div className="relative flex min-h-screen">
-        <aside
-          className="sticky top-0 flex h-screen w-[224px] shrink-0 flex-col overflow-y-auto border-r border-white/[0.05] bg-[#030213]"
-        >
-          <div className="flex flex-1 flex-col px-4 pb-4 pt-6">
-            <div className="mb-[30px] flex items-center gap-2.5">
+        <aside className="sticky top-0 flex h-screen w-[224px] shrink-0 flex-col border-r border-white/[0.05] bg-[#030213]">
+          <div className="flex h-full min-h-0 flex-1 flex-col px-4 pb-4 pt-6">
+            <div className="mb-[30px] flex shrink-0 items-center gap-2.5">
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center bg-[#7dbbff]"
                 style={{ borderRadius: 7 }}
@@ -485,12 +456,10 @@ export function ApplicantScreen({
               </span>
             </div>
 
-            <p
-              className="mb-1.5 px-2.5 text-[10px] uppercase tracking-[0.1em] text-white/35"
-            >
+            <p className="mb-1.5 shrink-0 px-2.5 text-[10px] uppercase tracking-[0.1em] text-white/35">
               MENU
             </p>
-            <nav className="flex flex-col gap-0.5">
+            <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain">
               <NavBtn
                 active={activeSection === 'dashboard'}
                 icon={LayoutDashboard}
@@ -523,7 +492,7 @@ export function ApplicantScreen({
               />
             </nav>
 
-            <div className="mt-auto border-t border-white/[0.05] pt-4">
+            <div className="mt-4 shrink-0 border-t border-white/[0.05] pt-4">
               <div className="mb-3 flex items-center gap-2.5 px-1">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#7dbbff] text-[10px] font-semibold text-white">
                   {sidebarInitials}

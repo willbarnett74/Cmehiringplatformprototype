@@ -19,7 +19,7 @@ import { OnboardingLayout, PROFILE_ONBOARDING_QUERY_ROOT } from './onboarding/On
 import { OnboardingStepPage } from './onboarding/OnboardingStepPage';
 import { AnalyticsEvents, trackEvent } from './lib/analytics';
 import { fetchProfileOnboardingMeta } from './onboarding/profileOnboardingMeta';
-import { pathForOnboardingDbStep } from './lib/onboardingRouting';
+import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from './lib/onboardingRouting';
 import { navigateAfterSignIn, type SignInLocationState } from './lib/postSignInNavigation';
 import { supabase } from './lib/supabaseClient';
 import { useSupabaseSessionBootstrap } from './lib/useSupabaseSessionBootstrap';
@@ -202,7 +202,8 @@ export default function AppRoutes() {
           <Route path="how-it-works" element={<OnboardingStepPage uiStep="how-it-works" />} />
         </Route>
         <Route element={<RequireOnboardingComplete />}>
-          <Route path="/profile-builder" element={<ApplicantScreen entry="profileBuilderOnly" />} />
+          <Route path="/applicant-portal" element={<ApplicantScreen />} />
+          <Route path="/profile-builder" element={<Navigate to={APPLICANT_PORTAL_PATH} replace />} />
         </Route>
       </Route>
       <Route path="*" element={<App />} />

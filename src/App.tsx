@@ -4,11 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { OverviewScreen } from './components/OverviewScreen';
 import { Sparkles, Palette } from 'lucide-react';
 import { consumeRestoreTabFromSession } from './lib/postSignInNavigation';
+import { APPLICANT_PORTAL_PATH } from './lib/onboardingRouting';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
-const ApplicantScreen = lazy(() =>
-  import('./components/ApplicantScreen').then((module) => ({ default: module.ApplicantScreen })),
-);
 const EmployerScreen = lazy(() =>
   import('./components/EmployerScreen').then((module) => ({ default: module.EmployerScreen })),
 );
@@ -22,7 +20,7 @@ const PulseCheckForm = lazy(() =>
   import('./pages/PulseCheckForm').then((module) => ({ default: module.PulseCheckForm })),
 );
 
-type Tab = 'overview' | 'applicant' | 'employer' | 'design' | 'assessment' | 'pulsecheck';
+type Tab = 'overview' | 'employer' | 'design' | 'assessment' | 'pulsecheck';
 
 export default function App() {
   const navigate = useNavigate();
@@ -32,7 +30,7 @@ export default function App() {
 
   useEffect(() => {
     const restored = consumeRestoreTabFromSession();
-    if (restored) setActiveTab(restored);
+    if (restored === 'employer') setActiveTab('employer');
   }, []);
 
   useEffect(() => {
@@ -55,12 +53,25 @@ export default function App() {
   useEffect(() => {
     if (!authChecked || !isSupabaseConfigured || !supabase) return;
     if (session) return;
-    if (activeTab !== 'applicant' && activeTab !== 'employer') return;
+    if (activeTab !== 'employer') return;
     void navigate('/onboarding/sign-in', {
       replace: true,
-      state: activeTab === 'employer' ? { restoreTab: 'employer' as const } : undefined,
+      state: { restoreTab: 'employer' as const },
     });
   }, [authChecked, session, activeTab, navigate]);
+
+  const goApplicantPortal = () => {
+    if (!isSupabaseConfigured || !supabase) {
+      void navigate('/onboarding/sign-in');
+      return;
+    }
+    if (!authChecked) return;
+    if (!session) {
+      void navigate('/onboarding/sign-in');
+      return;
+    }
+    void navigate(APPLICANT_PORTAL_PATH);
+  };
 
   const handleNavigateToPath = (tab: 'applicant' | 'employer' | 'assessment') => {
     if (tab === 'assessment') {
@@ -68,7 +79,7 @@ export default function App() {
       return;
     }
     if (tab === 'applicant') {
-      void navigate('/onboarding/sign-in');
+      goApplicantPortal();
       return;
     }
     if (tab === 'employer') {
@@ -106,16 +117,10 @@ export default function App() {
                     <span className="relative">Overview</span>
                   </button>
                   <button
-                    onClick={() => setActiveTab('applicant')}
-                    className={`px-5 py-2 transition-all relative ${
-                      activeTab === 'applicant'
-                        ? 'text-white'
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
+                    type="button"
+                    onClick={goApplicantPortal}
+                    className="px-5 py-2 transition-all relative text-gray-500 hover:text-gray-300"
                   >
-                    {activeTab === 'applicant' && (
-                      <div className="absolute inset-0 bg-white/5 rounded-lg border border-white/10" />
-                    )}
                     <span className="relative">Applicant View</span>
                   </button>
                   <button
@@ -183,18 +188,6 @@ export default function App() {
         <main>
           <Suspense fallback={<div className="min-h-[420px] bg-[var(--cme-onboarding-canvas)]" />}>
             {activeTab === 'overview' && <OverviewScreen onNavigate={handleNavigateToPath} />}
-            {activeTab === 'applicant' &&
-              (!isSupabaseConfigured || !supabase ? (
-                <div className="flex min-h-[420px] items-center justify-center bg-[var(--cme-onboarding-canvas)] px-4 text-center text-sm text-[var(--cme-onboarding-muted)]">
-                  Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to use Applicant View.
-                </div>
-              ) : !authChecked ? (
-                <div className="flex min-h-[420px] items-center justify-center bg-[var(--cme-onboarding-canvas)] text-sm text-[var(--cme-onboarding-muted)]">
-                  Checking session…
-                </div>
-              ) : session ? (
-                <ApplicantScreen />
-              ) : null)}
             {activeTab === 'employer' &&
               (!isSupabaseConfigured || !supabase ? (
                 <div className="flex min-h-[420px] items-center justify-center bg-[var(--cme-onboarding-canvas)] px-4 text-center text-sm text-[var(--cme-onboarding-muted)]">
