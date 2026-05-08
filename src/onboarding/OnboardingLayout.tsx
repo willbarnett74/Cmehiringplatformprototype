@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { OnboardingRouteShell } from '../components/layout/OnboardingRouteShell';
@@ -37,7 +37,7 @@ export function OnboardingLayout() {
     },
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!data || data.onboarding_completed_at) return;
     const expected = pathForOnboardingDbStep(data.onboarding_step);
     if (ONBOARDING_PATHS.includes(location.pathname) && location.pathname !== expected) {

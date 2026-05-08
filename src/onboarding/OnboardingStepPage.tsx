@@ -14,6 +14,7 @@ import type { WelcomeUiStep } from '../lib/onboardingRouting';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { AnalyticsEvents, trackEvent } from '../lib/analytics';
 import { PROFILE_ONBOARDING_QUERY_ROOT, type OnboardingOutletContext } from './OnboardingLayout';
+import type { ProfileOnboardingMeta } from './profileOnboardingMeta';
 
 export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
   const ctx = useOutletContext<OnboardingOutletContext | undefined>();
@@ -22,6 +23,8 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
   const queryClient = useQueryClient();
   const [profileId, setProfileId] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [routeSyncBusy, setRouteSyncBusy] = useState(false);
+  const [routeSyncError, setRouteSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     trackEvent(AnalyticsEvents.onboarding_step_viewed, { step: uiStep });
@@ -80,27 +83,57 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
 
   const goToOnboardingStep = async (next: 'welcome' | 'details' | 'how_it_works') => {
     if (!supabase) return;
-    const { error } = await setProfileOnboardingStep(supabase, userId, next);
-    if (error) {
-      console.warn('[CMe] setProfileOnboardingStep:', error);
-      return;
+    setRouteSyncError(null);
+    setRouteSyncBusy(true);
+    try {
+      const { error } = await setProfileOnboardingStep(supabase, userId, next);
+      if (error) {
+        console.warn('[CMe] setProfileOnboardingStep:', error);
+        setRouteSyncError("We couldn't save your progress. Check your connection and try again.");
+        return;
+      }
+      // Keep React Query in sync with the server before the next paint so OnboardingLayout
+      // doesn't redirect back to the previous URL (common on hard refresh + Vercel CDN).
+      queryClient.setQueryData<ProfileOnboardingMeta | undefined>(
+        [...PROFILE_ONBOARDING_QUERY_ROOT, userId],
+        (old) => (old ? { ...old, onboarding_step: next } : old),
+      );
+      await queryClient.refetchQueries({ queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, userId] });
+      navigate(pathForOnboardingDbStep(next));
+    } finally {
+      setRouteSyncBusy(false);
     }
-    // Refetch before navigate: OnboardingLayout syncs URL to profiles.onboarding_step; stale cache
-    // would snap the user back to the previous step (e.g. welcome) right after "Let's begin".
-    await queryClient.refetchQueries({ queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, userId] });
-    navigate(pathForOnboardingDbStep(next));
   };
 
   const finishServerOnboarding = async () => {
     if (!supabase) return;
-    const { error } = await completeApplicantOnboardingWizard(supabase, userId);
-    if (error) {
-      console.warn('[CMe] completeApplicantOnboardingWizard:', error);
-      return;
+    setRouteSyncError(null);
+    setRouteSyncBusy(true);
+    try {
+      const { error } = await completeApplicantOnboardingWizard(supabase, userId);
+      if (error) {
+        console.warn('[CMe] completeApplicantOnboardingWizard:', error);
+        setRouteSyncError("We couldn't finish onboarding. Check your connection and try again.");
+        return;
+      }
+      trackEvent(AnalyticsEvents.onboarding_complete, {});
+      const now = new Date().toISOString();
+      queryClient.setQueryData<ProfileOnboardingMeta | undefined>(
+        [...PROFILE_ONBOARDING_QUERY_ROOT, userId],
+        (old) =>
+          old
+            ? {
+                ...old,
+                onboarding_step: 'completed',
+                onboarding_completed_at: now,
+              }
+            : old,
+      );
+      await queryClient.refetchQueries({ queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, userId] });
+      navigate(APPLICANT_PORTAL_PATH, { replace: true });
+    } finally {
+      setRouteSyncBusy(false);
     }
-    trackEvent(AnalyticsEvents.onboarding_complete, {});
-    await queryClient.refetchQueries({ queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, userId] });
-    navigate(APPLICANT_PORTAL_PATH, { replace: true });
   };
 
   if (profileError && !profileId) {
@@ -136,6 +169,9 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
         goToOnboardingStep,
         finishServerOnboarding,
       }}
+      routeSyncBusy={routeSyncBusy}
+      routeSyncError={routeSyncError}
+      onDismissRouteSyncError={() => setRouteSyncError(null)}
     />
   );
 }

@@ -35,7 +35,14 @@ interface ApplicantWelcomePageProps {
   onComplete: () => void;
   editMode?: boolean;
   routeSync?: ApplicantWelcomeRouteSync;
+  /** True while onboarding_step / completion is being saved (URL-synced flow). */
+  routeSyncBusy?: boolean;
+  routeSyncError?: string | null;
+  onDismissRouteSyncError?: () => void;
 }
+
+/** Keeps eyebrow alignment nudges from drifting under fonts / observers and clipping CTAs. */
+const WELCOME_EYEBROW_SHIFT_MAX_PX = 72;
 
 const systemFont =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
@@ -176,6 +183,9 @@ function ApplicantWelcomePage({
   onComplete,
   editMode = false,
   routeSync,
+  routeSyncBusy = false,
+  routeSyncError = null,
+  onDismissRouteSyncError,
 }: ApplicantWelcomePageProps) {
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
@@ -216,7 +226,8 @@ function ApplicantWelcomePage({
       const dy = leftEl.getBoundingClientRect().top - rightEl.getBoundingClientRect().top;
       setWelcomeRightShiftPx((prev) => {
         if (Math.abs(dy) < 0.25) return prev;
-        return Math.round((prev + dy) * 10) / 10;
+        const next = Math.round((prev + dy) * 10) / 10;
+        return Math.max(-WELCOME_EYEBROW_SHIFT_MAX_PX, Math.min(WELCOME_EYEBROW_SHIFT_MAX_PX, next));
       });
     };
 
@@ -543,31 +554,48 @@ function ApplicantWelcomePage({
             </div>
 
             <div
-              className="relative z-10 mt-auto flex shrink-0 items-center justify-between"
+              className="relative z-10 mt-auto flex shrink-0 flex-col gap-2"
               style={{ borderTop: '0.5px solid rgba(0,0,0,0.08)', paddingTop: '22px' }}
             >
-              <div
-                className="flex min-h-10 items-center text-[#9CA3AF]"
-                style={{ fontSize: '13px', lineHeight: '1.5' }}
-              >
-                Step 1 of 3
+              {routeSync && !editMode && routeSyncError ? (
+                <div className="rounded-xl border border-red-100 bg-red-50/90 px-3 py-2 text-left text-sm text-red-900">
+                  <p className="leading-snug">{routeSyncError}</p>
+                  {onDismissRouteSyncError ? (
+                    <button
+                      type="button"
+                      onClick={onDismissRouteSyncError}
+                      className="mt-1.5 text-xs font-medium text-red-800 underline decoration-red-800/50 underline-offset-2 hover:text-red-950"
+                    >
+                      Dismiss
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              <div className="flex w-full items-center justify-between gap-3">
+                <div
+                  className="flex min-h-10 items-center text-[#9CA3AF]"
+                  style={{ fontSize: '13px', lineHeight: '1.5' }}
+                >
+                  Step 1 of 3
+                </div>
+                <button
+                  type="button"
+                  onClick={() => goToUiStep('details')}
+                  disabled={routeSync && !editMode && routeSyncBusy}
+                  className="inline-flex items-center gap-1.5 bg-[#7DBBFF] py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{
+                    border: 'none',
+                    borderRadius: '50px',
+                    paddingLeft: '18px',
+                    paddingRight: '18px',
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  {routeSync && !editMode && routeSyncBusy ? 'Working…' : "Let's begin"}
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => goToUiStep('details')}
-                className="inline-flex items-center gap-1.5 bg-[#7DBBFF] py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff]"
-                style={{
-                  border: 'none',
-                  borderRadius: '50px',
-                  paddingLeft: '18px',
-                  paddingRight: '18px',
-                  fontSize: '14px',
-                  lineHeight: '1.5',
-                }}
-              >
-                Let&apos;s begin
-                <ArrowRight className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-              </button>
             </div>
           </section>
         </div>
@@ -734,55 +762,73 @@ function ApplicantWelcomePage({
             </div>
 
             <div
-              className="relative z-10 flex shrink-0 items-center justify-between"
+              className="relative z-10 flex shrink-0 flex-col gap-2"
               style={{ borderTop: '0.5px solid rgba(0,0,0,0.08)', paddingTop: '22px' }}
             >
-              <div
-                className="flex min-h-10 items-center text-[#9CA3AF]"
-                style={{ fontSize: '13px', lineHeight: '1.5' }}
-              >
-                Step 3 of 3
-              </div>
-              <div className="flex shrink-0 items-center" style={{ gap: 'clamp(16px, 2.5vw, 24px)' }}>
-                {!editMode && (
+              {routeSync && !editMode && routeSyncError ? (
+                <div className="rounded-xl border border-red-100 bg-red-50/90 px-3 py-2 text-left text-sm text-red-900">
+                  <p className="leading-snug">{routeSyncError}</p>
+                  {onDismissRouteSyncError ? (
+                    <button
+                      type="button"
+                      onClick={onDismissRouteSyncError}
+                      className="mt-1.5 text-xs font-medium text-red-800 underline decoration-red-800/50 underline-offset-2 hover:text-red-950"
+                    >
+                      Dismiss
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              <div className="flex w-full items-center justify-between gap-3">
+                <div
+                  className="flex min-h-10 items-center text-[#9CA3AF]"
+                  style={{ fontSize: '13px', lineHeight: '1.5' }}
+                >
+                  Step 3 of 3
+                </div>
+                <div className="flex shrink-0 items-center" style={{ gap: 'clamp(16px, 2.5vw, 24px)' }}>
+                  {!editMode && (
+                    <button
+                      type="button"
+                      onClick={() => goToUiStep('details')}
+                      disabled={routeSync && !editMode && routeSyncBusy}
+                      className="inline-flex items-center gap-2 font-medium text-[#6B7280] transition hover:text-[#111827] disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{
+                        fontSize: '14px',
+                        lineHeight: '1.5',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                      }}
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                      Back
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => goToUiStep('details')}
-                    className="inline-flex items-center gap-2 font-medium text-[#6B7280] transition hover:text-[#111827]"
+                    onClick={() => {
+                      if (routeSync && !editMode) {
+                        void routeSync.finishServerOnboarding();
+                        return;
+                      }
+                      onComplete();
+                    }}
+                    disabled={routeSync && !editMode && routeSyncBusy}
+                    className="inline-flex items-center gap-1.5 bg-[#7DBBFF] py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
                     style={{
+                      border: 'none',
+                      borderRadius: '50px',
+                      paddingLeft: '18px',
+                      paddingRight: '18px',
                       fontSize: '14px',
                       lineHeight: '1.5',
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
                     }}
                   >
-                    <ArrowLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                    Back
+                    {routeSync && !editMode && routeSyncBusy ? 'Working…' : 'Start building'}
+                    <ArrowRight className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (routeSync && !editMode) {
-                      void routeSync.finishServerOnboarding();
-                      return;
-                    }
-                    onComplete();
-                  }}
-                  className="inline-flex items-center gap-1.5 bg-[#7DBBFF] py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff]"
-                  style={{
-                    border: 'none',
-                    borderRadius: '50px',
-                    paddingLeft: '18px',
-                    paddingRight: '18px',
-                    fontSize: '14px',
-                    lineHeight: '1.5',
-                  }}
-                >
-                  Start building
-                  <ArrowRight className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                </button>
+                </div>
               </div>
             </div>
           </section>
@@ -883,48 +929,65 @@ function ApplicantWelcomePage({
           </form>
 
           <div
-            className="relative z-10 flex shrink-0 items-center justify-between"
+            className="relative z-10 flex shrink-0 flex-col gap-2"
             style={{ borderTop: '0.5px solid rgba(0,0,0,0.08)', paddingTop: '22px' }}
           >
-            <div
-              className="flex min-h-10 items-center text-[#9CA3AF]"
-              style={{ fontSize: '13px', lineHeight: '1.5' }}
-            >
-              Step 2 of 3
-            </div>
-            <div className="flex shrink-0 items-center" style={{ gap: 'clamp(16px, 2.5vw, 24px)' }}>
-              <button
-                type="button"
-                onClick={() => goToUiStep('welcome')}
-                className="inline-flex items-center gap-2 font-medium text-[#6B7280] transition hover:text-[#111827]"
-                style={{
-                  fontSize: '14px',
-                  lineHeight: '1.5',
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                }}
+            {routeSync && !editMode && routeSyncError ? (
+              <div className="rounded-xl border border-red-100 bg-red-50/90 px-3 py-2 text-left text-sm text-red-900">
+                <p className="leading-snug">{routeSyncError}</p>
+                {onDismissRouteSyncError ? (
+                  <button
+                    type="button"
+                    onClick={onDismissRouteSyncError}
+                    className="mt-1.5 text-xs font-medium text-red-800 underline decoration-red-800/50 underline-offset-2 hover:text-red-950"
+                  >
+                    Dismiss
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="flex w-full items-center justify-between gap-3">
+              <div
+                className="flex min-h-10 items-center text-[#9CA3AF]"
+                style={{ fontSize: '13px', lineHeight: '1.5' }}
               >
-                <ArrowLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                Back
-              </button>
-              <button
-                type="submit"
-                form="applicant-basics-form"
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 bg-[#7DBBFF] py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:opacity-60"
-                style={{
-                  border: 'none',
-                  borderRadius: '50px',
-                  paddingLeft: '18px',
-                  paddingRight: '18px',
-                  fontSize: '14px',
-                  lineHeight: '1.5',
-                }}
-              >
-                Continue
-                <ArrowRight className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-              </button>
+                Step 2 of 3
+              </div>
+              <div className="flex shrink-0 items-center" style={{ gap: 'clamp(16px, 2.5vw, 24px)' }}>
+                <button
+                  type="button"
+                  onClick={() => goToUiStep('welcome')}
+                  disabled={routeSync && !editMode && routeSyncBusy}
+                  className="inline-flex items-center gap-2 font-medium text-[#6B7280] transition hover:text-[#111827] disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                  }}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  form="applicant-basics-form"
+                  disabled={saving || (routeSync && !editMode && routeSyncBusy)}
+                  className="inline-flex items-center gap-1.5 bg-[#7DBBFF] py-2.5 font-medium text-white transition-colors hover:bg-[#5aaeff] disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{
+                    border: 'none',
+                    borderRadius: '50px',
+                    paddingLeft: '18px',
+                    paddingRight: '18px',
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  Continue
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                </button>
+              </div>
             </div>
           </div>
         </section>

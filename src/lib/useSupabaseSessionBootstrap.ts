@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
-const SESSION_CHECK_MS = 12_000;
+const SESSION_CHECK_MS = 22_000;
 
 /**
  * Initial getSession + onAuthStateChange, with a bounded wait so offline / hung requests
@@ -58,6 +58,11 @@ export function useSupabaseSessionBootstrap() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
+      // Slow getSession() can hit the timeout first; auth may still restore via this listener.
+      if (next) {
+        setTimedOut(false);
+        setReady(true);
+      }
     });
 
     return () => {
