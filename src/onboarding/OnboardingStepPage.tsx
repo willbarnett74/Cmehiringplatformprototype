@@ -81,17 +81,25 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
   const goToOnboardingStep = async (next: 'welcome' | 'details' | 'how_it_works') => {
     if (!supabase) return;
     const { error } = await setProfileOnboardingStep(supabase, userId, next);
-    if (error) console.warn('[CMe] setProfileOnboardingStep:', error);
-    await queryClient.invalidateQueries({ queryKey: PROFILE_ONBOARDING_QUERY_ROOT });
+    if (error) {
+      console.warn('[CMe] setProfileOnboardingStep:', error);
+      return;
+    }
+    // Refetch before navigate: OnboardingLayout syncs URL to profiles.onboarding_step; stale cache
+    // would snap the user back to the previous step (e.g. welcome) right after "Let's begin".
+    await queryClient.refetchQueries({ queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, userId] });
     navigate(pathForOnboardingDbStep(next));
   };
 
   const finishServerOnboarding = async () => {
     if (!supabase) return;
     const { error } = await completeApplicantOnboardingWizard(supabase, userId);
-    if (error) console.warn('[CMe] completeApplicantOnboardingWizard:', error);
-    else trackEvent(AnalyticsEvents.onboarding_complete, {});
-    await queryClient.invalidateQueries({ queryKey: PROFILE_ONBOARDING_QUERY_ROOT });
+    if (error) {
+      console.warn('[CMe] completeApplicantOnboardingWizard:', error);
+      return;
+    }
+    trackEvent(AnalyticsEvents.onboarding_complete, {});
+    await queryClient.refetchQueries({ queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, userId] });
     navigate(APPLICANT_PORTAL_PATH, { replace: true });
   };
 
