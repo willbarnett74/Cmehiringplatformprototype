@@ -181,25 +181,80 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
 
   // Render the appropriate intake section (identical to ApplicantScreen)
   const renderSection = () => {
+    const s1 = profileData.intakeData.section1 as
+      | { S1Q1?: { narrative?: string }; S1Q2?: { narrative?: string } }
+      | undefined;
+
     switch (activeStep) {
       case 1:
-        return <IntakeSection1 onComplete={(data) => handleNext(data)} />;
+        return (
+          <IntakeSection1
+            onComplete={(data) => void handleNext(data)}
+            initialData={{
+              S1Q1: s1?.S1Q1?.narrative != null ? { narrative: s1.S1Q1.narrative } : undefined,
+              S1Q2: s1?.S1Q2?.narrative != null ? { narrative: s1.S1Q2.narrative } : undefined,
+            }}
+          />
+        );
       case 2:
-        return <IntakeSection2 onComplete={(data) => handleNext(data)} />;
+        return (
+          <IntakeSection2
+            onComplete={(data) => void handleNext(data)}
+            initialData={profileData.intakeData.section2}
+          />
+        );
       case 3:
-        return <IntakeSection3 onComplete={(data) => handleNext(data)} />;
+        return (
+          <IntakeSection3
+            onComplete={(data) => void handleNext(data)}
+            initialData={profileData.intakeData.section3}
+          />
+        );
       case 4:
-        return <IntakeSection4 onComplete={(data) => handleNext(data)} />;
+        return (
+          <IntakeSection4
+            onComplete={(data) => void handleNext(data)}
+            initialData={profileData.intakeData.section4}
+          />
+        );
       case 5:
-        return <IntakeSection5 onComplete={(data) => handleNext(data)} />;
+        return (
+          <IntakeSection5
+            onComplete={(data) => void handleNext(data)}
+            initialData={profileData.intakeData.section5}
+          />
+        );
       case 6:
-        return <IntakeSection6 onComplete={(data) => handleNext(data)} />;
+        return (
+          <IntakeSection6
+            onComplete={(data) => void handleNext(data)}
+            initialData={profileData.intakeData.section6}
+          />
+        );
       case 7:
-        return <IntakeSection7 onComplete={(data) => handleNext(data)} />;
+        return (
+          <IntakeSection7
+            onComplete={(data) => void handleNext(data)}
+            initialData={profileData.intakeData.section7}
+          />
+        );
       case 8:
-        return <IntakeSection8 onComplete={() => handleNext()} />;
+        return (
+          <IntakeSection8
+            onComplete={(data) => void handleNext(data)}
+            initialData={profileData.intakeData.section8}
+          />
+        );
       default:
-        return <IntakeSection1 onComplete={(data) => handleNext(data)} />;
+        return (
+          <IntakeSection1
+            onComplete={(data) => void handleNext(data)}
+            initialData={{
+              S1Q1: s1?.S1Q1?.narrative != null ? { narrative: s1.S1Q1.narrative } : undefined,
+              S1Q2: s1?.S1Q2?.narrative != null ? { narrative: s1.S1Q2.narrative } : undefined,
+            }}
+          />
+        );
     }
   };
 
@@ -365,9 +420,9 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
   // ─── Intake Screen (uses ProfileBuilderLayout — identical to Applicant View) ───
   if (step === 'intake') {
     return (
-      <div className="min-h-screen bg-[#FAFAFA]">
+      <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#FAFAFA]">
         {/* Employer Context Banner */}
-        <div className="bg-white border-b border-black/[0.08] px-6 py-3 z-20 relative">
+        <div className="relative z-20 shrink-0 border-b border-black/[0.08] bg-white px-6 py-3">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-[#7DBBFF] flex items-center justify-center shrink-0" style={{ borderRadius: '8px' }}>
@@ -391,7 +446,7 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
 
         {/* Error Banner */}
         {submitError && (
-          <div className="max-w-7xl mx-auto px-6 pt-4">
+          <div className="max-w-7xl mx-auto shrink-0 px-6 pt-4">
             <div
               className="px-4 py-3 bg-[#FEE2E2] border border-[#FCA5A5] text-sm text-[#B91C1C]"
               style={{ borderRadius: '10px' }}
@@ -401,16 +456,18 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
           </div>
         )}
 
-        {/* Profile Builder Layout — same as Applicant View */}
-        <ProfileBuilderLayout
-          currentStep={activeStep}
-          stepStatuses={stepStatuses}
-          onStepChange={(stepId) => setActiveStep(stepId)}
-          onBack={handleBack}
-          onFooterContinue={() => handleNext()}
-        >
-          {renderSection()}
-        </ProfileBuilderLayout>
+        {/* Profile Builder Layout — fills remaining viewport; scroll lives inside layout */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <ProfileBuilderLayout
+            currentStep={activeStep}
+            stepStatuses={stepStatuses}
+            onStepChange={(stepId) => setActiveStep(stepId)}
+            onBack={handleBack}
+            onFooterContinue={() => handleNext()}
+          >
+            {renderSection()}
+          </ProfileBuilderLayout>
+        </div>
       </div>
     );
   }

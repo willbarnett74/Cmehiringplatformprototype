@@ -8,25 +8,51 @@ interface IntakeSection5Props {
   hideFooterButton?: boolean;
 }
 
-export function IntakeSection5({ onComplete, submitRef, hideFooterButton = false }: IntakeSection5Props) {
-  const [q1Choice, setQ1Choice] = useState<string | null>(null);
+function parseSection5Saved(initialData: unknown) {
+  const s = initialData as Record<string, Record<string, unknown>> | undefined;
+  if (!s) {
+    return {
+      q1Choice: null as string | null,
+      q1FollowUp: '',
+      q2Choice: null as string | null,
+      q3Choice: null as string | null,
+      q4Choice: null as string | null,
+      q5Choice: null as string | null,
+      q6Choice: null as string | null,
+    };
+  }
+  return {
+    q1Choice: typeof s.S5Q1?.option_id === 'string' ? s.S5Q1.option_id : null,
+    q1FollowUp: typeof s.S5Q1?.follow_up === 'string' ? s.S5Q1.follow_up : '',
+    q2Choice: typeof s.S5Q2?.option_id === 'string' ? s.S5Q2.option_id : null,
+    q3Choice: typeof s.S5Q3?.option_id === 'string' ? s.S5Q3.option_id : null,
+    q4Choice: typeof s.S5Q4?.option_id === 'string' ? s.S5Q4.option_id : null,
+    q5Choice: typeof s.S5Q5?.option_id === 'string' ? s.S5Q5.option_id : null,
+    q6Choice: typeof s.S5Q6?.option_id === 'string' ? s.S5Q6.option_id : null,
+  };
+}
+
+export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterButton = false }: IntakeSection5Props) {
+  const saved = parseSection5Saved(initialData);
+
+  const [q1Choice, setQ1Choice] = useState<string | null>(() => saved.q1Choice);
   const [q1ShuffledOptions, setQ1ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
-  const [q1FollowUp, setQ1FollowUp] = useState('');
+  const [q1FollowUp, setQ1FollowUp] = useState(() => saved.q1FollowUp);
   const q1FollowUpWordCount = q1FollowUp.trim().split(/\s+/).filter(w => w.length > 0).length;
 
-  const [q2Choice, setQ2Choice] = useState<string | null>(null);
+  const [q2Choice, setQ2Choice] = useState<string | null>(() => saved.q2Choice);
   const [q2ShuffledOptions, setQ2ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q3Choice, setQ3Choice] = useState<string | null>(null);
+  const [q3Choice, setQ3Choice] = useState<string | null>(() => saved.q3Choice);
   const [q3ShuffledOptions, setQ3ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q4Choice, setQ4Choice] = useState<string | null>(null);
+  const [q4Choice, setQ4Choice] = useState<string | null>(() => saved.q4Choice);
   const [q4ShuffledOptions, setQ4ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q5Choice, setQ5Choice] = useState<string | null>(null);
+  const [q5Choice, setQ5Choice] = useState<string | null>(() => saved.q5Choice);
   const [q5ShuffledOptions, setQ5ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q6Choice, setQ6Choice] = useState<string | null>(null);
+  const [q6Choice, setQ6Choice] = useState<string | null>(() => saved.q6Choice);
   const [q6ShuffledOptions, setQ6ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
   useEffect(() => {
@@ -86,6 +112,17 @@ export function IntakeSection5({ onComplete, submitRef, hideFooterButton = false
     ];
     setQ6ShuffledOptions([...q6Options].sort(() => Math.random() - 0.5));
   }, []);
+
+  useEffect(() => {
+    const next = parseSection5Saved(initialData);
+    setQ1Choice((prev) => prev ?? next.q1Choice);
+    setQ1FollowUp((prev) => (prev.trim() ? prev : next.q1FollowUp));
+    setQ2Choice((prev) => prev ?? next.q2Choice);
+    setQ3Choice((prev) => prev ?? next.q3Choice);
+    setQ4Choice((prev) => prev ?? next.q4Choice);
+    setQ5Choice((prev) => prev ?? next.q5Choice);
+    setQ6Choice((prev) => prev ?? next.q6Choice);
+  }, [initialData]);
 
   const canProceed = q1Choice && q2Choice && q3Choice && q4Choice && q5Choice && q6Choice;
 

@@ -36,17 +36,55 @@ interface IntakeSection7Props {
   hideFooterButton?: boolean;
 }
 
+function parseSection7Saved(initialData: unknown) {
+  const s = initialData as Record<string, Record<string, unknown>> | undefined;
+  if (!s) {
+    return {
+      q1Selections: [] as string[],
+      q2Narrative: '',
+      q3Choice: null as string | null,
+      q4Selections: [] as string[],
+      q5Salary: '',
+      q5Location: '',
+      q5OrgSize: '',
+      q5PartTime: '',
+    };
+  }
+
+  const lf = s.S7Q1?.looking_for;
+  const q1Selections = Array.isArray(lf) ? lf.filter((x): x is string => typeof x === 'string') : [];
+
+  const rt = s.S7Q4?.role_type_preferences;
+  const q4Selections = Array.isArray(rt) ? rt.filter((x): x is string => typeof x === 'string') : [];
+
+  const sal = s.S7Q5?.minimum_salary;
+  const q5Salary = sal === undefined || sal === null ? '' : typeof sal === 'string' ? sal : '';
+
+  return {
+    q1Selections,
+    q2Narrative: typeof s.S7Q2?.growth_direction === 'string' ? s.S7Q2.growth_direction : '',
+    q3Choice: typeof s.S7Q3?.industry_openness === 'string' ? s.S7Q3.industry_openness : null,
+    q4Selections,
+    q5Salary,
+    q5Location: typeof s.S7Q5?.work_location === 'string' ? s.S7Q5.work_location : '',
+    q5OrgSize: typeof s.S7Q5?.org_size === 'string' ? s.S7Q5.org_size : '',
+    q5PartTime: typeof s.S7Q5?.part_time_openness === 'string' ? s.S7Q5.part_time_openness : '',
+  };
+}
+
 export function IntakeSection7({
   onComplete,
-  initialData: _initialData,
+  initialData,
   submitRef,
   hideFooterButton = false,
 }: IntakeSection7Props) {
+  const saved = parseSection7Saved(initialData);
+
   // S7Q1 - What you're looking for (multi-select, max 2)
-  const [q1Selections, setQ1Selections] = useState<string[]>([]);
+  const [q1Selections, setQ1Selections] = useState<string[]>(() => saved.q1Selections);
 
   // S7Q2 - Growth direction (40-80 words)
-  const [q2Narrative, setQ2Narrative] = useState('');
+  const [q2Narrative, setQ2Narrative] = useState(() => saved.q2Narrative);
   const q2WordCount = q2Narrative.trim().split(/\s+/).filter(w => w.length > 0).length;
   const q2MinWords = 40;
   const q2MaxWords = 80;
@@ -54,16 +92,16 @@ export function IntakeSection7({
   const q2IsOverMax = q2WordCount > q2MaxWords;
 
   // S7Q3 - Industry openness (single select)
-  const [q3Choice, setQ3Choice] = useState<string | null>(null);
+  const [q3Choice, setQ3Choice] = useState<string | null>(() => saved.q3Choice);
 
   // S7Q4 - Role type preference (multi-select, max 2)
-  const [q4Selections, setQ4Selections] = useState<string[]>([]);
+  const [q4Selections, setQ4Selections] = useState<string[]>(() => saved.q4Selections);
 
   // S7Q5 - Employment preferences
-  const [q5Salary, setQ5Salary] = useState('');
-  const [q5Location, setQ5Location] = useState('');
-  const [q5OrgSize, setQ5OrgSize] = useState('');
-  const [q5PartTime, setQ5PartTime] = useState('');
+  const [q5Salary, setQ5Salary] = useState(() => saved.q5Salary);
+  const [q5Location, setQ5Location] = useState(() => saved.q5Location);
+  const [q5OrgSize, setQ5OrgSize] = useState(() => saved.q5OrgSize);
+  const [q5PartTime, setQ5PartTime] = useState(() => saved.q5PartTime);
 
   const lookingForOptions = [
     'A chance to develop deep expertise in a specific area',
@@ -115,6 +153,18 @@ export function IntakeSection7({
       setQ4Selections([...q4Selections, option]);
     }
   };
+
+  useEffect(() => {
+    const next = parseSection7Saved(initialData);
+    setQ1Selections((prev) => (prev.length > 0 ? prev : next.q1Selections));
+    setQ2Narrative((prev) => (prev.trim() ? prev : next.q2Narrative));
+    setQ3Choice((prev) => prev ?? next.q3Choice);
+    setQ4Selections((prev) => (prev.length > 0 ? prev : next.q4Selections));
+    setQ5Salary((prev) => (prev.trim() ? prev : next.q5Salary));
+    setQ5Location((prev) => (prev.trim() ? prev : next.q5Location));
+    setQ5OrgSize((prev) => (prev.trim() ? prev : next.q5OrgSize));
+    setQ5PartTime((prev) => (prev.trim() ? prev : next.q5PartTime));
+  }, [initialData]);
 
   const canProceed = 
     q1Selections.length > 0 && 

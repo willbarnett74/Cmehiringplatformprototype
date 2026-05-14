@@ -1,35 +1,125 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
+
+const SETBACK_SYSTEM_PROMPT = `You are scoring a candidate's reflective response to a hiring assessment prompt. They were asked to describe a time something went wrong on a piece of work that mattered to them — what happened, what they did, and how they reflect on it now.
+
+Score the response on four criteria, each 1-5. Return ONLY a JSON object with these exact keys:
+{ "ownership_of_outcome": N, "recovery_action": N, "learning_extracted": N, "emotional_regulation": N }
+
+ownership_of_outcome (1-5)
+  5 = takes clear personal accountability, describes their own decisions and actions
+  3 = mentions own role but distributes responsibility across team/circumstances
+  1 = blames external factors, describes themselves as a passive participant or victim
+
+recovery_action (1-5)
+  5 = describes a constructive recovery action they took (re-engaged, fixed it, found a path forward)
+  3 = describes processing it but unclear what action followed
+  1 = passive, avoidant, or no recovery described — situation just ended
+
+learning_extracted (1-5)
+  5 = articulates a specific transferable lesson, shows insight into pattern or principle
+  3 = mentions learning generically ("I learned a lot")
+  1 = no insight extracted, or framing suggests they'd do nothing differently
+
+emotional_regulation (1-5)
+  5 = composed reflection, processed the difficulty, can describe it without rumination or blame
+  3 = some lingering frustration but mostly balanced
+  1 = ruminative, blaming, or emotionally dysregulated in the telling
+
+Important: this is a reflection on a real past event. Don't penalise candidates for events going badly — score how they handled and integrated the experience. A candidate describing a clean recovery from a serious failure scores high; a candidate describing a minor inconvenience with bitterness scores low.
+
+Return only the JSON object. No preamble, no commentary.`;
+
+const SETBACK_LLM_KEYS = [
+  'ownership_of_outcome',
+  'recovery_action',
+  'learning_extracted',
+  'emotional_regulation',
+] as const;
+
+function normalizeSetbackLlmScores(data: unknown): Record<string, number> | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const o = data as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  for (const k of SETBACK_LLM_KEYS) {
+    const v = o[k];
+    if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+    out[k] = v;
+  }
+  return out;
+}
+
+function parseSection4Saved(initialData: unknown) {
+  const s = initialData as Record<string, Record<string, unknown>> | undefined;
+  if (!s) {
+    return {
+      q1Choice: null as string | null,
+      q2Choice: null as string | null,
+      q3Choice: null as string | null,
+      q4Choice: null as string | null,
+      q5Narrative: '',
+      q6Narrative: '',
+    };
+  }
+  return {
+    q1Choice: typeof s.S4Q1?.option_id === 'string' ? s.S4Q1.option_id : null,
+    q2Choice: typeof s.S4Q2?.option_id === 'string' ? s.S4Q2.option_id : null,
+    q3Choice: typeof s.S4Q3?.option_id === 'string' ? s.S4Q3.option_id : null,
+    q4Choice: typeof s.S4Q4?.option_id === 'string' ? s.S4Q4.option_id : null,
+    q5Narrative: typeof s.S4Q5?.narrative === 'string' ? s.S4Q5.narrative : '',
+    q6Narrative: typeof s.S4Q6?.narrative === 'string' ? s.S4Q6.narrative : '',
+  };
+}
 
 interface IntakeSection4Props {
   onComplete: (data: Record<string, unknown>) => void;
   initialData?: unknown;
   submitRef?: MutableRefObject<(() => void) | null>;
   hideFooterButton?: boolean;
+  onQ5ScoringBusyChange?: (busy: boolean) => void;
 }
 
-export function IntakeSection4({ onComplete, submitRef, hideFooterButton = false }: IntakeSection4Props) {
-  const [q1Choice, setQ1Choice] = useState<string | null>(null);
+export function IntakeSection4({
+  onComplete,
+  initialData,
+  submitRef,
+  hideFooterButton = false,
+  onQ5ScoringBusyChange,
+}: IntakeSection4Props) {
+  const saved = parseSection4Saved(initialData);
+
+  const [q1Choice, setQ1Choice] = useState<string | null>(() => saved.q1Choice);
   const [q1ShuffledOptions, setQ1ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q2Choice, setQ2Choice] = useState<string | null>(null);
+  const [q2Choice, setQ2Choice] = useState<string | null>(() => saved.q2Choice);
   const [q2ShuffledOptions, setQ2ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q3Choice, setQ3Choice] = useState<string | null>(null);
+  const [q3Choice, setQ3Choice] = useState<string | null>(() => saved.q3Choice);
   const [q3ShuffledOptions, setQ3ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q4Choice, setQ4Choice] = useState<string | null>(null);
+  const [q4Choice, setQ4Choice] = useState<string | null>(() => saved.q4Choice);
   const [q4ShuffledOptions, setQ4ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
 
-  const [q5Choice, setQ5Choice] = useState<string | null>(null);
-  const [q5ShuffledOptions, setQ5ShuffledOptions] = useState<{ id: string; text: string; scores: Record<string, number> }[]>([]);
+  const [q5Narrative, setQ5Narrative] = useState(() => saved.q5Narrative);
+  const [q5IsScoring, setQ5IsScoring] = useState(false);
+  const [q5ScoreError, setQ5ScoreError] = useState<string | null>(null);
+  const scoreFailCountRef = useRef(0);
+  const scoringInFlightRef = useRef(false);
 
-  const [q6Narrative, setQ6Narrative] = useState('');
+  const [q6Narrative, setQ6Narrative] = useState(() => saved.q6Narrative);
   const q6WordCount = q6Narrative.trim().split(/\s+/).filter(w => w.length > 0).length;
   const q6MinWords = 40;
   const q6MaxWords = 80;
   const q6IsValid = q6WordCount >= q6MinWords && q6WordCount <= q6MaxWords;
   const q6IsOverMax = q6WordCount > q6MaxWords;
+
+  const q5WordCount = q5Narrative.trim().split(/\s+/).filter(word => word.length > 0).length;
+  const minWordsQ5 = 60;
+  const maxWordsQ5 = 120;
+  const softCapWarningQ5 = 108;
+  const isValidQ5 = q5WordCount >= minWordsQ5 && q5WordCount <= maxWordsQ5;
+  const showSoftWarningQ5 = q5WordCount >= softCapWarningQ5 && q5WordCount < maxWordsQ5;
+  const isOverMaxQ5 = q5WordCount > maxWordsQ5;
 
   useEffect(() => {
     const q1Options = [
@@ -63,26 +153,27 @@ export function IntakeSection4({ onComplete, submitRef, hideFooterButton = false
       { id: 'commit-d', text: 'Reassesses quietly and adjusts approach without making it a big deal. Deprioritises other things to protect the commitment and only involves others if it becomes genuinely unmanageable.', scores: { ownership_follow_through: 4, communication_confidence: 2 } },
     ];
     setQ4ShuffledOptions([...q4Options].sort(() => Math.random() - 0.5));
-
-    const q5Options = [
-      { id: 'learn-a', text: 'Takes something from difficult experiences but it usually takes time. The reflection comes after the fact — once worked through, looks back and identifies what to do differently.', scores: { resilience: 2, learning_velocity: 3 } },
-      { id: 'learn-b', text: 'Difficult experiences are useful reference points but moves through them quickly. Extracts what can be learned, applies it, and moves forward — prolonged reflection produces diminishing returns.', scores: { resilience: 5, learning_velocity: 3 } },
-      { id: 'learn-c', text: 'Hard periods take significant energy to get through and most of that energy goes on managing the difficulty itself. The learning tends to come later once there\'s distance from it.', scores: { resilience: 1, learning_velocity: 4 } },
-      { id: 'learn-d', text: 'Fairly naturally extracts lessons from difficulty. Tends to process slowly but thoroughly — prefers taking the time to understand something deeply rather than moving on quickly with a partial lesson.', scores: { resilience: 4, learning_velocity: 5 } },
-    ];
-    setQ5ShuffledOptions([...q5Options].sort(() => Math.random() - 0.5));
   }, []);
 
-  const canProceed = q1Choice && q2Choice && q3Choice && q4Choice && q5Choice && q6IsValid;
+  useEffect(() => {
+    const next = parseSection4Saved(initialData);
+    setQ1Choice((prev) => prev ?? next.q1Choice);
+    setQ2Choice((prev) => prev ?? next.q2Choice);
+    setQ3Choice((prev) => prev ?? next.q3Choice);
+    setQ4Choice((prev) => prev ?? next.q4Choice);
+    setQ5Narrative((prev) => (prev.trim() ? prev : next.q5Narrative));
+    setQ6Narrative((prev) => (prev.trim() ? prev : next.q6Narrative));
+  }, [initialData]);
 
-  const handleNext = () => {
-    if (!canProceed) return;
+  const canProceed = !!(q1Choice && q2Choice && q3Choice && q4Choice && isValidQ5 && q6IsValid);
 
+  const flushComplete = (llm_scores: Record<string, number>, q5WordCountOverride?: number) => {
     const q1Option = q1ShuffledOptions.find(o => o.id === q1Choice)!;
     const q2Option = q2ShuffledOptions.find(o => o.id === q2Choice)!;
     const q3Option = q3ShuffledOptions.find(o => o.id === q3Choice)!;
     const q4Option = q4ShuffledOptions.find(o => o.id === q4Choice)!;
-    const q5Option = q5ShuffledOptions.find(o => o.id === q5Choice)!;
+
+    const wc = q5WordCountOverride ?? q5WordCount;
 
     onComplete({
       section: 4,
@@ -91,10 +182,75 @@ export function IntakeSection4({ onComplete, submitRef, hideFooterButton = false
         S4Q2: { question_key: 'S4Q2', option_id: q2Choice, scores: q2Option.scores },
         S4Q3: { question_key: 'S4Q3', option_id: q3Choice, scores: q3Option.scores },
         S4Q4: { question_key: 'S4Q4', option_id: q4Choice, scores: q4Option.scores },
-        S4Q5: { question_key: 'S4Q5', option_id: q5Choice, scores: q5Option.scores },
+        S4Q5: {
+          question_key: 'S4Q5',
+          narrative: q5Narrative,
+          word_count: wc,
+          llm_scores,
+        },
         S4Q6: { question_key: 'S4Q6', narrative: q6Narrative, word_count: q6WordCount },
       },
     });
+  };
+
+  const runHandleNextAsync = async () => {
+    if (!canProceed || scoringInFlightRef.current) return;
+
+    const q1Option = q1ShuffledOptions.find(o => o.id === q1Choice);
+    const q2Option = q2ShuffledOptions.find(o => o.id === q2Choice);
+    const q3Option = q3ShuffledOptions.find(o => o.id === q3Choice);
+    const q4Option = q4ShuffledOptions.find(o => o.id === q4Choice);
+    if (!q1Option || !q2Option || !q3Option || !q4Option || !isValidQ5 || !q6IsValid) return;
+
+    const narrativeTrimmed = q5Narrative.trim();
+
+    scoringInFlightRef.current = true;
+    setQ5IsScoring(true);
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/score-behavioural-task`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          narrative: narrativeTrimmed,
+          system_prompt: SETBACK_SYSTEM_PROMPT,
+        }),
+      });
+      if (!res.ok) throw new Error(`Score request failed: ${res.status}`);
+      let parsed: unknown;
+      try {
+        parsed = await res.json();
+      } catch {
+        throw new Error('Invalid score response');
+      }
+      const llmScores = normalizeSetbackLlmScores(parsed);
+      if (llmScores === null) throw new Error('Invalid score payload');
+      scoreFailCountRef.current = 0;
+      setQ5ScoreError(null);
+      const wc =
+        narrativeTrimmed.split(/\s+/).filter(w => w.length > 0).length;
+      flushComplete(llmScores, wc);
+    } catch {
+      scoreFailCountRef.current += 1;
+      if (scoreFailCountRef.current >= 2) {
+        setQ5ScoreError(null);
+        scoreFailCountRef.current = 0;
+        flushComplete({});
+      } else {
+        setQ5ScoreError('Could not score response. Please try again.');
+      }
+    } finally {
+      scoringInFlightRef.current = false;
+      setQ5IsScoring(false);
+    }
+  };
+
+  const handleNext = () => {
+    void runHandleNextAsync();
   };
 
   useEffect(() => {
@@ -103,9 +259,15 @@ export function IntakeSection4({ onComplete, submitRef, hideFooterButton = false
     };
   }, [submitRef]);
 
+  useEffect(() => {
+    onQ5ScoringBusyChange?.(q5IsScoring);
+  }, [q5IsScoring, onQ5ScoringBusyChange]);
+
   if (hideFooterButton && submitRef) {
     submitRef.current = handleNext;
   }
+
+  const proceedEnabled = canProceed && !q5IsScoring;
 
   return (
     <div>
@@ -137,9 +299,13 @@ export function IntakeSection4({ onComplete, submitRef, hideFooterButton = false
         </h3>
         <div className="space-y-3">
           {q1ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ1Choice(option.id)}
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setQ1Choice(option.id)}
               className={`w-full text-left px-5 py-4 border-2 transition-all ${q1Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
@@ -153,9 +319,13 @@ export function IntakeSection4({ onComplete, submitRef, hideFooterButton = false
         </h3>
         <div className="space-y-3">
           {q2ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ2Choice(option.id)}
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setQ2Choice(option.id)}
               className={`w-full text-left px-5 py-4 border-2 transition-all ${q2Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
@@ -169,9 +339,13 @@ export function IntakeSection4({ onComplete, submitRef, hideFooterButton = false
         </h3>
         <div className="space-y-3">
           {q3ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ3Choice(option.id)}
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setQ3Choice(option.id)}
               className={`w-full text-left px-5 py-4 border-2 transition-all ${q3Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
@@ -188,29 +362,78 @@ export function IntakeSection4({ onComplete, submitRef, hideFooterButton = false
         </h3>
         <div className="space-y-3">
           {q4ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ4Choice(option.id)}
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setQ4Choice(option.id)}
               className={`w-full text-left px-5 py-4 border-2 transition-all ${q4Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* S4Q5 */}
+      {/* S4Q5 — Setback narrative (LLM) */}
       <div className="bg-white border border-black/[0.08] p-8 mb-8" style={{ borderRadius: '20px' }}>
-        <h3 className="text-base text-[#111827] font-medium mb-6">
-          Looking back at the harder periods in your work or life — which most accurately describes what you tend to take from those experiences? <span className="text-[#EF4444]">*</span>
-        </h3>
-        <div className="space-y-3">
-          {q5ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ5Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q5Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
-              <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
-            </button>
-          ))}
+        <div className="mb-4">
+          <h3 className="text-base text-[#111827] font-medium mb-3">
+            Setback reflection <span className="text-[#EF4444]">*</span>
+          </h3>
+          <p className="text-sm text-[#111827] leading-relaxed mb-2">
+            Tell us about a time something went wrong on a piece of work that mattered to you. What happened, what did you do, and how do you reflect on it now?
+          </p>
+          <p className="text-sm text-[#6B7280] leading-relaxed">
+            There&apos;s no ideal answer here — we&apos;re interested in how you naturally describe difficult moments.
+          </p>
         </div>
+
+        <textarea
+          value={q5Narrative}
+          onChange={e => setQ5Narrative(e.target.value)}
+          placeholder="Describe the situation honestly: what went wrong, what you did next, and what you take away from it now."
+          className="w-full h-56 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all"
+          style={{ borderRadius: '12px' }}
+        />
+
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="text-[#6B7280]">
+                Required: {minWordsQ5}–{maxWordsQ5} words
+              </span>
+              {showSoftWarningQ5 ? (
+                <span className="text-[#F59E0B] font-medium">⚠ Approaching character limit</span>
+              ) : null}
+              {isOverMaxQ5 ? <span className="text-[#EF4444] font-medium">Maximum exceeded</span> : null}
+            </div>
+            <div
+              className={`font-medium tabular-nums ${
+                q5WordCount < minWordsQ5 ? 'text-[#9CA3AF]' : isValidQ5 ? 'text-[#10B981]' : 'text-[#EF4444]'
+              }`}
+            >
+              {q5WordCount} / {maxWordsQ5} words
+            </div>
+          </div>
+
+          <div className="w-full h-1.5 bg-[#F3F4F6] overflow-hidden" style={{ borderRadius: '4px' }}>
+            <div
+              className={`h-full transition-all duration-200 ${
+                q5WordCount < minWordsQ5 ? 'bg-[#9CA3AF]' : isValidQ5 ? 'bg-[#10B981]' : 'bg-[#EF4444]'
+              }`}
+              style={{ width: `${Math.min((q5WordCount / maxWordsQ5) * 100, 100)}%` }}
+            />
+          </div>
+
+          {q5WordCount < minWordsQ5 ? (
+            <p className="text-xs text-[#6B7280]">
+              {minWordsQ5 - q5WordCount} more {minWordsQ5 - q5WordCount === 1 ? 'word' : 'words'} required
+            </p>
+          ) : null}
+        </div>
+
+        {q5ScoreError ? <p className="mt-3 text-sm text-[#EF4444]">{q5ScoreError}</p> : null}
       </div>
 
       {/* S4Q6 */}
@@ -266,13 +489,13 @@ export function IntakeSection4({ onComplete, submitRef, hideFooterButton = false
           <button
             type="button"
             onClick={handleNext}
-            disabled={!canProceed}
+            disabled={!proceedEnabled}
             className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-              canProceed ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md' : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+              proceedEnabled ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md' : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
             }`}
             style={{ borderRadius: '12px' }}
           >
-            Continue to Next Section →
+            {q5IsScoring ? 'Scoring response…' : 'Continue to Next Section →'}
           </button>
         </div>
       ) : null}

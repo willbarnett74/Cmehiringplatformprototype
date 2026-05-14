@@ -35,16 +35,53 @@ interface IntakeSection8Props {
   hideFooterButton?: boolean;
 }
 
+function parseSection8Saved(initialData: unknown) {
+  const s = initialData as Record<string, Record<string, unknown>> | undefined;
+  const empty = {
+    q1Strength1: '',
+    q1Strength2: '',
+    q1Strength3: '',
+    q2Context: '',
+    q3Name: '',
+    q3Relationship: '',
+    q3Quote: '',
+    q4Anything: '',
+  };
+  if (!s) return empty;
+
+  const strsUnknown = s.S8Q1?.strengths;
+  let q1Strength1 = '';
+  let q1Strength2 = '';
+  let q1Strength3 = '';
+  if (Array.isArray(strsUnknown)) {
+    const strs = strsUnknown.filter((x): x is string => typeof x === 'string');
+    q1Strength1 = strs[0] ?? '';
+    q1Strength2 = strs[1] ?? '';
+    q1Strength3 = strs[2] ?? '';
+  }
+
+  const q2Context = typeof s.S8Q2?.working_context === 'string' ? s.S8Q2.working_context : '';
+  const t = s.S8Q3?.testimonial as Record<string, unknown> | undefined;
+  const q3Name = typeof t?.name === 'string' ? t.name : '';
+  const q3Relationship = typeof t?.relationship === 'string' ? t.relationship : '';
+  const q3Quote = typeof t?.quote === 'string' ? t.quote : '';
+  const q4Anything = typeof s.S8Q4?.anything_else === 'string' ? s.S8Q4.anything_else : '';
+
+  return { q1Strength1, q1Strength2, q1Strength3, q2Context, q3Name, q3Relationship, q3Quote, q4Anything };
+}
+
 export function IntakeSection8({
   onComplete,
-  initialData: _initialData,
+  initialData,
   submitRef,
   hideFooterButton = false,
 }: IntakeSection8Props) {
+  const saved = parseSection8Saved(initialData);
+
   // S8Q1 - Strengths (required - 3 entries, max 80 words each)
-  const [q1Strength1, setQ1Strength1] = useState('');
-  const [q1Strength2, setQ1Strength2] = useState('');
-  const [q1Strength3, setQ1Strength3] = useState('');
+  const [q1Strength1, setQ1Strength1] = useState(() => saved.q1Strength1);
+  const [q1Strength2, setQ1Strength2] = useState(() => saved.q1Strength2);
+  const [q1Strength3, setQ1Strength3] = useState(() => saved.q1Strength3);
   
   const strength1WordCount = q1Strength1.trim().split(/\s+/).filter(w => w.length > 0).length;
   const strength2WordCount = q1Strength2.trim().split(/\s+/).filter(w => w.length > 0).length;
@@ -55,20 +92,20 @@ export function IntakeSection8({
   const strength3Valid = q1Strength3.trim().length > 0 && strength3WordCount <= 80;
 
   // S8Q2 - Working context (optional, up to 150 words)
-  const [q2Context, setQ2Context] = useState('');
+  const [q2Context, setQ2Context] = useState(() => saved.q2Context);
   const q2WordCount = q2Context.trim().split(/\s+/).filter(w => w.length > 0).length;
   const q2IsValid = q2WordCount === 0 || q2WordCount <= 150;
 
   // S8Q3 - Testimonial (optional, structured)
-  const [q3Name, setQ3Name] = useState('');
-  const [q3Relationship, setQ3Relationship] = useState('');
-  const [q3Quote, setQ3Quote] = useState('');
+  const [q3Name, setQ3Name] = useState(() => saved.q3Name);
+  const [q3Relationship, setQ3Relationship] = useState(() => saved.q3Relationship);
+  const [q3Quote, setQ3Quote] = useState(() => saved.q3Quote);
   const q3QuoteWordCount = q3Quote.trim().split(/\s+/).filter(w => w.length > 0).length;
   const q3IsValid = !q3Quote.trim() || (q3QuoteWordCount >= 30 && q3QuoteWordCount <= 80 && q3Name.trim() && q3Relationship.trim());
   const q3HasContent = q3Name.trim() || q3Relationship.trim() || q3Quote.trim();
 
   // S8Q4 - Anything else (optional, up to 150 words)
-  const [q4Anything, setQ4Anything] = useState('');
+  const [q4Anything, setQ4Anything] = useState(() => saved.q4Anything);
   const q4WordCount = q4Anything.trim().split(/\s+/).filter(w => w.length > 0).length;
   const q4IsValid = q4WordCount === 0 || q4WordCount <= 150;
 
@@ -127,6 +164,18 @@ export function IntakeSection8({
       optional_fields_completed: optionalFieldsCompleted,
     });
   };
+
+  useEffect(() => {
+    const next = parseSection8Saved(initialData);
+    setQ1Strength1((prev) => (prev.trim() ? prev : next.q1Strength1));
+    setQ1Strength2((prev) => (prev.trim() ? prev : next.q1Strength2));
+    setQ1Strength3((prev) => (prev.trim() ? prev : next.q1Strength3));
+    setQ2Context((prev) => (prev.trim() ? prev : next.q2Context));
+    setQ3Name((prev) => (prev.trim() ? prev : next.q3Name));
+    setQ3Relationship((prev) => (prev.trim() ? prev : next.q3Relationship));
+    setQ3Quote((prev) => (prev.trim() ? prev : next.q3Quote));
+    setQ4Anything((prev) => (prev.trim() ? prev : next.q4Anything));
+  }, [initialData]);
 
   useEffect(() => {
     return () => {

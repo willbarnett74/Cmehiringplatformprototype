@@ -39,13 +39,26 @@ export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBac
   const [sectionData, setSectionData] = useState<Record<number, Record<string, unknown>>>({});
 
   const persistSectionResponses = async (sectionNumber: number, data: Record<string, unknown>) => {
-    if (!candidateId || !isSupabaseConfigured || !supabase) return;
+    if (!candidateId || !isSupabaseConfigured || !supabase) {
+      console.warn('[CMe] IntakeFlowPage: skipping persist (no candidateId or Supabase client).');
+      return;
+    }
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      console.warn(
+        '[CMe] IntakeFlowPage: skipping persist — no auth session. Answers stay in the browser only until you sign in.',
+      );
+      return;
+    }
 
-    await upsertIntakeSectionResponses(supabase, candidateId, sectionNumber, data);
+    try {
+      await upsertIntakeSectionResponses(supabase, candidateId, sectionNumber, data);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[CMe] IntakeFlowPage: save failed:', msg);
+    }
   };
 
   const handleSectionComplete = async (data: Record<string, unknown>) => {
