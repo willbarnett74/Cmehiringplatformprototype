@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IntakeSection1 } from './applicant-pages/intake/IntakeSection1';
 import { IntakeSection2 } from './applicant-pages/intake/IntakeSection2';
@@ -8,6 +8,7 @@ import { IntakeSection5 } from './applicant-pages/intake/IntakeSection5';
 import { IntakeSection6 } from './applicant-pages/intake/IntakeSection6';
 import { IntakeSection7 } from './applicant-pages/intake/IntakeSection7';
 import { IntakeSection8 } from './applicant-pages/intake/IntakeSection8';
+import { TraitLockGate2Interstitial, ProfileSubmitGate3Confirmation } from './applicant-pages/intake/ProfileLockGates';
 import { ProfileBuilderLayout } from './applicant-pages/ProfileBuilderLayout';
 import {
   ApplicantOpportunitiesPanel,
@@ -15,7 +16,7 @@ import {
   exploreIndustriesMatchedCount,
 } from './applicant-pages/OpportunitiesPage';
 import { applicantOpportunitiesMockData } from '../lib/applicantOpportunitiesMock';
-import { LayoutDashboard, User, Settings, Compass, Layers, LogOut, X, Globe } from 'lucide-react';
+import { LayoutDashboard, User, Settings, Compass, Layers, LogOut, X, Globe, Lock } from 'lucide-react';
 import { NotificationBell } from './shared/NotificationBell';
 import { DashboardContent } from './applicant-pages/DashboardContent';
 import { EditBasicInfoPage } from './applicant-pages/EditBasicInfoPage';
@@ -30,6 +31,7 @@ import {
   upsertIntakeSectionResponses,
   markApplicantIntakeComplete,
   syncSection7ToCandidateProfile,
+  getProfileLockedUntilIso,
 } from '../lib/applicantPersistence';
 
 /**
@@ -49,7 +51,7 @@ import {
 
 export function ApplicantScreen() {
   const navigate = useNavigate();
-  const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, replaceProfileData } =
+  const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, replaceProfileData, updateProfileData } =
     useUserProfile();
   const [activeSection, setActiveSection] = useState<
     'dashboard' | 'profileBuilder' | 'opportunities' | 'explore' | 'settings' | 'intake'
@@ -59,7 +61,9 @@ export function ApplicantScreen() {
   const [dbTraitScores, setDbTraitScores] = useState<import('../utils/intakeScoring').DimensionScores | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [showEditBasicInfo, setShowEditBasicInfo] = useState(false);
-  const [selectedOpportunityId, setSelectedOpportunityId] = useState<number | null>(null);
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(null);
+  const [opportunitiesActiveCount, setOpportunitiesActiveCount] = useState<number | null>(null);
+  const [opportunitiesRefreshKey, setOpportunitiesRefreshKey] = useState(0);
   const [selectedOpportunityEngagementId, setSelectedOpportunityEngagementId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [sidebarSituation, setSidebarSituation] = useState<string>('');
@@ -68,6 +72,14 @@ export function ApplicantScreen() {
   const [section3ScoringBusy, setSection3ScoringBusy] = useState(false);
   const [section4ScoringBusy, setSection4ScoringBusy] = useState(false);
   const [section6ScoringBusy, setSection6ScoringBusy] = useState(false);
+  const [showTraitLockInterstitial, setShowTraitLockInterstitial] = useState(true);
+  const [pendingIntakeCompletion, setPendingIntakeCompletion] = useState(false);
+  const [preSubmitTraitReview, setPreSubmitTraitReview] = useState(false);
+
+  const goToOpportunities = useCallback(() => {
+    setActiveSection('opportunities');
+    setOpportunitiesRefreshKey((k) => k + 1);
+  }, []);
 
   const refreshApplicantShell = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase || !userId) return;
@@ -153,8 +165,17 @@ export function ApplicantScreen() {
     );
   }
   
+  const isTraitProfileLocked =
+    profileData.profile_locked_until != null &&
+    new Date(profileData.profile_locked_until) > new Date();
+
+  const traitSectionsReadOnly = isTraitProfileLocked || preSubmitTraitReview;
+
   // Calculate step statuses dynamically based on completed sections
-  const getStepStatus = (stepId: number): 'active' | 'needsReview' | 'upToDate' => {
+  const getStepStatus = (stepId: number): 'active' | 'needsReview' | 'upToDate' | 'locked' => {
+    if (isTraitProfileLocked && stepId >= 2 && stepId <= 6) {
+      return 'locked';
+    }
     if (profileData?.intakeData?.completedSections?.includes(stepId)) {
       return 'upToDate';
     }
@@ -172,6 +193,10 @@ export function ApplicantScreen() {
     8: getStepStatus(8),
   };
 
+  const profileBuilderFooterHidden =
+    (activeStep === 2 && showTraitLockInterstitial && !isTraitProfileLocked) ||
+    (activeStep === 8 && pendingIntakeCompletion);
+
   // Handle navigation to Profile Builder
   const handleProfileBuilderClick = (stepId?: number) => {
     setActiveSection('profileBuilder');
@@ -182,8 +207,56 @@ export function ApplicantScreen() {
     if (activeStep === 1) {
       setActiveSection('dashboard');
     } else {
+      if (activeStep === 8 && pendingIntakeCompletion) {
+        setPendingIntakeCompletion(false);
+        setPreSubmitTraitReview(false);
+      }
       setActiveStep(activeStep - 1);
     }
+  };
+
+  const completeTraitProfileSubmission = async () => {
+    const intakeResponses = {
+      section2: profileData.intakeData.section2,
+      section3: profileData.intakeData.section3,
+      section4: profileData.intakeData.section4,
+      section5: profileData.intakeData.section5,
+      section6: profileData.intakeData.section6,
+    };
+
+    const scores = computeIntakeScores(intakeResponses);
+    updateTraitScores(scores);
+    if (supabase && applicantProfileId) {
+      const motivational_fit = computeMotivationalFitAverage(scores);
+      await supabase
+        .from('candidate_profiles')
+        .update({
+          learning_velocity: scores.learning_velocity,
+          ownership_follow_through: scores.ownership_follow_through,
+          resilience: scores.resilience,
+          communication_confidence: scores.communication_confidence,
+          relational_intelligence: scores.relational_intelligence,
+          motivational_fit_mastery: scores.motivational_fit_mastery,
+          motivational_fit_impact: scores.motivational_fit_impact,
+          motivational_fit_recognition: scores.motivational_fit_recognition,
+          motivational_fit_autonomy: scores.motivational_fit_autonomy,
+          motivational_fit,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', applicantProfileId);
+    }
+    markIntakeComplete();
+
+    if (supabase && applicantProfileId) {
+      const ok = await markApplicantIntakeComplete(supabase, applicantProfileId);
+      if (ok) {
+        updateProfileData({ profile_locked_until: getProfileLockedUntilIso() });
+      }
+    }
+
+    setPendingIntakeCompletion(false);
+    setPreSubmitTraitReview(false);
+    setActiveSection('dashboard');
   };
 
   const handleProfileBuilderNext = async (data?: Record<string, unknown>) => {
@@ -209,40 +282,8 @@ export function ApplicantScreen() {
       }
 
       if (sectionNum === 8) {
-        const intakeResponses = {
-          section2: profileData.intakeData.section2,
-          section3: profileData.intakeData.section3,
-          section4: profileData.intakeData.section4,
-          section5: profileData.intakeData.section5,
-          section6: profileData.intakeData.section6,
-        };
-
-        const scores = computeIntakeScores(intakeResponses);
-        updateTraitScores(scores);
-        if (supabase && applicantProfileId) {
-          const motivational_fit = computeMotivationalFitAverage(scores);
-          await supabase
-            .from('candidate_profiles')
-            .update({
-              learning_velocity: scores.learning_velocity,
-              ownership_follow_through: scores.ownership_follow_through,
-              resilience: scores.resilience,
-              communication_confidence: scores.communication_confidence,
-              relational_intelligence: scores.relational_intelligence,
-              motivational_fit_mastery: scores.motivational_fit_mastery,
-              motivational_fit_impact: scores.motivational_fit_impact,
-              motivational_fit_recognition: scores.motivational_fit_recognition,
-              motivational_fit_autonomy: scores.motivational_fit_autonomy,
-              motivational_fit,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', applicantProfileId);
-        }
-        markIntakeComplete();
-
-        if (supabase && applicantProfileId) {
-          await markApplicantIntakeComplete(supabase, applicantProfileId);
-        }
+        setPendingIntakeCompletion(true);
+        return;
       }
     }
 
@@ -254,6 +295,24 @@ export function ApplicantScreen() {
   };
 
   const renderProfileBuilderSection = () => {
+    const lockBanner =
+      isTraitProfileLocked && activeStep >= 2 && activeStep <= 6 ? (
+        <div className="mb-6 flex gap-2.5 rounded-xl border border-black/[0.08] bg-[#F9FAFB] px-4 py-3">
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#9CA3AF]" strokeWidth={2} aria-hidden />
+          <p className="text-[12.5px] leading-relaxed text-[#6B7280]">
+            Your trait profile has been submitted and is locked. This ensures employers see authentic results. If you
+            believe there was a genuine error, contact support.
+          </p>
+        </div>
+      ) : null;
+
+    const wrapTraitSection = (node: ReactNode) => (
+      <>
+        {lockBanner}
+        {node}
+      </>
+    );
+
     switch (activeStep) {
       case 1: {
         const s1 = profileData.intakeData.section1 as
@@ -273,52 +332,67 @@ export function ApplicantScreen() {
         );
       }
       case 2:
-        return (
+        if (showTraitLockInterstitial && !isTraitProfileLocked) {
+          return (
+            <TraitLockGate2Interstitial
+              onContinue={() => setShowTraitLockInterstitial(false)}
+              onComeBackLater={() => {
+                setActiveSection('dashboard');
+              }}
+            />
+          );
+        }
+        return wrapTraitSection(
           <IntakeSection2
-            hideFooterButton
-            submitRef={profileBuilderSubmitRef}
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton={traitSectionsReadOnly}
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
             initialData={profileData.intakeData.section2}
-          />
+          />,
         );
       case 3:
-        return (
+        return wrapTraitSection(
           <IntakeSection3
-            hideFooterButton
-            submitRef={profileBuilderSubmitRef}
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton={traitSectionsReadOnly}
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
             onQ3ScoringBusyChange={setSection3ScoringBusy}
             initialData={profileData.intakeData.section3}
-          />
+          />,
         );
       case 4:
-        return (
+        return wrapTraitSection(
           <IntakeSection4
-            hideFooterButton
-            submitRef={profileBuilderSubmitRef}
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton={traitSectionsReadOnly}
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
             onQ5ScoringBusyChange={setSection4ScoringBusy}
             initialData={profileData.intakeData.section4}
-          />
+          />,
         );
       case 5:
-        return (
+        return wrapTraitSection(
           <IntakeSection5
-            hideFooterButton
-            submitRef={profileBuilderSubmitRef}
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton={traitSectionsReadOnly}
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
             initialData={profileData.intakeData.section5}
-          />
+          />,
         );
       case 6:
-        return (
+        return wrapTraitSection(
           <IntakeSection6
-            hideFooterButton
-            submitRef={profileBuilderSubmitRef}
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton={traitSectionsReadOnly}
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
             onQ5ScoringBusyChange={setSection6ScoringBusy}
             initialData={profileData.intakeData.section6}
-          />
+          />,
         );
       case 7:
         return (
@@ -330,6 +404,17 @@ export function ApplicantScreen() {
           />
         );
       case 8:
+        if (pendingIntakeCompletion) {
+          return (
+            <ProfileSubmitGate3Confirmation
+              onSubmit={() => void completeTraitProfileSubmission()}
+              onReviewAnswers={() => {
+                setPreSubmitTraitReview(true);
+                setActiveStep(2);
+              }}
+            />
+          );
+        }
         return (
           <IntakeSection8
             hideFooterButton
@@ -358,6 +443,16 @@ export function ApplicantScreen() {
     }
   };
 
+  const runProfileBuilderFooterContinue = () => {
+    if (traitSectionsReadOnly && activeStep >= 2 && activeStep <= 6) {
+      if (activeStep < 8) {
+        setActiveStep(activeStep + 1);
+      }
+      return;
+    }
+    profileBuilderSubmitRef.current?.();
+  };
+
   const dashboardMonthYear = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
   const headerInitials = userName
     .trim()
@@ -375,7 +470,10 @@ export function ApplicantScreen() {
       : activeSection === 'profileBuilder'
         ? { title: 'Profile Builder', subtitle: 'Refine anytime' }
       : activeSection === 'opportunities'
-        ? { title: 'Opportunities', subtitle: `${applicantOpportunitiesMockData.length} active` }
+        ? {
+            title: 'Opportunities',
+            subtitle: `${opportunitiesActiveCount ?? applicantOpportunitiesMockData.length} active`,
+          }
         : activeSection === 'explore'
           ? { title: 'Explore Industries', subtitle: `${exploreIndustriesMatchedCount} matched` }
             : activeSection === 'settings'
@@ -494,7 +592,7 @@ export function ApplicantScreen() {
                 active={activeSection === 'opportunities'}
                 icon={Layers}
                 label="Opportunities"
-                onClick={() => setActiveSection('opportunities')}
+                onClick={goToOpportunities}
               />
               <NavBtn
                 active={activeSection === 'explore'}
@@ -560,11 +658,13 @@ export function ApplicantScreen() {
                 onNavigate={(url) => {
                   if (url.startsWith('#opportunities')) {
                     const params = new URLSearchParams(url.split('?')[1] ?? '');
-                    const engagementId = params.get('engagementId');
-                    const id = Number(params.get('opportunityId'));
-                    setSelectedOpportunityEngagementId(engagementId || null);
-                    setSelectedOpportunityId(!engagementId && Number.isFinite(id) ? id : null);
-                    setActiveSection('opportunities');
+                    const rawOpp = params.get('opportunityId');
+                    const engagementParam = params.get('engagementId');
+                    setSelectedOpportunityEngagementId(engagementParam || null);
+                    setSelectedOpportunityId(
+                      engagementParam || !rawOpp || rawOpp === '' ? null : rawOpp,
+                    );
+                    goToOpportunities();
                   }
                 }}
               />
@@ -606,7 +706,7 @@ export function ApplicantScreen() {
                 onViewAllOpportunities={(opportunityId) => {
                   setSelectedOpportunityId(opportunityId ?? null);
                   setSelectedOpportunityEngagementId(null);
-                  setActiveSection('opportunities');
+                  goToOpportunities();
                 }}
                 traitScores={dbTraitScores ?? profileData.trait_scores}
                 intakeComplete={profileData.intakeData.isComplete}
@@ -630,22 +730,33 @@ export function ApplicantScreen() {
                 stepStatuses={stepStatuses}
                 onStepChange={(stepId) => setActiveStep(stepId)}
                 onBack={handleProfileBuilderBack}
-                onFooterContinue={() => profileBuilderSubmitRef.current?.()}
+                onFooterContinue={runProfileBuilderFooterContinue}
                 footerContinueBusy={
                   (activeStep === 3 && section3ScoringBusy) ||
                   (activeStep === 4 && section4ScoringBusy) ||
                   (activeStep === 6 && section6ScoringBusy)
                 }
+                footerHidden={profileBuilderFooterHidden}
               >
                 {renderProfileBuilderSection()}
               </ProfileBuilderLayout>
             ) : null}
-            {activeSection === 'opportunities' ? (
+            <div
+              className={
+                activeSection === 'opportunities'
+                  ? 'flex min-h-0 flex-1 flex-col px-9 pb-4 pt-7'
+                  : 'hidden min-h-0 flex-1 flex-col px-9 pb-4 pt-7'
+              }
+              aria-hidden={activeSection !== 'opportunities'}
+            >
               <ApplicantOpportunitiesPanel
+                candidateProfileId={applicantProfileId}
+                onEngagementsCountChange={setOpportunitiesActiveCount}
+                opportunitiesRefreshKey={opportunitiesRefreshKey}
                 selectedOpportunityId={selectedOpportunityId}
                 selectedOpportunityEngagementId={selectedOpportunityEngagementId}
               />
-            ) : null}
+            </div>
             {activeSection === 'explore' ? <ApplicantExploreIndustriesPanel /> : null}
             {activeSection === 'settings' ? (
               <div>

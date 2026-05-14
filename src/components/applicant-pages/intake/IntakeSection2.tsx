@@ -45,6 +45,7 @@ interface IntakeSection2Props {
   initialData?: unknown;
   submitRef?: MutableRefObject<(() => void) | null>;
   hideFooterButton?: boolean;
+  readOnly?: boolean;
 }
 
 export function IntakeSection2({
@@ -52,6 +53,7 @@ export function IntakeSection2({
   initialData,
   submitRef,
   hideFooterButton = false,
+  readOnly = false,
 }: IntakeSection2Props) {
   const saved = parseSection2Saved(initialData);
 
@@ -115,6 +117,7 @@ export function IntakeSection2({
   const canProceed = q1Choice && q2Choice && q3Choice && q4Choice && q5Choice && q6Preferences.length > 0;
 
   const handleNext = () => {
+    if (readOnly) return;
     if (!canProceed) return;
 
     const q1Scores = { motivational_fit_autonomy: q1Choice === 'strongly_a' ? 1 : q1Choice === 'mostly_a' ? 2 : q1Choice === 'mostly_b' ? 4 : 5 };
@@ -150,8 +153,10 @@ export function IntakeSection2({
   }, [submitRef]);
 
   if (hideFooterButton && submitRef) {
-    submitRef.current = handleNext;
+    submitRef.current = readOnly ? null : handleNext;
   }
+
+  const roAct = readOnly ? 'opacity-60 cursor-not-allowed' : '';
 
   const workStyleOptions = [
     'Remote', 'Hybrid', 'In-person', 'Flexible hours', 'Standard hours',
@@ -161,9 +166,8 @@ export function IntakeSection2({
   ];
 
   const togglePreference = (pref: string) => {
-    setQ6Preferences(prev =>
-      prev.includes(pref) ? prev.filter(p => p !== pref) : [...prev, pref]
-    );
+    if (readOnly) return;
+    setQ6Preferences((prev) => (prev.includes(pref) ? prev.filter((p) => p !== pref) : [...prev, pref]));
   };
 
   return (
@@ -209,11 +213,13 @@ export function IntakeSection2({
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 mb-6">
-          {(['strongly_a', 'mostly_a', 'mostly_b', 'strongly_b'] as const).map(key => (
+          {(['strongly_a', 'mostly_a', 'mostly_b', 'strongly_b'] as const).map((key) => (
             <button
               key={key}
-              onClick={() => setQ1Choice(key)}
-              className={`px-4 py-3 text-sm border-2 transition-all ${
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ1Choice(key)}
+              className={`px-4 py-3 text-sm border-2 transition-all ${roAct} ${
                 q1Choice === key
                   ? 'border-[#7DBBFF] bg-[#7DBBFF]/10 text-[#111827] font-medium'
                   : 'border-black/[0.08] text-[#6B7280] hover:border-[#7DBBFF]/40'
@@ -231,9 +237,11 @@ export function IntakeSection2({
             </label>
             <textarea
               value={q1FollowUp}
-              onChange={e => setQ1FollowUp(e.target.value)}
+              onChange={(e) => !readOnly && setQ1FollowUp(e.target.value)}
+              readOnly={readOnly}
+              disabled={readOnly}
               placeholder="Optional response..."
-              className="w-full h-20 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all"
+              className={`w-full h-20 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all ${roAct}`}
               style={{ borderRadius: '12px' }}
             />
             <div className="flex justify-end mt-2">
@@ -265,11 +273,13 @@ export function IntakeSection2({
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 mb-6">
-          {(['strongly_a', 'mostly_a', 'mostly_b', 'strongly_b'] as const).map(key => (
+          {(['strongly_a', 'mostly_a', 'mostly_b', 'strongly_b'] as const).map((key) => (
             <button
               key={key}
-              onClick={() => setQ2Choice(key)}
-              className={`px-4 py-3 text-sm border-2 transition-all ${
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ2Choice(key)}
+              className={`px-4 py-3 text-sm border-2 transition-all ${roAct} ${
                 q2Choice === key
                   ? 'border-[#7DBBFF] bg-[#7DBBFF]/10 text-[#111827] font-medium'
                   : 'border-black/[0.08] text-[#6B7280] hover:border-[#7DBBFF]/40'
@@ -287,9 +297,11 @@ export function IntakeSection2({
             </label>
             <textarea
               value={q2FollowUp}
-              onChange={e => setQ2FollowUp(e.target.value)}
+              onChange={(e) => !readOnly && setQ2FollowUp(e.target.value)}
+              readOnly={readOnly}
+              disabled={readOnly}
               placeholder="Optional response..."
-              className="w-full h-20 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all"
+              className={`w-full h-20 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all ${roAct}`}
               style={{ borderRadius: '12px' }}
             />
             <div className="flex justify-end mt-2">
@@ -307,11 +319,13 @@ export function IntakeSection2({
           Which of these most accurately describes how you prefer to work? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q3ShuffledOptions.map(option => (
+          {q3ShuffledOptions.map((option) => (
             <button
               key={option.id}
-              onClick={() => setQ3Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ3Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${
                 q3Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'
               }`}
               style={{ borderRadius: '12px' }}
@@ -328,11 +342,13 @@ export function IntakeSection2({
           Which most accurately describes your relationship with feedback and recognition at work? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q4ShuffledOptions.map(option => (
+          {q4ShuffledOptions.map((option) => (
             <button
               key={option.id}
-              onClick={() => setQ4Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ4Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${
                 q4Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'
               }`}
               style={{ borderRadius: '12px' }}
@@ -349,11 +365,13 @@ export function IntakeSection2({
           Think about the work environment where you tend to perform at your best. Which most accurately describes you? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q5ShuffledOptions.map(option => (
+          {q5ShuffledOptions.map((option) => (
             <button
               key={option.id}
-              onClick={() => setQ5Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ5Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${
                 q5Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'
               }`}
               style={{ borderRadius: '12px' }}
@@ -372,11 +390,13 @@ export function IntakeSection2({
         <p className="text-sm text-[#6B7280] mb-2">Which of these describe how you prefer to work? Select all that apply.</p>
         <p className="text-xs text-[#9CA3AF] italic mb-6">No trait scoring. Used for employer filtering only.</p>
         <div className="grid grid-cols-2 gap-3">
-          {workStyleOptions.map(option => (
+          {workStyleOptions.map((option) => (
             <button
               key={option}
+              type="button"
+              disabled={readOnly}
               onClick={() => togglePreference(option)}
-              className={`px-4 py-3 text-sm border-2 text-left transition-all ${
+              className={`px-4 py-3 text-sm border-2 text-left transition-all ${roAct} ${
                 q6Preferences.includes(option)
                   ? 'border-[#7DBBFF] bg-[#7DBBFF]/10 text-[#111827] font-medium'
                   : 'border-black/[0.08] text-[#6B7280] hover:border-[#7DBBFF]/40'
@@ -399,9 +419,11 @@ export function IntakeSection2({
           <button
             type="button"
             onClick={handleNext}
-            disabled={!canProceed}
-            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-              canProceed ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md' : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+            disabled={readOnly || !canProceed}
+            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${roAct} ${
+              !readOnly && canProceed
+                ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
+                : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
             }`}
             style={{ borderRadius: '12px' }}
           >

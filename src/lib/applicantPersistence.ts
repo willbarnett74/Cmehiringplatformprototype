@@ -178,6 +178,11 @@ type IntakeRow = {
   response_value: string | null;
 };
 
+/** Far-future lock time (≈10 years); must match `markApplicantIntakeComplete` DB write for client sync. */
+export function getProfileLockedUntilIso(): string {
+  return new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString();
+}
+
 /**
  * Load saved intake rows + profile fields from Supabase for Profile Builder hydration after refresh.
  */
@@ -188,7 +193,7 @@ export async function loadApplicantProfileFromSupabase(
   const { data: rawRow, error: rowErr } = await client
     .from('candidate_profiles')
     .select(
-      'learning_velocity,ownership_follow_through,resilience,communication_confidence,relational_intelligence,motivational_fit_mastery,motivational_fit_impact,motivational_fit_recognition,motivational_fit_autonomy,intake_status',
+      'learning_velocity,ownership_follow_through,resilience,communication_confidence,relational_intelligence,motivational_fit_mastery,motivational_fit_impact,motivational_fit_recognition,motivational_fit_autonomy,intake_status,profile_locked_until',
     )
     .eq('id', candidateProfileId)
     .maybeSingle();
@@ -210,6 +215,7 @@ export async function loadApplicantProfileFromSupabase(
     motivational_fit_recognition: string | number | null;
     motivational_fit_autonomy: string | number | null;
     intake_status: string | null;
+    profile_locked_until: string | null;
   } | null;
   const toNum = (v: string | number | null | undefined): number | null => {
     if (v == null) return null;
@@ -286,6 +292,7 @@ export async function loadApplicantProfileFromSupabase(
     profile_info: {},
     profile_complete: intakeComplete,
     last_updated: new Date(),
+    profile_locked_until: row?.profile_locked_until ?? null,
   };
 
   return { profile, traitScores };
@@ -593,19 +600,21 @@ export async function insertCandidateActivityEvent(
 export async function markApplicantIntakeComplete(
   client: SupabaseClient,
   applicantProfileId: string,
-): Promise<void> {
+): Promise<boolean> {
   const now = new Date().toISOString();
+  const profileLockedUntil = getProfileLockedUntilIso();
   const { error } = await client
     .from('candidate_profiles')
     .update({
       intake_status: 'complete',
+      profile_locked_until: profileLockedUntil,
       updated_at: now,
     })
     .eq('id', applicantProfileId);
 
   if (error) {
     console.warn('[CMe] candidate_profiles intake complete failed:', error.message);
-    return;
+    return false;
   }
 
   const { data: row } = await client
@@ -617,4 +626,6 @@ export async function markApplicantIntakeComplete(
   if (uid) {
     await insertCandidateActivityEvent(client, uid, 'profile', 'Trait profile marked complete');
   }
+
+  return true;
 }

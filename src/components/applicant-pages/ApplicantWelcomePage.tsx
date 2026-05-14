@@ -11,6 +11,7 @@ import {
   ArrowRight,
   Briefcase,
   Compass,
+  Shield,
   MapPin,
   Shuffle,
   TrendingUp,
@@ -790,6 +791,18 @@ function ApplicantWelcomePage({
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="mt-5 flex gap-3 rounded-xl border border-[#7DBBFF]/20 bg-[#F0F7FF] px-5 py-4">
+                    <Shield className="mt-0.5 h-[18px] w-[18px] shrink-0 text-[#7DBBFF]" strokeWidth={2} aria-hidden />
+                    <div>
+                      <p className="text-[13px] font-semibold text-[#111827]">One honest take</p>
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-[#6B7280]">
+                        Your trait profile is assessed once and stays with you. There&apos;s no timer — take your time,
+                        be honest, and complete it when you&apos;re ready. Your background story, career preferences,
+                        and contact details can always be updated later.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

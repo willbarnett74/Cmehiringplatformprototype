@@ -6,6 +6,7 @@ interface IntakeSection5Props {
   initialData?: unknown;
   submitRef?: MutableRefObject<(() => void) | null>;
   hideFooterButton?: boolean;
+  readOnly?: boolean;
 }
 
 function parseSection5Saved(initialData: unknown) {
@@ -32,7 +33,13 @@ function parseSection5Saved(initialData: unknown) {
   };
 }
 
-export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterButton = false }: IntakeSection5Props) {
+export function IntakeSection5({
+  onComplete,
+  initialData,
+  submitRef,
+  hideFooterButton = false,
+  readOnly = false,
+}: IntakeSection5Props) {
   const saved = parseSection5Saved(initialData);
 
   const [q1Choice, setQ1Choice] = useState<string | null>(() => saved.q1Choice);
@@ -127,6 +134,7 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
   const canProceed = q1Choice && q2Choice && q3Choice && q4Choice && q5Choice && q6Choice;
 
   const handleNext = () => {
+    if (readOnly) return;
     if (!canProceed) return;
 
     const q1Option = q1ShuffledOptions.find(o => o.id === q1Choice)!;
@@ -156,8 +164,10 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
   }, [submitRef]);
 
   if (hideFooterButton && submitRef) {
-    submitRef.current = handleNext;
+    submitRef.current = readOnly ? null : handleNext;
   }
+
+  const roAct = readOnly ? 'opacity-60 cursor-not-allowed' : '';
 
   return (
     <div>
@@ -189,9 +199,14 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
         </h3>
         <div className="space-y-3">
           {q1ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ1Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q1Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+            <button
+              key={option.id}
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ1Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q1Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
@@ -203,9 +218,11 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
             </label>
             <textarea
               value={q1FollowUp}
-              onChange={e => setQ1FollowUp(e.target.value)}
+              onChange={(e) => !readOnly && setQ1FollowUp(e.target.value)}
+              readOnly={readOnly}
+              disabled={readOnly}
               placeholder="Optional response..."
-              className="w-full h-20 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all"
+              className={`w-full h-20 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all ${roAct}`}
               style={{ borderRadius: '12px' }}
             />
             <div className="flex justify-end mt-2">
@@ -224,9 +241,14 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
         </h3>
         <div className="space-y-3">
           {q2ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ2Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q2Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+            <button
+              key={option.id}
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ2Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q2Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
@@ -240,9 +262,14 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
         </h3>
         <div className="space-y-3">
           {q3ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ3Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q3Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+            <button
+              key={option.id}
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ3Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q3Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
@@ -256,9 +283,14 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
         </h3>
         <div className="space-y-3">
           {q4ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ4Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q4Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+            <button
+              key={option.id}
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ4Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q4Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
@@ -272,9 +304,14 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
         </h3>
         <div className="space-y-3">
           {q5ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ5Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q5Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+            <button
+              key={option.id}
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ5Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q5Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
@@ -288,9 +325,14 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
         </h3>
         <div className="space-y-3">
           {q6ShuffledOptions.map(option => (
-            <button key={option.id} onClick={() => setQ6Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q6Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
-              style={{ borderRadius: '12px' }}>
+            <button
+              key={option.id}
+              type="button"
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ6Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q6Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              style={{ borderRadius: '12px' }}
+            >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
             </button>
           ))}
@@ -302,9 +344,11 @@ export function IntakeSection5({ onComplete, initialData, submitRef, hideFooterB
           <button
             type="button"
             onClick={handleNext}
-            disabled={!canProceed}
-            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-              canProceed ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md' : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+            disabled={readOnly || !canProceed}
+            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${roAct} ${
+              !readOnly && canProceed
+                ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
+                : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
             }`}
             style={{ borderRadius: '12px' }}
           >

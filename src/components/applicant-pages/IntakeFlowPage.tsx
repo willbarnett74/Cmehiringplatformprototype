@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle, Circle } from 'lucide-react';
 import { IntakeSection1 } from './intake/IntakeSection1';
 import { IntakeSection2 } from './intake/IntakeSection2';
@@ -8,11 +8,9 @@ import { IntakeSection5 } from './intake/IntakeSection5';
 import { IntakeSection6 } from './intake/IntakeSection6';
 import { IntakeSection7 } from './intake/IntakeSection7';
 import { IntakeSection8 } from './intake/IntakeSection8';
+import { TraitLockGate2Interstitial, ProfileSubmitGate3Confirmation } from './intake/ProfileLockGates';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
-import {
-  upsertIntakeSectionResponses,
-  markApplicantIntakeComplete,
-} from '../../lib/applicantPersistence';
+import { upsertIntakeSectionResponses, markApplicantIntakeComplete } from '../../lib/applicantPersistence';
 
 const SECTION_LABELS = [
   { number: 1, title: 'Background' },
@@ -37,6 +35,35 @@ export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBac
   const [currentSection, setCurrentSection] = useState(1);
   const [completedSections, setCompletedSections] = useState<number[]>([]);
   const [sectionData, setSectionData] = useState<Record<number, Record<string, unknown>>>({});
+  const [profileLockedUntil, setProfileLockedUntil] = useState<string | null>(null);
+  const [showTraitLockInterstitial, setShowTraitLockInterstitial] = useState(true);
+  const [pendingIntakeCompletion, setPendingIntakeCompletion] = useState(false);
+  const [preSubmitTraitReview, setPreSubmitTraitReview] = useState(false);
+  const [deferralMessage, setDeferralMessage] = useState<string | null>(null);
+
+  const isUnlockedFromDb =
+    profileLockedUntil == null || new Date(profileLockedUntil) <= new Date();
+  const isTraitProfileLocked = !isUnlockedFromDb;
+
+  const traitSectionsReadOnly = isTraitProfileLocked || preSubmitTraitReview;
+
+  useEffect(() => {
+    if (!candidateId || !isSupabaseConfigured || !supabase) return;
+    let cancelled = false;
+    void supabase
+      .from('candidate_profiles')
+      .select('profile_locked_until')
+      .eq('id', candidateId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        const raw = data?.profile_locked_until;
+        setProfileLockedUntil(typeof raw === 'string' ? raw : null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [candidateId]);
 
   const persistSectionResponses = async (sectionNumber: number, data: Record<string, unknown>) => {
     if (!candidateId || !isSupabaseConfigured || !supabase) {
@@ -65,9 +92,9 @@ export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBac
     const sectionNumber = data.section as number;
 
     setSectionData((prev) => ({ ...prev, [sectionNumber]: data }));
-    if (!completedSections.includes(sectionNumber)) {
-      setCompletedSections((prev) => [...prev, sectionNumber]);
-    }
+    setCompletedSections((prev) =>
+      prev.includes(sectionNumber) ? prev : [...prev, sectionNumber].sort((a, b) => a - b),
+    );
 
     await persistSectionResponses(sectionNumber, data);
 
@@ -76,12 +103,14 @@ export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBac
     }
   };
 
-  const handleSection8Complete = async (data: Record<string, unknown>) => {
+  const handleSection8SaveForConfirmation = async (data: Record<string, unknown>) => {
     setSectionData((prev) => ({ ...prev, 8: data }));
-    if (!completedSections.includes(8)) {
-      setCompletedSections((prev) => [...prev, 8]);
-    }
+    setCompletedSections((prev) => (prev.includes(8) ? prev : [...prev, 8].sort((a, b) => a - b)));
     await persistSectionResponses(8, data);
+    setPendingIntakeCompletion(true);
+  };
+
+  const confirmIntakeSubmission = async () => {
     if (candidateId && isSupabaseConfigured && supabase) {
       const {
         data: { session },
@@ -90,6 +119,8 @@ export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBac
         await markApplicantIntakeComplete(supabase, candidateId);
       }
     }
+    setPendingIntakeCompletion(false);
+    setPreSubmitTraitReview(false);
     onComplete();
   };
 
@@ -98,29 +129,99 @@ export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBac
       case 1:
         return <IntakeSection1 onComplete={handleSectionComplete} initialData={sectionData[1]} />;
       case 2:
-        return <IntakeSection2 onComplete={handleSectionComplete} initialData={sectionData[2]} />;
+        if (showTraitLockInterstitial && !isTraitProfileLocked) {
+          return (
+            <TraitLockGate2Interstitial
+              onContinue={() => setShowTraitLockInterstitial(false)}
+              onComeBackLater={() => {
+                if (onBack) {
+                  onBack();
+                  return;
+                }
+                setDeferralMessage('Your progress is saved. You can return anytime to continue.');
+              }}
+            />
+          );
+        }
+        return (
+          <IntakeSection2
+            readOnly={traitSectionsReadOnly}
+            onComplete={handleSectionComplete}
+            initialData={sectionData[2]}
+          />
+        );
       case 3:
-        return <IntakeSection3 onComplete={handleSectionComplete} initialData={sectionData[3]} />;
+        return (
+          <IntakeSection3
+            readOnly={traitSectionsReadOnly}
+            onComplete={handleSectionComplete}
+            initialData={sectionData[3]}
+          />
+        );
       case 4:
-        return <IntakeSection4 onComplete={handleSectionComplete} initialData={sectionData[4]} />;
+        return (
+          <IntakeSection4
+            readOnly={traitSectionsReadOnly}
+            onComplete={handleSectionComplete}
+            initialData={sectionData[4]}
+          />
+        );
       case 5:
-        return <IntakeSection5 onComplete={handleSectionComplete} initialData={sectionData[5]} />;
+        return (
+          <IntakeSection5
+            readOnly={traitSectionsReadOnly}
+            onComplete={handleSectionComplete}
+            initialData={sectionData[5]}
+          />
+        );
       case 6:
-        return <IntakeSection6 onComplete={handleSectionComplete} initialData={sectionData[6]} />;
+        return (
+          <IntakeSection6
+            readOnly={traitSectionsReadOnly}
+            onComplete={handleSectionComplete}
+            initialData={sectionData[6]}
+          />
+        );
       case 7:
         return <IntakeSection7 onComplete={handleSectionComplete} initialData={sectionData[7]} />;
       case 8:
+        if (pendingIntakeCompletion) {
+          return (
+            <ProfileSubmitGate3Confirmation
+              onSubmit={() => void confirmIntakeSubmission()}
+              onReviewAnswers={() => {
+                setPreSubmitTraitReview(true);
+                setCurrentSection(2);
+              }}
+            />
+          );
+        }
         return (
-          <IntakeSection8 onComplete={handleSection8Complete} initialData={sectionData[8]} />
+          <IntakeSection8
+            onComplete={(data) => void handleSection8SaveForConfirmation(data)}
+            initialData={sectionData[8]}
+          />
         );
       default:
         return null;
     }
   };
 
+  const gateOccludesNav =
+    (currentSection === 2 && showTraitLockInterstitial && !isTraitProfileLocked) ||
+    (currentSection === 8 && pendingIntakeCompletion);
+
   return (
     <div className="min-h-screen bg-[#FAFAFA] py-12">
       <div className="max-w-4xl mx-auto px-8">
+        {deferralMessage ? (
+          <div
+            className="mb-4 rounded-xl border border-[#7DBBFF]/25 bg-[#F0F7FF] px-4 py-3 text-sm text-[#374151]"
+            role="status"
+          >
+            {deferralMessage}
+          </div>
+        ) : null}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -182,7 +283,7 @@ export function IntakeFlowPage({ candidateId, userId: _userId, onComplete, onBac
 
         <div className="bg-[#FAFAFA]">{renderSection()}</div>
 
-        {currentSection > 1 && currentSection < 8 && (
+        {!gateOccludesNav && currentSection > 1 && currentSection < 8 && (
           <div className="mt-6 flex justify-start">
             <button
               onClick={() => setCurrentSection(currentSection - 1)}

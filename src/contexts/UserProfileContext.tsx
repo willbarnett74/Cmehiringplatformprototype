@@ -67,6 +67,9 @@ export interface UserProfileData {
   // Meta
   profile_complete: boolean;
   last_updated: Date | null;
+
+  /** When set and in the future, trait sections (2–6) are read-only. */
+  profile_locked_until?: string | null;
 }
 
 interface UserProfileContextType {
