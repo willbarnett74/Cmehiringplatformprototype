@@ -9,7 +9,25 @@ function inferIntakeFormat(payload: Record<string, unknown>): IntakeFormat {
   if (Array.isArray(payload.strengths)) return 'free_text';
   if (payload.choice != null) return 'diametric';
   if (typeof payload.option_id === 'string') return 'anchored_scale';
+  if (Array.isArray(payload.ordered_ids)) return 'ranked';
   return 'free_text';
+}
+
+/** Mirrors `llm_scores` object from narrative questions into the `llm_score` column for admin visibility */
+function intakeLlmScoreColumnFromPayload(payload: Record<string, unknown>): Record<string, number> | null {
+  const raw = payload.llm_scores;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(o)) {
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      out[k] = v;
+    } else if (typeof v === 'string' && v.trim() !== '') {
+      const n = Number(v);
+      if (Number.isFinite(n)) out[k] = n;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : {};
 }
 
 /** Matches profiles.role after migration (applicant | employer | candidate). Prefer candidate for new applicants. */
@@ -103,7 +121,12 @@ export async function upsertIntakeSectionResponses(
   sectionPayload: Record<string, unknown>,
 ): Promise<void> {
   const responses = sectionPayload.responses as Record<string, Record<string, unknown>> | undefined;
-  if (!responses) return;
+  if (!responses || Object.keys(responses).length === 0) {
+    console.warn('[CMe] upsertIntakeSectionResponses: missing or empty responses; skipping.', {
+      section: sectionNumber,
+    });
+    return;
+  }
 
   const rows = Object.entries(responses).map(([fallbackId, payload]) => {
     const questionKey = (typeof payload.question_key === 'string' ? payload.question_key : null) ?? fallbackId;
@@ -124,7 +147,7 @@ export async function upsertIntakeSectionResponses(
           ? (strengths as string[])
           : null,
       score_data: scores && typeof scores === 'object' ? scores : null,
-      llm_score: null,
+      llm_score: intakeLlmScoreColumnFromPayload(payload),
       time_spent_sec: null,
     };
   });
@@ -134,7 +157,13 @@ export async function upsertIntakeSectionResponses(
   });
 
   if (error) {
-    console.warn('[CMe] intake_responses upsert failed:', error.message);
+    console.error('[CMe] intake_responses upsert failed:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new Error(`intake_responses upsert failed: ${error.message}`);
   }
 
   await client

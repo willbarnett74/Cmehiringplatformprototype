@@ -8,6 +8,8 @@ interface ProfileBuilderLayoutProps {
   onBack: () => void;
   /** Sticky footer primary — calls into the active intake section via ref */
   onFooterContinue: () => void;
+  /** Disables footer continue (e.g. LLM scoring in flight); shows loading label */
+  footerContinueBusy?: boolean;
   children: ReactNode;
 }
 
@@ -81,6 +83,7 @@ export function ProfileBuilderLayout({
   onStepChange,
   onBack,
   onFooterContinue,
+  footerContinueBusy = false,
   children,
 }: ProfileBuilderLayoutProps) {
   const upToDateCount = Object.values(stepStatuses).filter((s) => s === 'upToDate').length;
@@ -96,10 +99,10 @@ export function ProfileBuilderLayout({
   const sectionPadded = currentStep < 10 ? `0${currentStep}` : String(currentStep);
 
   return (
-    <div className="flex min-h-[calc(100vh-52px)] flex-col bg-[#fafafa] font-dashboard text-[#111827] antialiased">
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#fafafa] font-dashboard text-[#111827] antialiased">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {/* Step sidebar — design_handoff / Portal v2 */}
-        <aside className="flex h-auto w-[240px] shrink-0 flex-col overflow-hidden border-r border-black/[0.08] bg-white">
+        <aside className="flex min-h-0 w-[240px] shrink-0 flex-col overflow-hidden border-r border-black/[0.08] bg-white">
           <div className="border-b border-black/[0.07] px-5 pb-4 pt-5">
             <div className="mb-2 flex items-baseline justify-between">
               <p className="text-[11px] font-semibold tracking-[0.02em] text-[#111827]">Profile Readiness</p>
@@ -223,10 +226,19 @@ export function ProfileBuilderLayout({
               <button
                 type="button"
                 onClick={onFooterContinue}
-                className="inline-flex items-center gap-1.5 rounded-[5px] border-none bg-[#7dbbff] px-[18px] py-2 text-[12.5px] font-medium text-white transition-colors hover:bg-[#6aabef]"
+                disabled={footerContinueBusy}
+                className={`inline-flex items-center gap-1.5 rounded-[5px] border-none px-[18px] py-2 text-[12.5px] font-medium text-white transition-colors ${
+                  footerContinueBusy ? 'cursor-not-allowed bg-[#9eccff]' : 'bg-[#7dbbff] hover:bg-[#6aabef]'
+                }`}
               >
-                {currentStep === 8 ? 'Complete profile' : 'Save & continue'}
-                <ArrowRight className="h-[13px] w-[13px] shrink-0 text-white" strokeWidth={2} />
+                {footerContinueBusy
+                  ? 'Scoring response…'
+                  : currentStep === 8
+                    ? 'Complete profile'
+                    : 'Save & continue'}
+                {!footerContinueBusy ? (
+                  <ArrowRight className="h-[13px] w-[13px] shrink-0 text-white" strokeWidth={2} />
+                ) : null}
               </button>
             </div>
           </footer>

@@ -65,6 +65,9 @@ export function ApplicantScreen() {
   const [sidebarSituation, setSidebarSituation] = useState<string>('');
   const [dashboardProfileRefreshKey, setDashboardProfileRefreshKey] = useState(0);
   const profileBuilderSubmitRef = useRef<(() => void) | null>(null);
+  const [section3ScoringBusy, setSection3ScoringBusy] = useState(false);
+  const [section4ScoringBusy, setSection4ScoringBusy] = useState(false);
+  const [section6ScoringBusy, setSection6ScoringBusy] = useState(false);
 
   const refreshApplicantShell = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase || !userId) return;
@@ -189,7 +192,12 @@ export function ApplicantScreen() {
       updateIntakeSection(sectionNum, data.responses);
 
       if (supabase && applicantProfileId) {
-        await upsertIntakeSectionResponses(supabase, applicantProfileId, sectionNum, data);
+        try {
+          await upsertIntakeSectionResponses(supabase, applicantProfileId, sectionNum, data);
+        } catch (persistErr) {
+          const msg = persistErr instanceof Error ? persistErr.message : String(persistErr);
+          console.error('[CMe] Profile Builder: could not save intake to Supabase:', msg);
+        }
       }
 
       if (sectionNum === 7 && supabase && applicantProfileId && data.responses) {
@@ -270,6 +278,7 @@ export function ApplicantScreen() {
             hideFooterButton
             submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
+            initialData={profileData.intakeData.section2}
           />
         );
       case 3:
@@ -278,6 +287,8 @@ export function ApplicantScreen() {
             hideFooterButton
             submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
+            onQ3ScoringBusyChange={setSection3ScoringBusy}
+            initialData={profileData.intakeData.section3}
           />
         );
       case 4:
@@ -286,6 +297,8 @@ export function ApplicantScreen() {
             hideFooterButton
             submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
+            onQ5ScoringBusyChange={setSection4ScoringBusy}
+            initialData={profileData.intakeData.section4}
           />
         );
       case 5:
@@ -294,6 +307,7 @@ export function ApplicantScreen() {
             hideFooterButton
             submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
+            initialData={profileData.intakeData.section5}
           />
         );
       case 6:
@@ -302,6 +316,8 @@ export function ApplicantScreen() {
             hideFooterButton
             submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
+            onQ5ScoringBusyChange={setSection6ScoringBusy}
+            initialData={profileData.intakeData.section6}
           />
         );
       case 7:
@@ -310,6 +326,7 @@ export function ApplicantScreen() {
             hideFooterButton
             submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
+            initialData={profileData.intakeData.section7}
           />
         );
       case 8:
@@ -318,6 +335,7 @@ export function ApplicantScreen() {
             hideFooterButton
             submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleProfileBuilderNext(data)}
+            initialData={profileData.intakeData.section8}
           />
         );
       default: {
@@ -407,7 +425,7 @@ export function ApplicantScreen() {
 
   // FRAME 1: Dashboard
   return (
-    <div className="relative min-h-screen bg-[#fafafa] font-dashboard text-[#111827] antialiased">
+    <div className="relative h-[100dvh] min-h-0 overflow-hidden bg-[#fafafa] font-dashboard text-[#111827] antialiased">
       {showEditBasicInfo && (
         <div
           className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-10"
@@ -439,8 +457,8 @@ export function ApplicantScreen() {
         </div>
       )}
 
-      <div className="relative flex min-h-screen">
-        <aside className="sticky top-0 flex h-screen w-[224px] shrink-0 flex-col border-r border-white/[0.05] bg-[#030213]">
+      <div className="relative flex h-full min-h-0 overflow-hidden">
+        <aside className="sticky top-0 flex h-full min-h-0 w-[224px] shrink-0 flex-col border-r border-white/[0.05] bg-[#030213]">
           <div className="flex h-full min-h-0 flex-1 flex-col px-4 pb-4 pt-6">
             <div className="mb-[30px] flex shrink-0 items-center gap-2.5">
               <div
@@ -514,9 +532,9 @@ export function ApplicantScreen() {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto bg-[#fafafa]">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#fafafa]">
           <div
-            className="sticky top-0 z-10 flex h-[52px] items-center justify-between border-b border-black/[0.08] bg-[#fafafa] px-9"
+            className="sticky top-0 z-10 flex h-[52px] shrink-0 items-center justify-between border-b border-black/[0.08] bg-[#fafafa] px-9"
           >
             <div className="flex items-center gap-2.5">
               <span className="text-[13px] font-medium text-[#111827]">{portalTopBar.title}</span>
@@ -561,7 +579,22 @@ export function ApplicantScreen() {
             </div>
           </div>
 
-          <div className="px-9 pb-12 pt-7">
+          <div
+            className={
+              activeSection === 'opportunities' || activeSection === 'profileBuilder'
+                ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+                : 'min-h-0 flex-1 overflow-y-auto'
+            }
+          >
+            <div
+              className={
+                activeSection === 'opportunities'
+                  ? 'flex min-h-0 flex-1 flex-col px-9 pb-4 pt-7'
+                  : activeSection === 'profileBuilder'
+                    ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-9'
+                    : 'px-9 pb-12 pt-7'
+              }
+            >
             <div className={activeSection === 'dashboard' ? 'block' : 'hidden'}>
               <DashboardContent
                 userId={userId}
@@ -598,6 +631,11 @@ export function ApplicantScreen() {
                 onStepChange={(stepId) => setActiveStep(stepId)}
                 onBack={handleProfileBuilderBack}
                 onFooterContinue={() => profileBuilderSubmitRef.current?.()}
+                footerContinueBusy={
+                  (activeStep === 3 && section3ScoringBusy) ||
+                  (activeStep === 4 && section4ScoringBusy) ||
+                  (activeStep === 6 && section6ScoringBusy)
+                }
               >
                 {renderProfileBuilderSection()}
               </ProfileBuilderLayout>
@@ -623,6 +661,7 @@ export function ApplicantScreen() {
                 />
               </div>
             ) : null}
+          </div>
           </div>
         </main>
       </div>

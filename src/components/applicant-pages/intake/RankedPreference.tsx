@@ -1,11 +1,12 @@
 /**
  * Format C — Ranked Preference
  * Drag-to-rank using @dnd-kit/core + @dnd-kit/sortable.
- * Shuffles items on mount. Calls onChange(orderedIds, scores) on reorder.
+ * Shuffles items on mount unless `initialOrderedIds` restores a saved order.
+ * Calls onChange on reorder and once on mount so parents can gate Continue without requiring a drag first.
  * Scoring: 1st = 5, 2nd = 3, 3rd = 2, 4th = 1.
  */
 
-import { useState } from 'react';
+import { useState, useLayoutEffect } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -32,6 +33,13 @@ export const RANK_SCORES = [5, 3, 2, 1] as const;
 
 function shuffleArray<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
+}
+
+function orderItemsFromIds(items: RankItem[], ids: string[]): RankItem[] | null {
+  if (ids.length !== items.length) return null;
+  const map = new Map(items.map((i) => [i.id, i]));
+  const ordered = ids.map((id) => map.get(id)).filter((x): x is RankItem => x != null);
+  return ordered.length === items.length ? ordered : null;
 }
 
 interface SortableItemProps {
@@ -85,12 +93,32 @@ function SortableItem({ item, index }: SortableItemProps) {
 interface RankedPreferenceProps {
   items: RankItem[];
   onChange: (orderedIds: string[], scores: Record<string, number>) => void;
+  /** When revisiting a step, restore list order from saved `ordered_ids` (must match `items` ids). */
+  initialOrderedIds?: string[] | null;
 }
 
-export function RankedPreference({ items, onChange }: RankedPreferenceProps) {
-  const [ordered, setOrdered] = useState<RankItem[]>(() => shuffleArray(items));
+export function RankedPreference({ items, onChange, initialOrderedIds }: RankedPreferenceProps) {
+  const [ordered, setOrdered] = useState<RankItem[]>(() => {
+    const fromSaved =
+      initialOrderedIds && initialOrderedIds.length > 0
+        ? orderItemsFromIds(items, initialOrderedIds)
+        : null;
+    return fromSaved ?? shuffleArray(items);
+  });
 
   const sensors = useSensors(useSensor(PointerSensor));
+
+  // Default shuffled order never called onChange, so section gating stayed false until the first drag.
+  // Also syncs restored order back to parent on mount.
+  useLayoutEffect(() => {
+    const orderedIds = ordered.map((i) => i.id);
+    const scores: Record<string, number> = {};
+    ordered.forEach((item, idx) => {
+      scores[item.id] = RANK_SCORES[idx] ?? 1;
+    });
+    onChange(orderedIds, scores);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time sync for current ordered list on mount
+  }, []);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
