@@ -157,6 +157,13 @@ function buildTimeline(
   return events;
 }
 
+function stripDemoSeedMarkers(text: string): string {
+  return text
+    .replace(/__CME_SEED_[A-Z0-9_]+__/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 export function engagementRowToOpportunity(
   row: EngagementRow,
   messages: MessageRow[],
@@ -168,7 +175,8 @@ export function engagementRowToOpportunity(
   const sizeRaw = biz?.size ?? '';
   const sizeLabel =
     sizeRaw && !String(sizeRaw).includes('employee') ? `${sizeRaw} employees` : String(sizeRaw || '—');
-  const intro = biz?.description ?? '';
+  const introRaw = biz?.description ?? '';
+  const intro = stripDemoSeedMarkers(introRaw);
   const role = row.roles;
   const title = role?.title ?? 'Open role';
   const location = role?.location ?? '—';
