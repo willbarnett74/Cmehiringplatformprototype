@@ -1,15 +1,19 @@
 import type { ReactNode } from 'react';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Lock } from 'lucide-react';
+
+export type ProfileBuilderStepStatus = 'active' | 'needsReview' | 'upToDate' | 'locked';
 
 interface ProfileBuilderLayoutProps {
   currentStep: number;
-  stepStatuses: { [key: number]: 'active' | 'needsReview' | 'upToDate' };
+  stepStatuses: { [key: number]: ProfileBuilderStepStatus };
   onStepChange: (stepId: number) => void;
   onBack: () => void;
   /** Sticky footer primary — calls into the active intake section via ref */
   onFooterContinue: () => void;
   /** Disables footer continue (e.g. LLM scoring in flight); shows loading label */
   footerContinueBusy?: boolean;
+  /** Hide footer during full-page gate screens (e.g. trait lock interstitial / final confirmation). */
+  footerHidden?: boolean;
   children: ReactNode;
 }
 
@@ -71,11 +75,12 @@ const steps = [
 ] as const;
 
 /** Matches CMe Portal v2.html ProfileBuilderPage */
-const STATUS_DOT = {
+const STATUS_DOT: Record<ProfileBuilderStepStatus, string> = {
   active: '#7dbbff',
   needsReview: '#F59E0B',
   upToDate: '#10B981',
-} as const;
+  locked: '#9CA3AF',
+};
 
 export function ProfileBuilderLayout({
   currentStep,
@@ -84,12 +89,15 @@ export function ProfileBuilderLayout({
   onBack,
   onFooterContinue,
   footerContinueBusy = false,
+  footerHidden = false,
   children,
 }: ProfileBuilderLayoutProps) {
-  const upToDateCount = Object.values(stepStatuses).filter((s) => s === 'upToDate').length;
+  const upToDateCount = Object.values(stepStatuses).filter(
+    (s) => s === 'upToDate' || s === 'locked',
+  ).length;
   const readinessPercentage = Math.round((upToDateCount / steps.length) * 100);
 
-  const stepUiStatus = (stepId: number): 'active' | 'needsReview' | 'upToDate' => {
+  const stepUiStatus = (stepId: number): ProfileBuilderStepStatus => {
     if (stepId === currentStep) return 'active';
     return stepStatuses[stepId] || 'needsReview';
   };
@@ -127,19 +135,35 @@ export function ProfileBuilderLayout({
                 const dotColor = STATUS_DOT[st];
                 const isActive = st === 'active';
                 const statusWord =
-                  st === 'upToDate' ? 'Complete' : st === 'active' ? 'Editing now' : 'To complete';
+                  st === 'upToDate'
+                    ? 'Complete'
+                    : st === 'locked'
+                      ? 'Locked'
+                      : st === 'active'
+                        ? 'Editing now'
+                        : 'To complete';
                 const num = step.id < 10 ? `0${step.id}` : String(step.id);
+                const labelMuted = st === 'locked' && !isActive;
 
                 return (
                   <div
                     key={step.id}
                     className={`relative ${idx < steps.length - 1 ? 'mb-1' : ''}`}
                   >
-                    <div
-                      className="absolute left-[-12px] top-2.5 z-[1] h-[9px] w-[9px] rounded-full border-2 border-white"
-                      style={{ background: dotColor, boxShadow: `0 0 0 1px ${dotColor}` }}
-                      aria-hidden
-                    />
+                    {st === 'locked' && !isActive ? (
+                      <div
+                        className="absolute left-[-16px] top-[9px] z-[1] flex h-3 w-3 items-center justify-center"
+                        aria-hidden
+                      >
+                        <Lock className="h-3 w-3 text-[#9CA3AF]" strokeWidth={2} />
+                      </div>
+                    ) : (
+                      <div
+                        className="absolute left-[-12px] top-2.5 z-[1] h-[9px] w-[9px] rounded-full border-2 border-white"
+                        style={{ background: dotColor, boxShadow: `0 0 0 1px ${dotColor}` }}
+                        aria-hidden
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => onStepChange(step.id)}
@@ -150,7 +174,11 @@ export function ProfileBuilderLayout({
                       <div className="mb-0.5 flex items-baseline justify-between gap-2">
                         <span
                           className={`text-[12.5px] leading-snug ${
-                            isActive ? 'font-semibold text-[#111827]' : 'font-medium text-[#374151]'
+                            isActive
+                              ? 'font-semibold text-[#111827]'
+                              : labelMuted
+                                ? 'font-medium text-[#9CA3AF]'
+                                : 'font-medium text-[#374151]'
                           }`}
                         >
                           {step.label}
@@ -196,15 +224,18 @@ export function ProfileBuilderLayout({
 
             <div className="w-full min-w-0">{children}</div>
 
-            <div className="mt-7 w-full min-w-0 border-t border-black/[0.07] pt-5">
-              <p className="text-[11px] leading-relaxed text-[#9CA3AF]">
-                <span className="font-semibold text-[#C4C4CC]">Note:</span> Your responses are not scored or judged.
-                They form the qualitative layer employers see alongside your trait assessment — be honest and specific
-                for the best results.
-              </p>
-            </div>
+            {!footerHidden ? (
+              <div className="mt-7 w-full min-w-0 border-t border-black/[0.07] pt-5">
+                <p className="text-[11px] leading-relaxed text-[#9CA3AF]">
+                  <span className="font-semibold text-[#C4C4CC]">Note:</span> Your responses are not scored or judged.
+                  They form the qualitative layer employers see alongside your trait assessment — be honest and specific
+                  for the best results.
+                </p>
+              </div>
+            ) : null}
           </main>
 
+          {!footerHidden ? (
           <footer className="flex shrink-0 items-center justify-between border-t border-black/[0.08] bg-white px-6 py-3.5 sm:px-11">
             <button
               type="button"
@@ -242,6 +273,7 @@ export function ProfileBuilderLayout({
               </button>
             </div>
           </footer>
+          ) : null}
         </div>
       </div>
     </div>

@@ -70,6 +70,7 @@ interface IntakeSection3Props {
   hideFooterButton?: boolean;
   /** Profile builder: sync LLM scoring busy state to disable footer continue */
   onQ3ScoringBusyChange?: (busy: boolean) => void;
+  readOnly?: boolean;
 }
 
 export function IntakeSection3({
@@ -78,6 +79,7 @@ export function IntakeSection3({
   submitRef,
   hideFooterButton = false,
   onQ3ScoringBusyChange,
+  readOnly = false,
 }: IntakeSection3Props) {
   const saved = parseSection3Saved(initialData);
 
@@ -183,6 +185,7 @@ export function IntakeSection3({
   };
 
   const runHandleNextAsync = async () => {
+    if (readOnly) return;
     if (!canProceed || scoringInFlightRef.current) return;
 
     const q1Option = q1ShuffledOptions.find(o => o.id === q1Choice);
@@ -253,10 +256,12 @@ export function IntakeSection3({
   }, [q3IsScoring, onQ3ScoringBusyChange]);
 
   if (hideFooterButton && submitRef) {
-    submitRef.current = handleNext;
+    submitRef.current = readOnly ? null : handleNext;
   }
 
-  const proceedEnabled = canProceed && !q3IsScoring;
+  const roAct = readOnly ? 'opacity-60 cursor-not-allowed' : '';
+
+  const proceedEnabled = canProceed && !q3IsScoring && !readOnly;
 
   return (
     <div>
@@ -287,12 +292,13 @@ export function IntakeSection3({
           When you encounter something new that you need to get on top of — a skill, a system, a role — which most accurately describes how that typically goes? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q1ShuffledOptions.map(option => (
+          {q1ShuffledOptions.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => setQ1Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ1Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${
                 q1Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'
               }`}
               style={{ borderRadius: '12px' }}
@@ -309,12 +315,13 @@ export function IntakeSection3({
           When it comes to forming and holding views, which most accurately describes you? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q2ShuffledOptions.map(option => (
+          {q2ShuffledOptions.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => setQ2Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ2Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${
                 q2Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'
               }`}
               style={{ borderRadius: '12px' }}
@@ -351,9 +358,11 @@ export function IntakeSection3({
 
         <textarea
           value={q3Narrative}
-          onChange={e => setQ3Narrative(e.target.value)}
+          onChange={(e) => !readOnly && setQ3Narrative(e.target.value)}
+          readOnly={readOnly}
+          disabled={readOnly}
           placeholder="Walk through what you would do first, how you would prioritise, and who you would communicate with — and why."
-          className="w-full h-56 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all"
+          className={`w-full h-56 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all ${roAct}`}
           style={{ borderRadius: '12px' }}
         />
 
@@ -402,12 +411,13 @@ export function IntakeSection3({
           You genuinely disagree with a decision that someone more senior than you has just made. Which most accurately describes your typical approach? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q4ShuffledOptions.map(option => (
+          {q4ShuffledOptions.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => setQ4Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ4Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${
                 q4Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'
               }`}
               style={{ borderRadius: '12px' }}
@@ -424,12 +434,13 @@ export function IntakeSection3({
           You need to explain something genuinely complex to someone without your level of knowledge on it. Which most accurately describes your approach? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q5ShuffledOptions.map(option => (
+          {q5ShuffledOptions.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => setQ5Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ5Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${
                 q5Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'
               }`}
               style={{ borderRadius: '12px' }}
@@ -445,9 +456,9 @@ export function IntakeSection3({
           <button
             type="button"
             onClick={handleNext}
-            disabled={!proceedEnabled}
-            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-              proceedEnabled
+            disabled={readOnly || !proceedEnabled}
+            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${roAct} ${
+              !readOnly && proceedEnabled
                 ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
                 : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
             }`}

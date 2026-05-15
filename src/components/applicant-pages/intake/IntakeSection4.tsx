@@ -77,6 +77,7 @@ interface IntakeSection4Props {
   submitRef?: MutableRefObject<(() => void) | null>;
   hideFooterButton?: boolean;
   onQ5ScoringBusyChange?: (busy: boolean) => void;
+  readOnly?: boolean;
 }
 
 export function IntakeSection4({
@@ -85,6 +86,7 @@ export function IntakeSection4({
   submitRef,
   hideFooterButton = false,
   onQ5ScoringBusyChange,
+  readOnly = false,
 }: IntakeSection4Props) {
   const saved = parseSection4Saved(initialData);
 
@@ -194,6 +196,7 @@ export function IntakeSection4({
   };
 
   const runHandleNextAsync = async () => {
+    if (readOnly) return;
     if (!canProceed || scoringInFlightRef.current) return;
 
     const q1Option = q1ShuffledOptions.find(o => o.id === q1Choice);
@@ -264,10 +267,12 @@ export function IntakeSection4({
   }, [q5IsScoring, onQ5ScoringBusyChange]);
 
   if (hideFooterButton && submitRef) {
-    submitRef.current = handleNext;
+    submitRef.current = readOnly ? null : handleNext;
   }
 
-  const proceedEnabled = canProceed && !q5IsScoring;
+  const roAct = readOnly ? 'opacity-60 cursor-not-allowed' : '';
+
+  const proceedEnabled = canProceed && !q5IsScoring && !readOnly;
 
   return (
     <div>
@@ -298,12 +303,13 @@ export function IntakeSection4({
           Think about a time something you'd worked hard on didn't go the way you'd hoped. Which most accurately describes what happened for you? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q1ShuffledOptions.map(option => (
+          {q1ShuffledOptions.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => setQ1Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q1Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ1Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q1Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
               style={{ borderRadius: '12px' }}
             >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
@@ -318,12 +324,13 @@ export function IntakeSection4({
           Something goes wrong on a piece of work you were involved in. There were things you could have done differently. Which most accurately describes your typical response? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q2ShuffledOptions.map(option => (
+          {q2ShuffledOptions.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => setQ2Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q2Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ2Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q2Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
               style={{ borderRadius: '12px' }}
             >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
@@ -338,12 +345,13 @@ export function IntakeSection4({
           Think about how you perform when the pressure is genuinely high. Which most accurately describes what tends to happen? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q3ShuffledOptions.map(option => (
+          {q3ShuffledOptions.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => setQ3Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q3Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ3Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q3Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
               style={{ borderRadius: '12px' }}
             >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
@@ -361,12 +369,13 @@ export function IntakeSection4({
           You've taken on a significant commitment and it becomes more demanding than you expected. Which most accurately describes your natural approach? <span className="text-[#EF4444]">*</span>
         </h3>
         <div className="space-y-3">
-          {q4ShuffledOptions.map(option => (
+          {q4ShuffledOptions.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => setQ4Choice(option.id)}
-              className={`w-full text-left px-5 py-4 border-2 transition-all ${q4Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
+              disabled={readOnly}
+              onClick={() => !readOnly && setQ4Choice(option.id)}
+              className={`w-full text-left px-5 py-4 border-2 transition-all ${roAct} ${q4Choice === option.id ? 'border-[#7DBBFF] bg-[#7DBBFF]/10' : 'border-black/[0.08] hover:border-[#7DBBFF]/40'}`}
               style={{ borderRadius: '12px' }}
             >
               <p className="text-sm text-[#111827] leading-relaxed">{option.text}</p>
@@ -391,9 +400,11 @@ export function IntakeSection4({
 
         <textarea
           value={q5Narrative}
-          onChange={e => setQ5Narrative(e.target.value)}
+          onChange={(e) => !readOnly && setQ5Narrative(e.target.value)}
+          readOnly={readOnly}
+          disabled={readOnly}
           placeholder="Describe the situation honestly: what went wrong, what you did next, and what you take away from it now."
-          className="w-full h-56 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all"
+          className={`w-full h-56 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all ${roAct}`}
           style={{ borderRadius: '12px' }}
         />
 
@@ -457,9 +468,11 @@ export function IntakeSection4({
         </div>
         <textarea
           value={q6Narrative}
-          onChange={e => setQ6Narrative(e.target.value)}
+          onChange={(e) => !readOnly && setQ6Narrative(e.target.value)}
+          readOnly={readOnly}
+          disabled={readOnly}
           placeholder="Example: Led a product launch that missed its revenue target by 40%..."
-          className="w-full h-40 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all"
+          className={`w-full h-40 px-4 py-3 border border-black/[0.10] text-sm text-[#111827] placeholder:text-[#9CA3AF] leading-relaxed focus:outline-none focus:border-[#7DBBFF] focus:ring-2 focus:ring-[#7DBBFF]/20 resize-none transition-all ${roAct}`}
           style={{ borderRadius: '12px' }}
         />
         <div className="mt-4 space-y-3">
@@ -489,9 +502,11 @@ export function IntakeSection4({
           <button
             type="button"
             onClick={handleNext}
-            disabled={!proceedEnabled}
-            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${
-              proceedEnabled ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md' : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+            disabled={readOnly || !proceedEnabled}
+            className={`px-6 py-3 text-sm font-medium transition-all shadow-sm ${roAct} ${
+              !readOnly && proceedEnabled
+                ? 'bg-[#7DBBFF] text-white hover:bg-[#6AABEF] hover:shadow-md'
+                : 'bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
             }`}
             style={{ borderRadius: '12px' }}
           >

@@ -16,7 +16,7 @@
  * and UserProfileContext data flow as the Applicant View Profile Builder.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, ArrowRight, Lock, Users, BarChart, Compass } from 'lucide-react';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { ProfileBuilderLayout } from '../components/applicant-pages/ProfileBuilderLayout';
@@ -34,7 +34,9 @@ import {
   ensureApplicantProfile,
   upsertIntakeSectionResponses,
   markApplicantIntakeComplete,
+  getProfileLockedUntilIso,
 } from '../lib/applicantPersistence';
+import { TraitLockGate2Interstitial, ProfileSubmitGate3Confirmation } from '../components/applicant-pages/intake/ProfileLockGates';
 
 interface AssessmentLinkProps {
   // In production, pass token from URL params via React Router
@@ -42,13 +44,22 @@ interface AssessmentLinkProps {
 }
 
 export function AssessmentLink({ token: _token = 'demo_token_abc123' }: AssessmentLinkProps) {
-  const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, resetProfile } = useUserProfile();
+  const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, resetProfile, updateProfileData } =
+    useUserProfile();
   const [step, setStep] = useState<'landing' | 'intake' | 'complete'>('landing');
   const [activeStep, setActiveStep] = useState<number>(1);
   const [isLoading, setIsLoading] = useState(false);
   const [matchScore, setMatchScore] = useState<number | null>(null);
   const [candidateProfileId, setCandidateProfileId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showTraitLockInterstitial, setShowTraitLockInterstitial] = useState(true);
+  const [pendingIntakeCompletion, setPendingIntakeCompletion] = useState(false);
+  const [preSubmitTraitReview, setPreSubmitTraitReview] = useState(false);
+  const [deferralMessage, setDeferralMessage] = useState<string | null>(null);
+  const profileBuilderSubmitRef = useRef<(() => void) | null>(null);
+  const [section3ScoringBusy, setSection3ScoringBusy] = useState(false);
+  const [section4ScoringBusy, setSection4ScoringBusy] = useState(false);
+  const [section6ScoringBusy, setSection6ScoringBusy] = useState(false);
   
   // Mock: Decode token to get employer info
   // In production: validate server-side, fetch employer details
@@ -65,6 +76,7 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
 
   const handleStartIntake = async () => {
     setSubmitError(null);
+    setDeferralMessage(null);
 
     if (!isSupabaseConfigured || !supabase) {
       setSubmitError('Supabase is not configured. Please contact support.');
@@ -103,10 +115,18 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
     }
   };
 
-  // ─── Profile Builder Logic (mirrors ApplicantScreen exactly) ───
+  // ─── Profile Builder Logic (mirrors ApplicantScreen) ───
 
-  // Calculate step statuses dynamically based on completed sections
-  const getStepStatus = (stepId: number): 'active' | 'needsReview' | 'upToDate' => {
+  const isTraitProfileLocked =
+    profileData.profile_locked_until != null &&
+    new Date(profileData.profile_locked_until) > new Date();
+
+  const traitSectionsReadOnly = isTraitProfileLocked || preSubmitTraitReview;
+
+  const getStepStatus = (stepId: number): 'active' | 'needsReview' | 'upToDate' | 'locked' => {
+    if (isTraitProfileLocked && stepId >= 2 && stepId <= 6) {
+      return 'locked';
+    }
     if (profileData?.intakeData?.completedSections?.includes(stepId)) {
       return 'upToDate';
     }
@@ -126,27 +146,49 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
 
   const handleBack = () => {
     if (activeStep === 1) {
-      // Go back to landing page
       setStep('landing');
     } else {
+      if (activeStep === 8 && pendingIntakeCompletion) {
+        setPendingIntakeCompletion(false);
+        setPreSubmitTraitReview(false);
+      }
       setActiveStep(activeStep - 1);
     }
   };
 
+  const runAssessmentFooterContinue = () => {
+    if (traitSectionsReadOnly && activeStep >= 2 && activeStep <= 6) {
+      if (activeStep < 8) {
+        setActiveStep(activeStep + 1);
+      }
+      return;
+    }
+    profileBuilderSubmitRef.current?.();
+  };
+
+  const confirmAssessmentSubmit = async () => {
+    const intakeResponses = {
+      section2: profileData.intakeData.section2,
+      section3: profileData.intakeData.section3,
+      section4: profileData.intakeData.section4,
+      section5: profileData.intakeData.section5,
+      section6: profileData.intakeData.section6,
+    };
+    const scores = computeIntakeScores(intakeResponses);
+    updateTraitScores(scores);
+    markIntakeComplete();
+    setPendingIntakeCompletion(false);
+    setPreSubmitTraitReview(false);
+    await handleIntakeComplete();
+  };
+
   const handleNext = async (data?: any) => {
-    // Save section data to context (identical to ApplicantScreen)
     if (data && data.section) {
       updateIntakeSection(data.section, data.responses);
 
-      // Persist this section's responses to Supabase as the user progresses.
       if (candidateProfileId && isSupabaseConfigured && supabase) {
         try {
-          await upsertIntakeSectionResponses(
-            supabase,
-            candidateProfileId,
-            data.section,
-            data,
-          );
+          await upsertIntakeSectionResponses(supabase, candidateProfileId, data.section, data);
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Unknown error';
           console.error('[AssessmentLink] section persist failed:', message);
@@ -154,32 +196,17 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
         }
       }
 
-      // Check if we've completed section 8 (final section)
       if (data.section === 8) {
-        // Calculate trait scores from sections 2-6
-        const intakeResponses = {
-          section2: profileData.intakeData.section2,
-          section3: profileData.intakeData.section3,
-          section4: profileData.intakeData.section4,
-          section5: profileData.intakeData.section5,
-          section6: profileData.intakeData.section6,
-        };
-
-        const scores = computeIntakeScores(intakeResponses);
-        updateTraitScores(scores);
-        markIntakeComplete();
+        setPendingIntakeCompletion(true);
+        return;
       }
     }
 
     if (activeStep < 8) {
       setActiveStep(activeStep + 1);
-    } else {
-      // Final section completed — trigger completion flow
-      handleIntakeComplete();
     }
   };
 
-  // Render the appropriate intake section (identical to ApplicantScreen)
   const renderSection = () => {
     const s1 = profileData.intakeData.section1 as
       | { S1Q1?: { narrative?: string }; S1Q2?: { narrative?: string } }
@@ -189,6 +216,8 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
       case 1:
         return (
           <IntakeSection1
+            hideFooterButton
+            submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleNext(data)}
             initialData={{
               S1Q1: s1?.S1Q1?.narrative != null ? { narrative: s1.S1Q1.narrative } : undefined,
@@ -197,8 +226,22 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
           />
         );
       case 2:
+        if (showTraitLockInterstitial && !isTraitProfileLocked) {
+          return (
+            <TraitLockGate2Interstitial
+              onContinue={() => setShowTraitLockInterstitial(false)}
+              onComeBackLater={() => {
+                setDeferralMessage('Your progress is saved. You can return anytime to continue.');
+                setStep('landing');
+              }}
+            />
+          );
+        }
         return (
           <IntakeSection2
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleNext(data)}
             initialData={profileData.intakeData.section2}
           />
@@ -206,20 +249,31 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
       case 3:
         return (
           <IntakeSection3
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleNext(data)}
+            onQ3ScoringBusyChange={setSection3ScoringBusy}
             initialData={profileData.intakeData.section3}
           />
         );
       case 4:
         return (
           <IntakeSection4
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleNext(data)}
+            onQ5ScoringBusyChange={setSection4ScoringBusy}
             initialData={profileData.intakeData.section4}
           />
         );
       case 5:
         return (
           <IntakeSection5
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleNext(data)}
             initialData={profileData.intakeData.section5}
           />
@@ -227,20 +281,39 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
       case 6:
         return (
           <IntakeSection6
+            readOnly={traitSectionsReadOnly}
+            hideFooterButton
+            submitRef={traitSectionsReadOnly ? undefined : profileBuilderSubmitRef}
             onComplete={(data) => void handleNext(data)}
+            onQ5ScoringBusyChange={setSection6ScoringBusy}
             initialData={profileData.intakeData.section6}
           />
         );
       case 7:
         return (
           <IntakeSection7
+            hideFooterButton
+            submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleNext(data)}
             initialData={profileData.intakeData.section7}
           />
         );
       case 8:
+        if (pendingIntakeCompletion) {
+          return (
+            <ProfileSubmitGate3Confirmation
+              onSubmit={() => void confirmAssessmentSubmit()}
+              onReviewAnswers={() => {
+                setPreSubmitTraitReview(true);
+                setActiveStep(2);
+              }}
+            />
+          );
+        }
         return (
           <IntakeSection8
+            hideFooterButton
+            submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleNext(data)}
             initialData={profileData.intakeData.section8}
           />
@@ -248,6 +321,8 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
       default:
         return (
           <IntakeSection1
+            hideFooterButton
+            submitRef={profileBuilderSubmitRef}
             onComplete={(data) => void handleNext(data)}
             initialData={{
               S1Q1: s1?.S1Q1?.narrative != null ? { narrative: s1.S1Q1.narrative } : undefined,
@@ -257,6 +332,10 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
         );
     }
   };
+
+  const profileBuilderFooterHidden =
+    (activeStep === 2 && showTraitLockInterstitial && !isTraitProfileLocked) ||
+    (activeStep === 8 && pendingIntakeCompletion);
 
   // ─── Completion Logic ───
 
@@ -269,10 +348,11 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
         throw new Error('Missing candidate profile or Supabase configuration');
       }
 
-      // Mark the candidate_profiles row as intake_status = 'complete'.
-      await markApplicantIntakeComplete(supabase, candidateProfileId);
+      const ok = await markApplicantIntakeComplete(supabase, candidateProfileId);
+      if (ok) {
+        updateProfileData({ profile_locked_until: getProfileLockedUntilIso() });
+      }
 
-      // Match score wiring comes in a follow-up task; leave null for now.
       setMatchScore(null);
       setStep('complete');
     } catch (error) {
@@ -289,6 +369,14 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-6">
         <div className="max-w-2xl w-full">
+          {deferralMessage ? (
+            <div
+              className="mb-4 rounded-xl border border-[#7DBBFF]/25 bg-[#F0F7FF] px-4 py-3 text-sm text-[#374151]"
+              role="status"
+            >
+              {deferralMessage}
+            </div>
+          ) : null}
           {/* Card Container */}
           <div className="bg-white border border-black/[0.08] shadow-lg p-12" style={{ borderRadius: '24px' }}>
             {/* Header */}
@@ -463,7 +551,13 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
             stepStatuses={stepStatuses}
             onStepChange={(stepId) => setActiveStep(stepId)}
             onBack={handleBack}
-            onFooterContinue={() => handleNext()}
+            onFooterContinue={runAssessmentFooterContinue}
+            footerContinueBusy={
+              (activeStep === 3 && section3ScoringBusy) ||
+              (activeStep === 4 && section4ScoringBusy) ||
+              (activeStep === 6 && section6ScoringBusy)
+            }
+            footerHidden={profileBuilderFooterHidden}
           >
             {renderSection()}
           </ProfileBuilderLayout>

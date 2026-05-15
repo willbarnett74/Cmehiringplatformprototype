@@ -95,9 +95,10 @@ interface RankedPreferenceProps {
   onChange: (orderedIds: string[], scores: Record<string, number>) => void;
   /** When revisiting a step, restore list order from saved `ordered_ids` (must match `items` ids). */
   initialOrderedIds?: string[] | null;
+  readOnly?: boolean;
 }
 
-export function RankedPreference({ items, onChange, initialOrderedIds }: RankedPreferenceProps) {
+export function RankedPreference({ items, onChange, initialOrderedIds, readOnly = false }: RankedPreferenceProps) {
   const [ordered, setOrdered] = useState<RankItem[]>(() => {
     const fromSaved =
       initialOrderedIds && initialOrderedIds.length > 0
@@ -138,14 +139,16 @@ export function RankedPreference({ items, onChange, initialOrderedIds }: RankedP
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={ordered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-3">
-          {ordered.map((item, index) => (
-            <SortableItem key={item.id} item={item} index={index} />
-          ))}
-        </div>
-      </SortableContext>
-    </DndContext>
+    <div className={readOnly ? 'pointer-events-none cursor-not-allowed opacity-60' : undefined}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={ordered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-3">
+            {ordered.map((item, index) => (
+              <SortableItem key={item.id} item={item} index={index} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
   );
 }
