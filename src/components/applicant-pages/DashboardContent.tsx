@@ -4,10 +4,12 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { ensureApplicantProfile } from '../../lib/applicantPersistence';
 import type { DimensionScores } from '../../utils/intakeScoring';
 import type { CandidateActivityEventType } from '../../types/supabase';
+import { fetchApplicantOpportunities } from '../../lib/applicantEngagements';
 import {
   applicantLifecycleConfig,
   applicantOpportunitiesMockData,
   fitLabelAndColor,
+  type ApplicantOpportunity,
 } from '../../lib/applicantOpportunitiesMock';
 import { formatTimeAgo } from '../../lib/notificationService';
 
@@ -23,7 +25,7 @@ export interface DashboardContentProps {
   initialCurrentSituation?: string;
   onProfileBuilderClick: (stepId?: number) => void;
   onEditProfile: () => void;
-  onViewAllOpportunities: (opportunityId?: number) => void;
+  onViewAllOpportunities: (opportunityId?: string) => void;
   traitScores: DimensionScores | null;
   intakeComplete: boolean;
   section1: DashboardSection1Narratives | null;
@@ -184,6 +186,7 @@ export function DashboardContent({
   const [activityRows, setActivityRows] = useState<
     Array<{ id: string; event_type: CandidateActivityEventType; body: string; created_at: string }>
   >([]);
+  const [liveOpportunities, setLiveOpportunities] = useState<ApplicantOpportunity[] | undefined>(undefined);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
@@ -270,6 +273,15 @@ export function DashboardContent({
                 created_at: string;
               }>,
             );
+          }
+
+          if (profileId) {
+            try {
+              const opps = await fetchApplicantOpportunities(client, profileId);
+              setLiveOpportunities(opps);
+            } catch {
+              setLiveOpportunities([]);
+            }
           }
         } finally {
           setHasLoaded(true);
@@ -409,14 +421,28 @@ export function DashboardContent({
     ];
   }, [traitScores, proudMoment]);
 
-  const newestReachOut = useMemo(
-    () => applicantOpportunitiesMockData.find((opp) => opp.status === 'contacted' || opp.unread) ?? applicantOpportunitiesMockData[0],
-    [],
-  );
-  const dashboardOpportunities = useMemo(
-    () => applicantOpportunitiesMockData.filter((opp) => opp.id !== newestReachOut?.id).slice(0, 3),
-    [newestReachOut],
-  );
+  const engagementPreviewList = useMemo(() => {
+    if (!isSupabaseConfigured) {
+      return applicantOpportunitiesMockData;
+    }
+    if (liveOpportunities === undefined) {
+      return [];
+    }
+    return liveOpportunities;
+  }, [liveOpportunities]);
+
+  const newestReachOut = useMemo(() => {
+    if (engagementPreviewList.length === 0) return null;
+    return (
+      engagementPreviewList.find((opp) => opp.unread || opp.status === 'contacted') ??
+      engagementPreviewList[0]
+    );
+  }, [engagementPreviewList]);
+
+  const dashboardOpportunities = useMemo(() => {
+    if (!newestReachOut) return [];
+    return engagementPreviewList.filter((opp) => opp.id !== newestReachOut.id).slice(0, 3);
+  }, [engagementPreviewList, newestReachOut]);
 
   const metaFieldsRow1: Array<{ label: string; value: string }> = [
     { label: 'Location', value: location || '—' },
@@ -726,6 +752,16 @@ export function DashboardContent({
 
       <SectionRule>Latest Reach-Out</SectionRule>
 
+      {!hasLoaded && isSupabaseConfigured ? (
+        <p className="text-[13px] text-[#9CA3AF]">Loading opportunities…</p>
+      ) : null}
+
+      {hasLoaded && engagementPreviewList.length === 0 ? (
+        <p className="text-[13px] leading-relaxed text-[#6B7280]">
+          When employers reach out through CMe, their messages will show up here.
+        </p>
+      ) : null}
+
       {newestReachOut ? (
         <button
           type="button"
@@ -789,6 +825,9 @@ export function DashboardContent({
       <SectionRule>Opportunities Preview</SectionRule>
 
       <div>
+        {hasLoaded && engagementPreviewList.length === 0 ? (
+          <p className="text-[13px] text-[#6B7280]">No other active opportunities to preview yet.</p>
+        ) : null}
         {dashboardOpportunities.map((opp, idx) => {
           const fit = fitLabelAndColor(opp.matchScore);
           const isLast = idx === dashboardOpportunities.length - 1;

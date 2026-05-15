@@ -679,23 +679,17 @@ export function ApplicantScreen() {
             </div>
           </div>
 
-          <div
-            className={
-              activeSection === 'opportunities' || activeSection === 'profileBuilder'
-                ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
-                : 'min-h-0 flex-1 overflow-y-auto'
-            }
-          >
+          {/* Full-bleed shell: no outer padding — each section adds its own inset (see below). */}
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-0">
             <div
               className={
-                activeSection === 'opportunities'
-                  ? 'flex min-h-0 flex-1 flex-col px-9 pb-4 pt-7'
-                  : activeSection === 'profileBuilder'
-                    ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-9'
-                    : 'px-9 pb-12 pt-7'
+                activeSection === 'dashboard'
+                  ? 'flex min-h-0 flex-1 flex-col overflow-y-auto'
+                  : 'hidden'
               }
             >
-            <div className={activeSection === 'dashboard' ? 'block' : 'hidden'}>
+              <div className="px-9 pb-12 pt-7">
               <DashboardContent
                 userId={userId}
                 applicantProfileId={applicantProfileId}
@@ -723,8 +717,10 @@ export function ApplicantScreen() {
                   };
                 })()}
               />
+              </div>
             </div>
             {activeSection === 'profileBuilder' ? (
+              <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               <ProfileBuilderLayout
                 currentStep={activeStep}
                 stepStatuses={stepStatuses}
@@ -740,12 +736,13 @@ export function ApplicantScreen() {
               >
                 {renderProfileBuilderSection()}
               </ProfileBuilderLayout>
+              </div>
             ) : null}
             <div
               className={
                 activeSection === 'opportunities'
-                  ? 'flex min-h-0 flex-1 flex-col px-9 pb-4 pt-7'
-                  : 'hidden min-h-0 flex-1 flex-col px-9 pb-4 pt-7'
+                  ? 'flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden'
+                  : 'hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden'
               }
               aria-hidden={activeSection !== 'opportunities'}
             >
@@ -757,19 +754,26 @@ export function ApplicantScreen() {
                 selectedOpportunityEngagementId={selectedOpportunityEngagementId}
               />
             </div>
-            {activeSection === 'explore' ? <ApplicantExploreIndustriesPanel /> : null}
+            {activeSection === 'explore' ? (
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                <ApplicantExploreIndustriesPanel />
+              </div>
+            ) : null}
+            {/* New nav sections: wrap in flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden; use overflow-y-auto + px-9 pb-12 pt-7 for scrollable pages. */}
             {activeSection === 'settings' ? (
-              <div>
-                <div className="mb-6 border-b border-black/[0.08] pb-6">
-                  <h1 className="mb-1.5 text-xl font-semibold tracking-[-0.02em] text-[#111827]">Account Settings</h1>
-                  <p className="text-[13px] text-[#9CA3AF]">Manage your account details and preferences</p>
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                <div className="px-9 pb-12 pt-7">
+                  <div className="mb-6 border-b border-black/[0.08] pb-6">
+                    <h1 className="mb-1.5 text-xl font-semibold tracking-[-0.02em] text-[#111827]">Account Settings</h1>
+                    <p className="text-[13px] text-[#9CA3AF]">Manage your account details and preferences</p>
+                  </div>
+                  <EditBasicInfoPage
+                    onSaved={handleBasicInfoSaved}
+                    showPreferencesSection
+                    initialUserId={userId}
+                    initialApplicantProfileId={applicantProfileId}
+                  />
                 </div>
-                <EditBasicInfoPage
-                  onSaved={handleBasicInfoSaved}
-                  showPreferencesSection
-                  initialUserId={userId}
-                  initialApplicantProfileId={applicantProfileId}
-                />
               </div>
             ) : null}
           </div>
