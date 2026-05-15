@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import type { ApplicantOpportunity } from '../../../lib/applicantOpportunitiesMock';
 import { matchScoreVisual } from './messengerUtils';
 import { messengerStageUi } from './messengerLifecycle';
@@ -69,6 +69,23 @@ export function DetailsRail({
               {fitLabel}
             </p>
             <p className="mt-1 text-xs text-[#9CA3AF]">Based on your trait profile</p>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-[14px] border border-[rgba(125,187,255,0.35)] bg-gradient-to-b from-[rgba(125,187,255,0.07)] to-[rgba(125,187,255,0.02)] px-3 py-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#1f63b8]" strokeWidth={2} />
+            <p className="text-xs font-semibold text-[#1f63b8]">Why CMe matched you here</p>
+          </div>
+          <div className="space-y-2 border-t border-[rgba(125,187,255,0.2)] pt-2.5">
+            {opportunity.whyMatches.map((reason, index) => (
+              <div key={`${index}-${reason.slice(0, 24)}`} className="flex gap-2">
+                <span className="font-dashboard-mono text-xs font-medium text-[#7dbbff]">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <p className="text-[13px] leading-[1.5] text-[#374151]">{reason}</p>
+              </div>
+            ))}
           </div>
         </div>
 
