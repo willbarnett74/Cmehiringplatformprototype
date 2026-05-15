@@ -1,6 +1,6 @@
 /**
- * Static opportunity data shared by OpportunitiesPage and the applicant dashboard
- * until engagements, engagement_messages, and engagement_events are backed by Supabase.
+ * Fallback demo data when Supabase is unavailable or for local previews.
+ * Live data uses `fetchApplicantOpportunities` and the same `ApplicantOpportunity` shape.
  */
 
 export type EmployerLikeStage =
@@ -27,19 +27,21 @@ export type ApplicantCTAState =
   | 'schedule'
   | 'review-decision'
   | 'view-summary'
-  | 'closed';
+  | 'closed'
+  /** Set when the applicant changes stage via the messenger picker; blocks stale primary CTA automation. */
+  | 'manual';
 
 export const applicantLifecycleConfig: Record<
   EmployerLikeStage,
   { label: ApplicantLifecycleLabel; color: string; bg: string }
 > = {
-  discovered: { label: 'Matched', color: '#64748B', bg: 'rgba(100,116,139,0.12)' },
-  contacted: { label: 'Reached out', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' },
-  responded: { label: 'Responded', color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' },
-  interviewing: { label: 'Interviewing', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
-  decision: { label: 'Decision', color: '#0EA5E9', bg: 'rgba(14,165,233,0.12)' },
-  hired: { label: 'Hired', color: '#22C55E', bg: 'rgba(34,197,94,0.12)' },
-  rejected: { label: 'Not selected', color: '#6B7280', bg: 'rgba(107,114,128,0.12)' },
+  discovered: { label: 'Matched', color: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
+  contacted: { label: 'Reached out', color: '#7dbbff', bg: 'rgba(125,187,255,0.14)' },
+  responded: { label: 'Responded', color: '#5aa1f2', bg: 'rgba(90,161,242,0.14)' },
+  interviewing: { label: 'Interviewing', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+  decision: { label: 'Decision', color: '#2563eb', bg: 'rgba(37,99,235,0.12)' },
+  hired: { label: 'Hired', color: '#1d4ed8', bg: 'rgba(29,78,216,0.12)' },
+  rejected: { label: 'Not selected', color: '#9CA3AF', bg: 'rgba(156,163,175,0.12)' },
 };
 
 export interface ApplicantOpportunityMessage {
@@ -59,7 +61,8 @@ export interface ApplicantOpportunityEvent {
 }
 
 export interface ApplicantOpportunity {
-  id: number;
+  /** Stable id for UI selection (matches `engagementId` for Supabase-backed rows). */
+  id: string;
   engagementId: string;
   business: {
     name: string;
@@ -103,7 +106,7 @@ export interface ApplicantOpportunity {
 
 export const applicantOpportunitiesMockData: ApplicantOpportunity[] = [
   {
-    id: 1,
+    id: '1',
     engagementId: 'eng-techflow-alex-001',
     business: {
       name: 'TechFlow Inc.',
@@ -178,7 +181,7 @@ export const applicantOpportunitiesMockData: ApplicantOpportunity[] = [
     unreadMessages: 1,
   },
   {
-    id: 2,
+    id: '2',
     engagementId: 'eng-designhub-alex-001',
     business: {
       name: 'DesignHub',
@@ -261,7 +264,7 @@ export const applicantOpportunitiesMockData: ApplicantOpportunity[] = [
     unreadMessages: 0,
   },
   {
-    id: 3,
+    id: '3',
     engagementId: 'eng-notion-alex-001',
     business: {
       name: 'Notion',
@@ -313,7 +316,7 @@ export const applicantOpportunitiesMockData: ApplicantOpportunity[] = [
     unreadMessages: 0,
   },
   {
-    id: 4,
+    id: '4',
     engagementId: 'eng-linear-alex-001',
     business: {
       name: 'Linear',
@@ -381,7 +384,7 @@ export const applicantOpportunitiesMockData: ApplicantOpportunity[] = [
     unreadMessages: 1,
   },
   {
-    id: 5,
+    id: '5',
     engagementId: 'eng-stripe-alex-001',
     business: {
       name: 'Stripe',
@@ -456,7 +459,7 @@ export const applicantOpportunitiesMockData: ApplicantOpportunity[] = [
     unreadMessages: 1,
   },
   {
-    id: 6,
+    id: '6',
     engagementId: 'eng-figma-alex-001',
     business: {
       name: 'Figma',
