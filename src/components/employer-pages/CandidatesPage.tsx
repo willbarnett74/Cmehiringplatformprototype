@@ -101,6 +101,13 @@ function CandidateCard({
           </div>
         </div>
         <p className="text-xs text-[#9CA3AF] mb-2">{candidate.location}</p>
+        {(candidate.availability || candidate.noticePeriod) && (
+          <p className="text-xs text-[#9CA3AF] mb-2">
+            {candidate.availability && `Available: ${candidate.availability}`}
+            {candidate.availability && candidate.noticePeriod && ' · '}
+            {candidate.noticePeriod && `Notice: ${candidate.noticePeriod}`}
+          </p>
+        )}
       </button>
 
       {/* Traits */}

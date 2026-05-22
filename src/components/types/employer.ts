@@ -13,6 +13,8 @@ export interface CandidateProfile {
   // Engagement stage — outcomes (hired/rejected) live on engagements.stage
   stage: 'discovered' | 'contacted' | 'interviewing' | 'decision' | 'hired' | 'rejected';
   daysInStage?: number;
+  availability?: string;
+  noticePeriod?: string;
   hired_date?: string; // ISO date string — set when stage moves to 'hired'
   aiMatchPercent?: number;
   totalExperience?: number; // Total years of work experience
