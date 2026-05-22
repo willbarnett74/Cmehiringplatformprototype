@@ -443,6 +443,13 @@ export function SearchPage({
                 <h4 className="text-sm text-[#111827] font-semibold mb-1 truncate">{candidate.name}</h4>
                 <p className="text-xs text-[#6B7280] truncate">{candidate.role}</p>
                 <p className="text-xs text-[#9CA3AF] mt-1">{candidate.location}</p>
+                {(candidate.availability || candidate.noticePeriod) && (
+                  <p className="text-xs text-[#9CA3AF] mt-1">
+                    {candidate.availability && `Available: ${candidate.availability}`}
+                    {candidate.availability && candidate.noticePeriod && ' · '}
+                    {candidate.noticePeriod && `Notice: ${candidate.noticePeriod}`}
+                  </p>
+                )}
               </div>
               <div className="flex flex-col gap-2 shrink-0 ml-2">
                 <span className={`px-2.5 py-1 text-xs font-medium ${getScoreColor(candidate.score)}`} style={{ borderRadius: '6px' }}>
