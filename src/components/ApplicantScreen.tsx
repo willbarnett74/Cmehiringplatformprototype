@@ -13,7 +13,6 @@ import { ProfileBuilderLayout } from './applicant-pages/ProfileBuilderLayout';
 import {
   ApplicantOpportunitiesPanel,
   ApplicantExploreIndustriesPanel,
-  exploreIndustriesMatchedCount,
 } from './applicant-pages/OpportunitiesPage';
 import { applicantOpportunitiesMockData } from '../lib/applicantOpportunitiesMock';
 import { LayoutDashboard, User, Settings, Compass, Layers, LogOut, X, Globe, Lock } from 'lucide-react';
@@ -64,6 +63,7 @@ export function ApplicantScreen() {
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(null);
   const [opportunitiesActiveCount, setOpportunitiesActiveCount] = useState<number | null>(null);
   const [opportunitiesRefreshKey, setOpportunitiesRefreshKey] = useState(0);
+  const [exploreIndustriesCount, setExploreIndustriesCount] = useState<number | null>(null);
   const [selectedOpportunityEngagementId, setSelectedOpportunityEngagementId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [sidebarSituation, setSidebarSituation] = useState<string>('');
@@ -475,7 +475,11 @@ export function ApplicantScreen() {
             subtitle: `${opportunitiesActiveCount ?? applicantOpportunitiesMockData.length} active`,
           }
         : activeSection === 'explore'
-          ? { title: 'Explore Industries', subtitle: `${exploreIndustriesMatchedCount} matched` }
+          ? {
+              title: 'Explore Industries',
+              subtitle:
+                exploreIndustriesCount != null ? `${exploreIndustriesCount} matched` : undefined,
+            }
             : activeSection === 'settings'
               ? { title: 'Settings', subtitle: undefined as string | undefined }
               : { title: 'Dashboard', subtitle: dashboardMonthYear };
@@ -630,9 +634,15 @@ export function ApplicantScreen() {
           </div>
         </aside>
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#fafafa]">
+        <main
+          className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${
+            activeSection === 'explore' ? 'bg-white' : 'bg-[#fafafa]'
+          }`}
+        >
           <div
-            className="sticky top-0 z-10 flex h-[52px] shrink-0 items-center justify-between border-b border-black/[0.08] bg-[#fafafa] px-9"
+            className={`sticky top-0 z-10 flex h-[52px] shrink-0 items-center justify-between border-b border-black/[0.08] px-9 ${
+              activeSection === 'explore' ? 'bg-white' : 'bg-[#fafafa]'
+            }`}
           >
             <div className="flex items-center gap-2.5">
               <span className="text-[13px] font-medium text-[#111827]">{portalTopBar.title}</span>
@@ -755,8 +765,13 @@ export function ApplicantScreen() {
               />
             </div>
             {activeSection === 'explore' ? (
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                <ApplicantExploreIndustriesPanel />
+              <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
+              <ApplicantExploreIndustriesPanel
+                candidateProfileId={applicantProfileId}
+                userId={userId}
+                traitScores={dbTraitScores ?? profileData.trait_scores ?? null}
+                onExploreIndustriesCountChange={setExploreIndustriesCount}
+              />
               </div>
             ) : null}
             {/* New nav sections: wrap in flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden; use overflow-y-auto + px-9 pb-12 pt-7 for scrollable pages. */}
