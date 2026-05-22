@@ -100,19 +100,19 @@ export async function navigateAfterSignIn(
   }
 
   if (isEmployer) {
-    sessionStorage.setItem(RESTORE_TAB_STORAGE_KEY, 'employer');
     if (
       from &&
       from !== '/onboarding/sign-in' &&
       isSafeInternalPath(from) &&
       !from.startsWith('/onboarding/') &&
       from !== APPLICANT_PORTAL_PATH &&
-      !from.startsWith('/profile-builder')
+      !from.startsWith('/profile-builder') &&
+      from !== '/employer-portal'
     ) {
       navigate(from, { replace: true });
       return;
     }
-    navigate('/', { replace: true });
+    navigate('/employer-portal', { replace: true });
     return;
   }
 

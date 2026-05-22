@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Navigate,
   Outlet,
@@ -23,6 +23,15 @@ import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from './lib/onboarding
 import { navigateAfterSignIn, type SignInLocationState } from './lib/postSignInNavigation';
 import { supabase } from './lib/supabaseClient';
 import { useSupabaseSessionBootstrap } from './lib/useSupabaseSessionBootstrap';
+
+const EmployerScreen = lazy(() =>
+  import('./components/EmployerScreen').then((module) => ({ default: module.EmployerScreen })),
+);
+const AssessmentLink = lazy(() =>
+  import('./pages/AssessmentLink').then((module) => ({ default: module.AssessmentLink })),
+);
+
+const routeFlowFallback = <div className="min-h-[420px] bg-[var(--cme-onboarding-canvas)]" />;
 
 export function RequireAuth() {
   const location = useLocation();
@@ -194,8 +203,10 @@ export default function AppRoutes() {
       <Route path="/legal/terms" element={<LegalBetaPage variant="terms" />} />
       <Route path="/legal/privacy" element={<LegalBetaPage variant="privacy" />} />
       <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/assessment-link" element={<Suspense fallback={routeFlowFallback}><AssessmentLink /></Suspense>} />
       <Route path="/onboarding/sign-in" element={<OnboardingSignInPage />} />
       <Route element={<RequireAuth />}>
+        <Route path="/employer-portal" element={<Suspense fallback={routeFlowFallback}><EmployerScreen /></Suspense>} />
         <Route path="/onboarding" element={<OnboardingLayout />}>
           <Route path="welcome" element={<OnboardingStepPage uiStep="welcome" />} />
           <Route path="basics" element={<OnboardingStepPage uiStep="details" />} />
