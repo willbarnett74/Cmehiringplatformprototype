@@ -1,13 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  Layers, Search, CheckCircle2,
-  Compass,
-  ChevronDown, ChevronUp,
-} from 'lucide-react';
+import { Layers, CheckCircle2, Compass } from 'lucide-react';
 
-import {
-  applicantOpportunitiesMockData,
-} from '../../lib/applicantOpportunitiesMock';
+import { applicantOpportunitiesMockData } from '../../lib/applicantOpportunitiesMock';
 import type { ApplicantOpportunity, EmployerLikeStage } from '../../lib/applicantOpportunitiesMock';
 import { OpportunitiesMessenger } from './opportunities/OpportunitiesMessenger';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
@@ -17,133 +11,26 @@ import {
   upsertEngagementReadState,
   updateEngagementStageFromApplicant,
 } from '../../lib/applicantEngagements';
+import type { DimensionScores } from '../../utils/intakeScoring';
+import {
+  fetchSavedExploreIndustryIds,
+  loadExploreIndustriesForApplicant,
+  saveExploreIndustry,
+  unsaveExploreIndustry,
+  type ExploreIndustry,
+} from '../../lib/exploreIndustries';
+import { ExploreIndustriesWorkspace } from './explore-industries/ExploreIndustriesWorkspace';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
 type SubTab = 'opportunities' | 'explore';
 
-interface Industry {
-  id: string;
-  name: string;
-  matchPercent: number;
-  description: string;
-  whyYou: string;
-  avgSalary: string;
-  growth: string;
-  openRoles: number;
-  topTraits: string[];
-  typicalRoles: { title: string; avgSalary: string; demand: 'High' | 'Medium' | 'Low' }[];
-}
-
 // ─── Data ──────────────────────────────────────────────────────────────
 
 const initialOpportunitiesData = applicantOpportunitiesMockData;
 
-const industries: Industry[] = [
-  {
-    id: 'saas',
-    name: 'SaaS & Productivity Tools',
-    matchPercent: 94,
-    description: 'Companies building software-as-a-service products that help teams and individuals work more effectively. This space values design systems thinking, rapid iteration, and user-centric problem solving.',
-    whyYou: 'Your strong ownership drive, problem-structuring approach, and preference for autonomy-driven environments align closely with how SaaS product teams operate. Your narrative highlights building clean solutions from ambiguity — a core need in this space.',
-    avgSalary: '$145K–$195K',
-    growth: '+18% YoY',
-    openRoles: 342,
-    topTraits: ['Problem Structuring', 'Ownership', 'Systems Thinking'],
-    typicalRoles: [
-      { title: 'Senior Product Designer', avgSalary: '$165K', demand: 'High' },
-      { title: 'Design Systems Lead', avgSalary: '$185K', demand: 'High' },
-      { title: 'UX Strategist', avgSalary: '$155K', demand: 'Medium' },
-      { title: 'Product Design Manager', avgSalary: '$195K', demand: 'Medium' },
-    ],
-  },
-  {
-    id: 'fintech',
-    name: 'Fintech & Financial Services',
-    matchPercent: 88,
-    description: 'Technology companies disrupting traditional financial services through digital banking, payments, lending, and investment platforms. High emphasis on trust, clarity, and complex information architecture.',
-    whyYou: 'Your analytical framing and prioritization strengths map well to the complexity of financial interfaces. Fintech teams need designers who can distill complex flows into intuitive experiences — a pattern your narrative consistently demonstrates.',
-    avgSalary: '$155K–$210K',
-    growth: '+22% YoY',
-    openRoles: 287,
-    topTraits: ['Analytical Thinking', 'Communication', 'Attention to Detail'],
-    typicalRoles: [
-      { title: 'Product Designer – Payments', avgSalary: '$170K', demand: 'High' },
-      { title: 'UX Lead – Consumer Banking', avgSalary: '$190K', demand: 'Medium' },
-      { title: 'Design Lead – Risk & Compliance', avgSalary: '$180K', demand: 'Medium' },
-      { title: 'Senior Interaction Designer', avgSalary: '$160K', demand: 'High' },
-    ],
-  },
-  {
-    id: 'healthtech',
-    name: 'Health Tech & Digital Health',
-    matchPercent: 82,
-    description: 'Companies using technology to improve healthcare delivery, patient outcomes, and wellness. Mission-driven work with emphasis on accessibility, empathy, and regulatory awareness.',
-    whyYou: 'Your research-first thinking and results orientation translate well into health tech where user research is critical and outcomes are measurable. The impact-visible nature of this work aligns with your motivational fit.',
-    avgSalary: '$140K–$185K',
-    growth: '+25% YoY',
-    openRoles: 198,
-    topTraits: ['Empathy', 'Research-Driven', 'Impact Orientation'],
-    typicalRoles: [
-      { title: 'Product Designer – Patient Experience', avgSalary: '$155K', demand: 'High' },
-      { title: 'UX Researcher', avgSalary: '$145K', demand: 'High' },
-      { title: 'Design Lead – Clinical Tools', avgSalary: '$175K', demand: 'Medium' },
-      { title: 'Accessibility Designer', avgSalary: '$150K', demand: 'Low' },
-    ],
-  },
-  {
-    id: 'ecommerce',
-    name: 'E-Commerce & Marketplaces',
-    matchPercent: 79,
-    description: 'Platforms connecting buyers and sellers, from direct-to-consumer brands to multi-sided marketplaces. Fast-paced, data-heavy environment with strong A/B testing culture.',
-    whyYou: 'Your experimental mindset and comfort with data-driven decision making are valued in e-commerce where every design choice is measurable. Your preference for fast-moving environments is a natural fit.',
-    avgSalary: '$135K–$180K',
-    growth: '+14% YoY',
-    openRoles: 256,
-    topTraits: ['Experimentation', 'Data Literacy', 'Speed'],
-    typicalRoles: [
-      { title: 'Product Designer – Conversion', avgSalary: '$160K', demand: 'High' },
-      { title: 'Senior UX Designer – Marketplace', avgSalary: '$170K', demand: 'Medium' },
-      { title: 'Growth Designer', avgSalary: '$155K', demand: 'High' },
-      { title: 'Design Lead – Seller Tools', avgSalary: '$175K', demand: 'Low' },
-    ],
-  },
-  {
-    id: 'devtools',
-    name: 'Developer Tools & Infrastructure',
-    matchPercent: 91,
-    description: 'Companies building tools, platforms, and infrastructure for software developers. Values technical empathy, information density management, and deep understanding of developer workflows.',
-    whyYou: 'Your systems building strength and problem-structuring approach are exactly what developer tool companies look for. This space rewards designers who can handle complexity without oversimplifying — your narrative suggests this is your sweet spot.',
-    avgSalary: '$155K–$205K',
-    growth: '+20% YoY',
-    openRoles: 156,
-    topTraits: ['Systems Thinking', 'Technical Empathy', 'Problem Structuring'],
-    typicalRoles: [
-      { title: 'Product Designer – Developer Experience', avgSalary: '$175K', demand: 'High' },
-      { title: 'Design Engineer', avgSalary: '$185K', demand: 'High' },
-      { title: 'UX Lead – Platform', avgSalary: '$195K', demand: 'Medium' },
-      { title: 'Design Systems Engineer', avgSalary: '$190K', demand: 'Medium' },
-    ],
-  },
-];
-
-export const exploreIndustriesMatchedCount = industries.length;
-
 function nowMessageLabel(): string {
   return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-}
-
-function industryMatchPercentColor(p: number): string {
-  if (p >= 90) return '#22C55E';
-  if (p >= 85) return '#3B82F6';
-  if (p >= 80) return '#60A5FA';
-  return '#F59E0B';
-}
-
-function growthBarWidthPercent(growthLabel: string): number {
-  const n = parseInt(growthLabel.replace(/[^0-9-]/g, ''), 10);
-  if (Number.isFinite(n) && n > 0) return Math.min(100, n * 4);
-  return 40;
 }
 
 export type OpportunitiesEmbeddedMode = 'opportunities' | 'explore';
@@ -161,6 +48,12 @@ export type OpportunitiesPageProps = {
   opportunitiesRefreshKey?: number;
   /** Report live engagement count to the shell (nav badge / header). */
   onEngagementsCountChange?: (count: number) => void;
+  /** Trait scores for Explore Industries alignment bars. */
+  traitScores?: DimensionScores | null;
+  /** Auth user id — used for explore role interest + applicant activity timeline. */
+  userId?: string | null;
+  /** Catalog size for shell subtitle when Explore loads. */
+  onExploreIndustriesCountChange?: (count: number) => void;
 };
 
 function subTabFromMode(mode: OpportunitiesEmbeddedMode | undefined): SubTab {
@@ -175,21 +68,28 @@ export function OpportunitiesPage({
   candidateProfileId = null,
   onEngagementsCountChange,
   opportunitiesRefreshKey = 0,
+  traitScores = null,
+  userId = null,
+  onExploreIndustriesCountChange,
 }: OpportunitiesPageProps = {}) {
   const embedded = mode != null;
   const [activeTab, setActiveTab] = useState<SubTab>(() => subTabFromMode(mode));
-  const [expandedIndustry, setExpandedIndustry] = useState<string | null>('saas');
   const [opportunities, setOpportunities] = useState<ApplicantOpportunity[]>(initialOpportunitiesData);
   const [opportunitiesSource, setOpportunitiesSource] = useState<'mock' | 'supabase'>('mock');
   const [opportunitiesLoadFailed, setOpportunitiesLoadFailed] = useState(false);
   const [selectedId, setSelectedId] = useState<string>(() =>
     String(selectedOpportunityId ?? initialOpportunitiesData[0]?.id ?? ''),
   );
-  const [industrySort, setIndustrySort] = useState<'match' | 'growth' | 'roles'>('match');
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
+
+  const [exploreIndustries, setExploreIndustries] = useState<ExploreIndustry[]>([]);
+  const [exploreLoading, setExploreLoading] = useState(false);
+  const [savedIndustryIds, setSavedIndustryIds] = useState<Set<string>>(() => new Set());
 
   const onEngagementsCountChangeRef = useRef(onEngagementsCountChange);
   onEngagementsCountChangeRef.current = onEngagementsCountChange;
+  const onExploreIndustriesCountChangeRef = useRef(onExploreIndustriesCountChange);
+  onExploreIndustriesCountChangeRef.current = onExploreIndustriesCountChange;
 
   const usingLive =
     opportunitiesSource === 'supabase' &&
@@ -231,6 +131,41 @@ export function OpportunitiesPage({
     if (mode == null) return;
     setActiveTab(subTabFromMode(mode));
   }, [mode]);
+
+  useEffect(() => {
+    if (embedded && mode !== 'explore') return;
+    let cancelled = false;
+    setExploreLoading(true);
+    void (async () => {
+      try {
+        const rows = await loadExploreIndustriesForApplicant(supabase);
+        if (!cancelled) {
+          setExploreIndustries(rows);
+          onExploreIndustriesCountChangeRef.current?.(rows.length);
+        }
+      } finally {
+        if (!cancelled) setExploreLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [embedded, mode, candidateProfileId, userId]);
+
+  useEffect(() => {
+    if (embedded && mode !== 'explore') return;
+    if (!candidateProfileId || !supabase) {
+      setSavedIndustryIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    void fetchSavedExploreIndustryIds(supabase, candidateProfileId).then((ids) => {
+      if (!cancelled) setSavedIndustryIds(ids);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [embedded, mode, candidateProfileId]);
 
   useEffect(() => {
     if (!selectedOpportunityEngagementId) return;
@@ -282,6 +217,33 @@ export function OpportunitiesPage({
       );
     },
     [usingLive],
+  );
+
+  const handleExploreToggleSave = useCallback(
+    async (industryId: string, nextSaved: boolean) => {
+      if (!candidateProfileId || !supabase) {
+        setSavedIndustryIds((prev) => {
+          const next = new Set(prev);
+          if (nextSaved) next.add(industryId);
+          else next.delete(industryId);
+          return next;
+        });
+        return;
+      }
+      try {
+        if (nextSaved) await saveExploreIndustry(supabase, candidateProfileId, industryId);
+        else await unsaveExploreIndustry(supabase, candidateProfileId, industryId);
+        setSavedIndustryIds((prev) => {
+          const next = new Set(prev);
+          if (nextSaved) next.add(industryId);
+          else next.delete(industryId);
+          return next;
+        });
+      } catch (e) {
+        console.warn('[CMe] explore save toggle', e);
+      }
+    },
+    [candidateProfileId],
   );
 
   const markOpportunityResponded = (
@@ -408,12 +370,6 @@ export function OpportunitiesPage({
     );
   };
 
-  const sortedIndustries = [...industries].sort((a, b) => {
-    if (industrySort === 'match') return b.matchPercent - a.matchPercent;
-    if (industrySort === 'roles') return b.openRoles - a.openRoles;
-    return parseFloat(b.growth) - parseFloat(a.growth);
-  });
-
   const embeddedFullBleedShell = embedded && (activeTab === 'opportunities' || activeTab === 'explore');
 
   const rootClass = embeddedFullBleedShell
@@ -433,7 +389,7 @@ export function OpportunitiesPage({
         <div className="mb-6 inline-flex gap-1 border border-black/[0.08] bg-[#F9F9FA] p-1" style={{ borderRadius: '12px' }}>
           {([
             { key: 'opportunities' as SubTab, label: 'Opportunities', icon: Layers, count: opportunities.length },
-            { key: 'explore' as SubTab, label: 'Explore Industries', icon: Compass, count: industries.length },
+            { key: 'explore' as SubTab, label: 'Explore Industries', icon: Compass, count: exploreIndustries.length },
           ]).map(tab => (
             <button
               key={tab.key}
@@ -480,148 +436,32 @@ export function OpportunitiesPage({
       ) : null}
 
       {/* ═══════════ EXPLORE INDUSTRIES TAB ═══════════ */}
-      {activeTab === 'explore' && (
+      {activeTab === 'explore' ? (
         <div
-          className={
-            embedded
-              ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-white'
-              : 'bg-white'
-          }
+          className={`flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white ${
+            embedded ? '' : 'min-h-[560px]'
+          }`}
         >
-          <div className={embedded ? 'px-9 pb-12 pt-7' : undefined}>
-          {embedded ? (
-            <p className="text-sm text-[#6B7280] pb-4 mb-4 border-b border-[#EDEDED] leading-relaxed">
-              Industries matched to your trait profile — where your strengths tend to have the most impact.
-            </p>
-          ) : (
-            <div className="pb-4 mb-4 border-b border-[#EDEDED]">
-              <p className="text-sm text-[#111827] font-medium mb-1">Industries matched to your trait profile</p>
-              <p className="text-xs text-[#6B7280] leading-relaxed">
-                Based on your profile, these are sectors where similar people often thrive — focused on fit, not only job titles.
+          {!embedded ? (
+            <div className="shrink-0 border-b border-[#EDEDED] px-9 pb-4 pt-7">
+              <p className="text-sm font-medium text-[#111827]">Explore industries</p>
+              <p className="mt-1 text-xs leading-relaxed text-[#6B7280]">
+                Industries matched to your trait profile — filters on the left, details on the right.
               </p>
             </div>
-          )}
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-            <p className="text-sm text-[#6B7280]">
-              <span className="font-semibold text-[#111827]">{industries.length}</span> industries matched
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-[#9CA3AF]">Sort</span>
-              {(['match', 'growth', 'roles'] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setIndustrySort(s)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                    industrySort === s ? 'bg-[#F3F4F6] text-[#111827]' : 'text-[#9CA3AF] hover:text-[#6B7280]'
-                  }`}
-                >
-                  {s === 'match' ? 'Best match' : s === 'growth' ? 'Growth' : 'Open roles'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="border-t border-[#EDEDED]">
-            {sortedIndustries.map((industry) => {
-              const isExpanded = expandedIndustry === industry.id;
-              const matchColor = industryMatchPercentColor(industry.matchPercent);
-              const barW = growthBarWidthPercent(industry.growth);
-              return (
-                <div key={industry.id} className="border-b border-[#EDEDED] last:border-b-0">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedIndustry(isExpanded ? null : industry.id)}
-                    className="w-full py-4 text-left hover:bg-[#FAFAFA]/80 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                          <h3 className="text-sm font-semibold text-[#111827]">{industry.name}</h3>
-                          <span className="font-dashboard-mono text-sm font-semibold tabular-nums" style={{ color: matchColor }}>
-                            {industry.matchPercent}%
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 mt-2">
-                          {industry.topTraits.slice(0, 2).map((t) => (
-                            <span
-                              key={t}
-                              className="text-[11px] text-[#6B7280] px-2 py-0.5 rounded-full border border-[#E5E7EB] bg-[#FAFAFA]"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <div className="flex flex-col items-end gap-1 text-right text-[11px] text-[#9CA3AF] sm:text-xs">
-                          <div>
-                            {industry.openRoles} roles · <span className="text-[#22C55E]">{industry.growth}</span>
-                          </div>
-                          <div className="w-14 sm:w-16 h-1 rounded-full bg-[#F3F4F6] overflow-hidden">
-                            <div className="h-full rounded-full bg-[#22C55E]" style={{ width: `${barW}%` }} />
-                          </div>
-                        </div>
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-[#9CA3AF] shrink-0" strokeWidth={2} />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-[#9CA3AF] shrink-0" strokeWidth={2} />
-                        )}
-                      </div>
-                    </div>
-                  </button>
-
-                  {isExpanded ? (
-                    <div className="pb-6 pt-0 grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-[#EDEDED]">
-                      <div className="md:col-span-2 pt-5">
-                        <p className="text-[10px] tracking-[0.12em] uppercase text-[#9CA3AF] mb-2">Why this fits</p>
-                        <p className="text-sm text-[#6B7280] leading-relaxed">{industry.whyYou}</p>
-
-                        <p className="text-[10px] tracking-[0.12em] uppercase text-[#9CA3AF] mt-6 mb-2">Typical roles</p>
-                        <div className="border-t border-[#EDEDED] divide-y divide-[#EDEDED]">
-                          {industry.typicalRoles.map((role) => (
-                            <div key={role.title} className="py-2.5 flex items-start justify-between gap-4 text-sm">
-                              <span className="text-[#111827] font-medium">{role.title}</span>
-                              <span className="shrink-0 font-dashboard-mono tabular-nums text-[#9CA3AF]">{role.avgSalary}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pt-5 md:border-l md:border-[#EDEDED] md:pl-8">
-                        <p className="text-[10px] tracking-[0.12em] uppercase text-[#9CA3AF] mb-3">At a glance</p>
-                        <dl className="space-y-2 text-sm">
-                          <div className="flex justify-between gap-4">
-                            <dt className="text-[#9CA3AF]">Salary</dt>
-                            <dd className="text-right font-dashboard-mono font-semibold text-[#111827]">{industry.avgSalary}</dd>
-                          </div>
-                          <div className="flex justify-between gap-4">
-                            <dt className="text-[#9CA3AF]">Growth</dt>
-                            <dd className="text-right font-dashboard-mono font-semibold text-[#111827]">{industry.growth}</dd>
-                          </div>
-                          <div className="flex justify-between gap-4">
-                            <dt className="text-[#9CA3AF]">Roles</dt>
-                            <dd className="text-right font-dashboard-mono font-semibold tabular-nums text-[#111827]">{industry.openRoles}</dd>
-                          </div>
-                        </dl>
-                        <button
-                          type="button"
-                          className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7BB9FA] text-white hover:bg-[#6aabef] transition-colors text-sm font-medium rounded-md"
-                        >
-                          <Search className="w-4 h-4" strokeWidth={2} />
-                          Browse roles
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-          </div>
+          ) : null}
+          <ExploreIndustriesWorkspace
+            industries={exploreIndustries}
+            traitScores={traitScores}
+            savedIndustryIds={savedIndustryIds}
+            onToggleSave={handleExploreToggleSave}
+            loading={exploreLoading}
+            candidateProfileId={candidateProfileId}
+            userId={userId}
+            onInterestToast={showToast}
+          />
         </div>
-      )}
+      ) : null}
 
       {/* Toast */}
       {toast.visible && (
@@ -649,6 +489,11 @@ export function ApplicantOpportunitiesPanel(
   return <OpportunitiesPage mode="opportunities" {...props} />;
 }
 
-export function ApplicantExploreIndustriesPanel() {
-  return <OpportunitiesPage mode="explore" />;
+export function ApplicantExploreIndustriesPanel(
+  props: Pick<
+    OpportunitiesPageProps,
+    'candidateProfileId' | 'traitScores' | 'onExploreIndustriesCountChange' | 'userId'
+  >,
+) {
+  return <OpportunitiesPage mode="explore" {...props} />;
 }

@@ -248,6 +248,61 @@ export type RoleConditionSnapshot = {
   created_at: string;
 };
 
+export type ExploreIndustryRow = {
+  id: string;
+  created_at: string;
+  slug: string;
+  name: string;
+  short_name: string;
+  blurb: string;
+  why_narrative: string;
+  open_roles: number;
+  hiring_now: number;
+  growth_label: string;
+  growth_n: number;
+  salary_band: string;
+  salary_band_sub: string | null;
+  team_size_typical: string;
+  employers_count: number;
+  sparkline_values: unknown;
+  display_rank: number;
+  base_match: number;
+};
+
+export type ExploreIndustryTraitHighlightRow = {
+  id: string;
+  industry_id: string;
+  dimension_key: string;
+  sort_order: number;
+};
+
+export type ExploreIndustrySampleRoleRow = {
+  id: string;
+  industry_id: string;
+  company_name: string;
+  role_title: string;
+  location: string;
+  display_match: number;
+  sort_order: number;
+};
+
+export type ExploreIndustryLearningLinkRow = {
+  id: string;
+  industry_id: string;
+  resource_type: 'article' | 'course' | 'podcast' | 'video';
+  title: string;
+  source_name: string;
+  meta: string;
+  url: string;
+  sort_order: number;
+};
+
+export type CandidateSavedIndustryRow = {
+  candidate_id: string;
+  industry_id: string;
+  created_at: string;
+};
+
 // ─── Helpers ─────────────────────────────────────────────────
 
 export const normaliseConditions = (rating: number): number =>
