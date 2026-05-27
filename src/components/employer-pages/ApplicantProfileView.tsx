@@ -1,4 +1,4 @@
-import { X, MapPin, Briefcase, Mail, Phone, Linkedin, Star, MessageSquare, FileText, ArrowRight, Copy, Sparkles, Building2, Download, Share2, Calendar, Award, TrendingUp, Target, Users, Zap, Brain, Heart, Palette, CheckCircle2, ArrowUpRight, ExternalLink } from 'lucide-react';
+import { X, MapPin, Briefcase, Mail, Phone, Linkedin, Star, MessageSquare, FileText, ArrowRight, Copy, Sparkles, Building2, Download, Share2, Calendar, Award, TrendingUp, Target, Users, Zap, Brain, Heart, CheckCircle2, ExternalLink } from 'lucide-react';
 import type { Candidate } from '../types/employer';
 import { useState } from 'react';
 import type { CandidateDimensionScores } from '../../utils/intakeScoreAggregate';
@@ -9,6 +9,14 @@ import {
   TRAIT_DIMENSION_KEYS,
   TRAIT_LABELS,
 } from '../../lib/traits';
+import {
+  candidateSummary,
+  candidateTagline,
+  computeProfileCompleteness,
+  formatLinkedInHref,
+  formatSalary,
+  listOrDash,
+} from '../../lib/candidateProfileDisplay';
 
 function resolveCandidateProfileDims(candidate: Candidate): CandidateDimensionScores | null {
   if (candidate.dimensionScores) return candidate.dimensionScores;
@@ -57,6 +65,15 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
   const fitLevel = getFitLevel(candidate.score);
 
   const profileDims = resolveCandidateProfileDims(candidate);
+  const tagline = candidateTagline(candidate);
+  const summaryText = candidateSummary(candidate);
+  const completeness = candidate.profileCompleteness ?? computeProfileCompleteness(candidate);
+  const linkedInHref = formatLinkedInHref(candidate.linkedinUrl);
+  const salaryLabel = formatSalary(candidate.salaryMin, candidate.salaryCurrency);
+
+  const statedStrengths = [candidate.strength1, candidate.strength2, candidate.strength3].filter(
+    (s): s is string => !!s?.trim(),
+  );
 
   const coreSorted = profileDims
     ? TRAIT_DIMENSION_KEYS.map((k) => ({ key: k, score: profileDims[k] })).sort((a, b) => b.score - a.score)
@@ -112,70 +129,51 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
     },
   ];
 
-  const experiences = [
+  const insightBlocks = [
     {
-      role: 'Senior Designer',
-      company: 'TechCorp',
-      duration: '2022 - Present',
-      years: '2 yrs',
-      outcomes: [
-        'Led design system overhaul for 50+ product teams',
-        'Increased design consistency by 85%',
-        'Mentored 5 junior designers',
-      ],
-      color: '#7DBBFF',
-    },
-    {
-      role: 'Product Designer',
-      company: 'StartupXYZ',
-      duration: '2020 - 2022',
-      years: '2 yrs',
-      outcomes: [
-        'Designed user onboarding flow that increased activation rate by 40%',
-        'Shipped 12+ major features',
-        'Established design critique culture',
-      ],
-      color: '#8B5CF6',
-    },
-    {
-      role: 'UX Designer',
-      company: 'Agency Co',
-      duration: '2018 - 2020',
-      years: '2 yrs',
-      outcomes: [
-        'Delivered projects for 15+ clients',
-        'Specialized in e-commerce and SaaS',
-      ],
-      color: '#14B8A6',
-    },
-  ];
-
-  const insights = [
-    {
-      title: 'Motivation Drivers',
+      title: 'Motivation & drivers',
       icon: Heart,
-      items: ['Autonomy & ownership', 'Continuous learning', 'Collaborative culture', 'Meaningful impact'],
       color: '#F59E0B',
+      items: [
+        candidate.enjoyedMost?.trim(),
+        candidate.openContext?.trim(),
+        candidate.workingContext?.trim(),
+      ].filter(Boolean) as string[],
     },
     {
-      title: 'Ideal Work Environment',
+      title: 'Ideal work environment',
       icon: Users,
-      items: ['Feedback-oriented teams', 'Flexible work arrangements', 'Design-led organizations', 'Cross-functional collaboration'],
       color: '#7DBBFF',
+      items: [
+        listOrDash(candidate.preferredWorkType),
+        candidate.orgSizePreference ? `Org size: ${candidate.orgSizePreference}` : null,
+        candidate.openToContract ? `Contract: ${candidate.openToContract}` : null,
+      ].filter((x) => x && x !== '—') as string[],
     },
     {
-      title: 'Communication Style',
-      icon: MessageSquare,
-      items: ['Transparent & direct', 'Thoughtful responses', 'Active listener', 'Written clarity'],
-      color: '#8B5CF6',
-    },
-    {
-      title: 'Decision-Making Approach',
+      title: 'Role preferences',
       icon: Target,
-      items: ['Data-informed', 'User-centric', 'Iterative refinement', 'Collaborative input'],
       color: '#14B8A6',
+      items: [
+        listOrDash(candidate.preferredRoleTypes),
+        candidate.currentSituation?.trim(),
+        candidate.industryBackground?.length
+          ? `Industries: ${candidate.industryBackground.join(', ')}`
+          : null,
+      ].filter(Boolean) as string[],
     },
-  ];
+    {
+      title: 'Availability & logistics',
+      icon: MessageSquare,
+      color: '#8B5CF6',
+      items: [
+        candidate.availability ? `Availability: ${candidate.availability}` : null,
+        candidate.noticePeriod ? `Notice: ${candidate.noticePeriod}` : null,
+        candidate.workRights ? `Work rights: ${candidate.workRights}` : null,
+        salaryLabel ? `Salary from: ${salaryLabel}` : null,
+      ].filter(Boolean) as string[],
+    },
+  ].filter((block) => block.items.length > 0);
 
   return (
     <div className="fixed inset-0 bg-[#F9F9FA] z-50 flex">
@@ -213,9 +211,9 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
         <div className="pt-6 border-t border-black/[0.08]">
           <p className="text-xs text-[#9CA3AF] mb-2">Profile Completeness</p>
           <div className="w-full h-2 bg-black/[0.06] overflow-hidden" style={{ borderRadius: '4px' }}>
-            <div className="h-full bg-[#7DBBFF]" style={{ width: '85%', borderRadius: '4px' }} />
+            <div className="h-full bg-[#7DBBFF]" style={{ width: `${completeness}%`, borderRadius: '4px' }} />
           </div>
-          <p className="text-xs text-[#6B7280] mt-2">85% Complete</p>
+          <p className="text-xs text-[#6B7280] mt-2">{completeness}% Complete</p>
         </div>
       </div>
 
@@ -231,15 +229,22 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
                 {/* Profile Header */}
                 <div className="flex items-start justify-between mb-6">
                   <div className="flex items-start gap-6">
-                    <div className="w-24 h-24 rounded-full bg-[#7DBBFF] flex items-center justify-center text-white text-2xl font-semibold shadow-lg ring-4 ring-white">
-                      {candidate.name.split(' ').map(n => n[0]).join('')}
+                    <div className="w-24 h-24 rounded-full bg-[#7DBBFF] flex items-center justify-center text-white text-2xl font-semibold shadow-lg ring-4 ring-white overflow-hidden">
+                      {candidate.avatarUrl ? (
+                        <img src={candidate.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        candidate.name.split(' ').map((n) => n[0]).join('')
+                      )}
                     </div>
                     <div className="pt-4">
                       <h1 className="text-2xl text-[#111827] font-semibold mb-2">{candidate.name}</h1>
-                      <p className="text-base text-[#6B7280] mb-3">{candidate.role}</p>
-                      <p className="text-sm text-[#7DBBFF] italic mb-4">
-                        Driven by learning, thrives in cross-functional teams
-                      </p>
+                      <p className="text-base text-[#6B7280] mb-1">{candidate.role}</p>
+                      {candidate.currentCompany ? (
+                        <p className="text-sm text-[#6B7280] mb-3">{candidate.currentCompany}</p>
+                      ) : null}
+                      {tagline ? (
+                        <p className="text-sm text-[#7DBBFF] italic mb-4">{tagline}</p>
+                      ) : null}
                       
                       {/* Tags and Fit Level */}
                       <div className="flex items-center gap-2 flex-wrap">
@@ -249,11 +254,13 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
                           {fitLevel.label}
                         </span>
                         <span className="px-3 py-1.5 bg-[#34D399]/10 text-[#34D399] font-medium text-xs" style={{ borderRadius: '8px' }}>
-                          Open to Opportunities
+                          {candidate.availability?.trim() || 'Open to opportunities'}
                         </span>
-                        <span className="px-3 py-1.5 bg-[#3B82F6]/10 text-[#3B82F6] font-medium text-xs" style={{ borderRadius: '8px' }}>
-                          Remote-ready
-                        </span>
+                        {candidate.preferredWorkType?.some((w) => /remote/i.test(w)) ? (
+                          <span className="px-3 py-1.5 bg-[#3B82F6]/10 text-[#3B82F6] font-medium text-xs" style={{ borderRadius: '8px' }}>
+                            Remote-ready
+                          </span>
+                        ) : null}
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-[#F9F9FA] text-[#6B7280] text-xs" style={{ borderRadius: '8px' }}>
                           <MapPin className="w-3 h-3" strokeWidth={1.5} />
                           <span>{candidate.location}</span>
@@ -295,27 +302,43 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
                 </div>
 
                 {/* Contact Info Row */}
-                <div className="flex items-center gap-6 pb-6">
-                  <div className="flex items-center gap-2 text-sm text-[#6B7280]">
-                    <Mail className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
-                    <span>{candidate.name.toLowerCase().replace(' ', '.')}@email.com</span>
-                    <button className="p-1 hover:bg-[#F9F9FA] transition-colors" style={{ borderRadius: '4px' }}>
-                      <Copy className="w-3 h-3 text-[#9CA3AF]" strokeWidth={1.5} />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-[#6B7280]">
-                    <Phone className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
-                    <span>+1 (555) 123-4567</span>
-                    <button className="p-1 hover:bg-[#F9F9FA] transition-colors" style={{ borderRadius: '4px' }}>
-                      <Copy className="w-3 h-3 text-[#9CA3AF]" strokeWidth={1.5} />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Linkedin className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
-                    <a href="#" className="text-[#7DBBFF] hover:text-[#6aabef] transition-colors">
-                      linkedin.com/in/{candidate.name.toLowerCase().replace(' ', '-')}
-                    </a>
-                  </div>
+                <div className="flex items-center gap-6 pb-6 flex-wrap">
+                  {candidate.email ? (
+                    <div className="flex items-center gap-2 text-sm text-[#6B7280]">
+                      <Mail className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
+                      <span>{candidate.email}</span>
+                      <button
+                        type="button"
+                        className="p-1 hover:bg-[#F9F9FA] transition-colors"
+                        style={{ borderRadius: '4px' }}
+                        onClick={() => void navigator.clipboard.writeText(candidate.email ?? '')}
+                      >
+                        <Copy className="w-3 h-3 text-[#9CA3AF]" strokeWidth={1.5} />
+                      </button>
+                    </div>
+                  ) : null}
+                  {candidate.phone ? (
+                    <div className="flex items-center gap-2 text-sm text-[#6B7280]">
+                      <Phone className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
+                      <span>{candidate.phone}</span>
+                    </div>
+                  ) : null}
+                  {linkedInHref ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Linkedin className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
+                      <a
+                        href={linkedInHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#7DBBFF] hover:text-[#6aabef] transition-colors"
+                      >
+                        LinkedIn profile
+                      </a>
+                    </div>
+                  ) : null}
+                  {!candidate.email && !candidate.phone && !linkedInHref ? (
+                    <p className="text-sm text-[#9CA3AF] italic">No contact details shared yet.</p>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -334,9 +357,7 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-[#111827] mb-1">Profile Summary</p>
-                      <p className="text-sm text-[#6B7280] leading-relaxed">
-                        Based on CMe data, {candidate.name.split(' ')[0]} performs best in flexible, design-led teams with strong feedback cultures. Shows exceptional learning velocity and collaborative mindset.
-                      </p>
+                      <p className="text-sm text-[#6B7280] leading-relaxed">{summaryText}</p>
                     </div>
                   </div>
                 </div>
@@ -555,7 +576,13 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
                       <h3 className="text-base text-[#111827] font-semibold">Core strengths</h3>
                     </div>
                     <div className="space-y-3">
-                      {derivedStrengths.length > 0 ? (
+                      {statedStrengths.length > 0 ? (
+                        statedStrengths.map((strength, idx) => (
+                          <div key={idx} className="p-3 bg-[#34D399]/5 border border-[#34D399]/10" style={{ borderRadius: '10px' }}>
+                            <p className="text-sm text-[#111827] font-medium">{strength}</p>
+                          </div>
+                        ))
+                      ) : derivedStrengths.length > 0 ? (
                         derivedStrengths.map((strength, idx) => (
                           <div key={idx} className="p-3 bg-[#34D399]/5 border border-[#34D399]/10" style={{ borderRadius: '10px' }}>
                             <p className="text-sm text-[#111827] font-medium mb-1">{strength.label}</p>
@@ -635,56 +662,63 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
             {activeSection === 'experience' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg text-[#111827] font-semibold">Work Experience</h2>
-                  <button className="text-sm text-[#7DBBFF] hover:text-[#6aabef] font-medium flex items-center gap-1">
-                    <span>View Full CV</span>
-                    <ExternalLink className="w-3.5 h-3.5" strokeWidth={2} />
-                  </button>
+                  <h2 className="text-lg text-[#111827] font-semibold">Experience & background</h2>
                 </div>
 
-                {/* Timeline */}
-                <div className="relative space-y-6">
-                  {/* Timeline Line */}
-                  <div className="absolute left-6 top-6 bottom-6 w-px bg-black/[0.08]" />
+                {candidate.educationSummary?.trim() ? (
+                  <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                    <h3 className="text-sm text-[#111827] font-semibold mb-3">Education</h3>
+                    <p className="text-sm text-[#6B7280] leading-relaxed whitespace-pre-wrap">{candidate.educationSummary}</p>
+                  </div>
+                ) : null}
 
-                  {experiences.map((exp, idx) => (
-                    <div key={idx} className="relative bg-white p-6 border border-black/[0.08] shadow-sm hover:border-[#7DBBFF]/30 transition-colors" style={{ borderRadius: '16px' }}>
-                      <div className="flex items-start gap-4">
-                        {/* Company Icon */}
-                        <div className="relative z-10 w-12 h-12 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${exp.color}20` }}>
-                          <Building2 className="w-6 h-6" style={{ color: exp.color }} strokeWidth={1.5} />
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h3 className="text-base text-[#111827] font-semibold mb-1">{exp.role}</h3>
-                              <p className="text-sm text-[#6B7280] mb-2">{exp.company}</p>
+                {candidate.experienceNarrative?.trim() ? (
+                  <div className="relative bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0 bg-[#7DBBFF]/10">
+                        <Building2 className="w-6 h-6 text-[#7DBBFF]" strokeWidth={1.5} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h3 className="text-base text-[#111827] font-semibold mb-1">{candidate.role}</h3>
+                            {candidate.currentCompany ? (
+                              <p className="text-sm text-[#6B7280] mb-2">{candidate.currentCompany}</p>
+                            ) : null}
+                            {candidate.totalExperience ? (
                               <div className="flex items-center gap-2 text-xs text-[#9CA3AF]">
                                 <Calendar className="w-3 h-3" strokeWidth={1.5} />
-                                <span>{exp.duration}</span>
+                                <span>{candidate.totalExperience} years total experience</span>
                               </div>
-                            </div>
-                            <span className="px-2.5 py-1 bg-[#F9F9FA] text-[#6B7280] text-xs font-medium" style={{ borderRadius: '6px' }}>
-                              {exp.years}
-                            </span>
-                          </div>
-
-                          {/* Outcomes */}
-                          <div className="space-y-2">
-                            {exp.outcomes.map((outcome, i) => (
-                              <div key={i} className="flex items-start gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-[#7DBBFF] mt-1.5 shrink-0" />
-                                <p className="text-sm text-[#6B7280]">{outcome}</p>
-                              </div>
-                            ))}
+                            ) : null}
                           </div>
                         </div>
+                        <p className="text-sm text-[#6B7280] leading-relaxed whitespace-pre-wrap">{candidate.experienceNarrative}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="p-8 bg-white border border-black/[0.08] text-center" style={{ borderRadius: '16px' }}>
+                    <p className="text-sm text-[#9CA3AF] italic">No work history narrative shared yet.</p>
+                  </div>
+                )}
+
+                {candidate.certifications?.trim() ? (
+                  <div className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                    <h3 className="text-sm text-[#111827] font-semibold mb-3">Certifications</h3>
+                    <p className="text-sm text-[#6B7280] whitespace-pre-wrap">{candidate.certifications}</p>
+                  </div>
+                ) : null}
+
+                {candidate.testimonialText?.trim() ? (
+                  <div className="bg-[#F9F9FA] p-6 border border-black/[0.08]" style={{ borderRadius: '16px' }}>
+                    <p className="text-sm text-[#6B7280] italic leading-relaxed mb-3">&ldquo;{candidate.testimonialText}&rdquo;</p>
+                    <p className="text-xs text-[#9CA3AF]">
+                      — {candidate.testimonialName || 'Reference'}
+                      {candidate.testimonialRelation ? `, ${candidate.testimonialRelation}` : ''}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -723,97 +757,86 @@ export function CandidateProfileView({ candidate, onClose, onMoveToNextStage, on
             {activeSection === 'insights' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg text-[#111827] font-semibold">Psychological & Motivational Insights</h2>
-                  <span className="text-xs text-[#9CA3AF]">Generated from CMe Assessments</span>
+                  <h2 className="text-lg text-[#111827] font-semibold">Preferences & context</h2>
+                  <span className="text-xs text-[#9CA3AF]">From applicant profile builder</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                  {insights.map((insight, idx) => {
-                    const Icon = insight.icon;
-                    return (
-                      <div key={idx} className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${insight.color}20` }}>
-                            <Icon className="w-4 h-4" style={{ color: insight.color }} strokeWidth={2} />
+                {insightBlocks.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-6">
+                    {insightBlocks.map((insight, idx) => {
+                      const Icon = insight.icon;
+                      return (
+                        <div key={idx} className="bg-white p-6 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${insight.color}20` }}>
+                              <Icon className="w-4 h-4" style={{ color: insight.color }} strokeWidth={2} />
+                            </div>
+                            <h3 className="text-sm text-[#111827] font-semibold">{insight.title}</h3>
                           </div>
-                          <h3 className="text-sm text-[#111827] font-semibold">{insight.title}</h3>
+                          <ul className="space-y-2">
+                            {insight.items.map((item, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: insight.color }} />
+                                <span className="text-sm text-[#6B7280]">{item}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                        <ul className="space-y-2">
-                          {insight.items.map((item, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: insight.color }} />
-                              <span className="text-sm text-[#6B7280]">{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-8 bg-white border border-black/[0.08] text-center" style={{ borderRadius: '16px' }}>
+                    <p className="text-sm text-[#9CA3AF] italic">No preference or context details shared yet.</p>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Documents Section */}
             {activeSection === 'documents' && (
               <div className="space-y-6">
-                <h2 className="text-lg text-[#111827] font-semibold">CV / Documents</h2>
+                <h2 className="text-lg text-[#111827] font-semibold">Links & documents</h2>
 
                 <div className="grid grid-cols-2 gap-4">
-                  {/* CV Card */}
-                  <div className="bg-white p-5 border border-black/[0.08] shadow-sm hover:border-[#7DBBFF]/30 transition-colors cursor-pointer" style={{ borderRadius: '16px' }}>
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-lg bg-[#7DBBFF]/10 flex items-center justify-center shrink-0">
-                        <FileText className="w-6 h-6 text-[#7DBBFF]" strokeWidth={1.5} />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-sm text-[#111827] font-semibold mb-1">Resume.pdf</h3>
-                        <p className="text-xs text-[#6B7280] mb-3">Updated Feb 2026 • 245 KB</p>
-                        <button className="text-xs text-[#7DBBFF] hover:text-[#6aabef] font-medium flex items-center gap-1">
-                          <Download className="w-3 h-3" strokeWidth={2} />
-                          <span>Download</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Portfolio */}
-                  <div className="bg-white p-5 border border-black/[0.08] shadow-sm hover:border-[#7DBBFF]/30 transition-colors cursor-pointer" style={{ borderRadius: '16px' }}>
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-lg bg-[#8B5CF6]/10 flex items-center justify-center shrink-0">
-                        <Palette className="w-6 h-6 text-[#8B5CF6]" strokeWidth={1.5} />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-sm text-[#111827] font-semibold mb-1">Portfolio</h3>
-                        <p className="text-xs text-[#6B7280] mb-3">Behance • 24 projects</p>
-                        <a href="#" className="text-xs text-[#7DBBFF] hover:text-[#6aabef] font-medium flex items-center gap-1">
-                          <ExternalLink className="w-3 h-3" strokeWidth={2} />
-                          <span>View Portfolio</span>
-                        </a>
+                  {linkedInHref ? (
+                    <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-[#0077B5]/10 flex items-center justify-center shrink-0">
+                          <Linkedin className="w-6 h-6 text-[#0077B5]" strokeWidth={1.5} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-sm text-[#111827] font-semibold mb-1">LinkedIn</h3>
+                          <a href={linkedInHref} target="_blank" rel="noopener noreferrer" className="text-xs text-[#7DBBFF] hover:text-[#6aabef] font-medium flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3" strokeWidth={2} />
+                            <span>Open profile</span>
+                          </a>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : null}
+
+                  {candidate.certifications?.trim() ? (
+                    <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-[#7DBBFF]/10 flex items-center justify-center shrink-0">
+                          <Award className="w-6 h-6 text-[#7DBBFF]" strokeWidth={1.5} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-sm text-[#111827] font-semibold mb-1">Certifications</h3>
+                          <p className="text-xs text-[#6B7280] whitespace-pre-wrap">{candidate.certifications}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
-                {/* External Links */}
-                <div className="bg-white p-5 border border-black/[0.08] shadow-sm" style={{ borderRadius: '16px' }}>
-                  <h3 className="text-sm text-[#111827] font-semibold mb-4">External Profiles</h3>
-                  <div className="space-y-3">
-                    <a href="#" className="flex items-center justify-between p-3 bg-[#F9F9FA] hover:bg-[#7DBBFF]/5 transition-colors" style={{ borderRadius: '10px' }}>
-                      <div className="flex items-center gap-3">
-                        <Linkedin className="w-4 h-4 text-[#0077B5]" strokeWidth={1.5} />
-                        <span className="text-sm text-[#111827]">LinkedIn Profile</span>
-                      </div>
-                      <ArrowUpRight className="w-4 h-4 text-[#6B7280]" strokeWidth={1.5} />
-                    </a>
-                    <a href="#" className="flex items-center justify-between p-3 bg-[#F9F9FA] hover:bg-[#7DBBFF]/5 transition-colors" style={{ borderRadius: '10px' }}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 rounded bg-[#111827]" />
-                        <span className="text-sm text-[#111827]">GitHub</span>
-                      </div>
-                      <ArrowUpRight className="w-4 h-4 text-[#6B7280]" strokeWidth={1.5} />
-                    </a>
+                {!linkedInHref && !candidate.certifications?.trim() ? (
+                  <div className="p-8 bg-white border border-black/[0.08] text-center" style={{ borderRadius: '16px' }}>
+                    <p className="text-sm text-[#9CA3AF] italic">No documents or external links uploaded yet.</p>
+                    <p className="text-xs text-[#9CA3AF] mt-2">CV upload is planned for a future release.</p>
                   </div>
-                </div>
+                ) : null}
               </div>
             )}
           </div>

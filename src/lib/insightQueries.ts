@@ -442,7 +442,7 @@ function mockTimeSeriesData(): TimeSeriesDataPoint[] {
 /**
  * Filters top performers (performance_rating >= 4)
  */
-function filterTopPerformers(hired: HiredCandidate[]): HiredCandidate[] {
+export function filterTopPerformers(hired: HiredCandidate[]): HiredCandidate[] {
   return hired.filter(h => (h.performance_rating || 0) >= 4 && !h.departed);
 }
 
@@ -450,7 +450,7 @@ function filterTopPerformers(hired: HiredCandidate[]): HiredCandidate[] {
  * Generates correlation data grouped by performance band
  * Uses the correct 6-dimension framework keys.
  */
-function generateCorrelationData(hired: HiredCandidate[]): CorrelationData[] {
+export function generateCorrelationData(hired: HiredCandidate[]): CorrelationData[] {
   const topPerformers = hired.filter(h => (h.performance_rating || 0) === 5 && !h.departed);
   const midPerformers = hired.filter(h => (h.performance_rating || 0) >= 3 && (h.performance_rating || 0) < 5 && !h.departed);
   const lowPerformers = hired.filter(h => (h.performance_rating || 0) < 3 || h.departed);

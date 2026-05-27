@@ -37,6 +37,38 @@ export interface CandidateProfile {
   dimensionScores?: CandidateDimensionScores;
   // ISO timestamp of last stage change — used to compute days in current stage
   stageUpdatedAt?: string;
+  /** UUID string — same as candidate_profiles.id in Supabase */
+  profileId?: string;
+  email?: string | null;
+  avatarUrl?: string | null;
+  currentCompany?: string | null;
+  phone?: string | null;
+  linkedinUrl?: string | null;
+  certifications?: string | null;
+  workRights?: string | null;
+  salaryMin?: number | null;
+  salaryCurrency?: string | null;
+  currentSituation?: string | null;
+  educationSummary?: string | null;
+  experienceNarrative?: string | null;
+  enjoyedMost?: string | null;
+  oneThingToKnow?: string | null;
+  strength1?: string | null;
+  strength2?: string | null;
+  strength3?: string | null;
+  workingContext?: string | null;
+  testimonialName?: string | null;
+  testimonialRelation?: string | null;
+  testimonialText?: string | null;
+  openContext?: string | null;
+  preferredRoleTypes?: string[] | null;
+  preferredWorkType?: string[] | null;
+  orgSizePreference?: string | null;
+  industryBackground?: string[] | null;
+  openToIndustries?: boolean | null;
+  openToContract?: string | null;
+  intakeComplete?: boolean | null;
+  profileCompleteness?: number;
 }
 
 // Backward-compatible alias — existing components reference `Candidate`

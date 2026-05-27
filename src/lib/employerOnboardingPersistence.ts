@@ -180,10 +180,28 @@ export async function markEmployerProfileOnboardingComplete(
   client: SupabaseClient,
   userId: string,
 ): Promise<void> {
+  const now = new Date().toISOString();
   const { error } = await client
     .from('profiles')
-    .update({ onboarding_complete: true, updated_at: new Date().toISOString() })
+    .update({
+      onboarding_complete: true,
+      onboarding_completed_at: now,
+      onboarding_step: 'completed',
+      updated_at: now,
+    })
     .eq('id', userId);
 
   if (error) console.warn('[CMe] profiles onboarding_complete failed:', error.message);
+}
+
+export async function setEmployerOnboardingStep(
+  client: SupabaseClient,
+  userId: string,
+  step: 'employer_company' | 'employer_template' | 'employer_weights' | 'employer_calibration',
+): Promise<void> {
+  const { error } = await client
+    .from('profiles')
+    .update({ onboarding_step: step, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (error) console.warn('[CMe] employer onboarding_step update failed:', error.message);
 }

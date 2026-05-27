@@ -147,8 +147,39 @@ export function PipelineSection({ candidates: _candidates, employerWeights, data
     .map(([dim]) => dim as keyof TraitScores)
     .filter(Boolean);
 
+  // Map live candidates when available; fall back to demo rows
+  const pipelineRows =
+    _candidates.length > 0
+      ? _candidates.map((c) => ({
+          id: c.id,
+          name: c.name,
+          initials: c.name
+            .split(/\s+/)
+            .map((w) => w[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase(),
+          role_type: c.role,
+          match_score: c.score,
+          stage:
+            c.stage === 'interviewing' || c.stage === 'decision'
+              ? ('Interviewing' as const)
+              : c.stage === 'contacted'
+                ? ('Contacted' as const)
+                : ('Discovered' as const),
+          traitScores: c.dimensionScores ?? {
+            learning_velocity: 0,
+            ownership_follow_through: 0,
+            resilience: 0,
+            communication_confidence: 0,
+            relational_intelligence: 0,
+            motivational_fit: 0,
+          },
+        }))
+      : mockPipelineCandidates;
+
   // Filter and sort
-  let filteredCandidates = [...mockPipelineCandidates];
+  let filteredCandidates = [...pipelineRows];
   if (stageFilter !== 'all') {
     filteredCandidates = filteredCandidates.filter(c => c.stage === stageFilter);
   }

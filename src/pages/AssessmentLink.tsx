@@ -16,7 +16,8 @@
  * and UserProfileContext data flow as the Applicant View Profile Builder.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CheckCircle, ArrowRight, Lock, Users, BarChart, Compass } from 'lucide-react';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { ProfileBuilderLayout } from '../components/applicant-pages/ProfileBuilderLayout';
@@ -29,21 +30,56 @@ import { IntakeSection6 } from '../components/applicant-pages/intake/IntakeSecti
 import { IntakeSection7 } from '../components/applicant-pages/intake/IntakeSection7';
 import { IntakeSection8 } from '../components/applicant-pages/intake/IntakeSection8';
 import { computeIntakeScores } from '../utils/intakeScoring';
+import {
+  computeMotivationalFitAverage,
+  toCandidateDimensionScores,
+} from '../utils/intakeScoreAggregate';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   ensureApplicantProfile,
   upsertIntakeSectionResponses,
   markApplicantIntakeComplete,
   getProfileLockedUntilIso,
+  syncSection7ToCandidateProfile,
 } from '../lib/applicantPersistence';
+import { createEngagement } from '../lib/employerEngagements';
+import { computeMatchScore, type EmployerWeights } from '../lib/matchScoring';
 import { TraitLockGate2Interstitial, ProfileSubmitGate3Confirmation } from '../components/applicant-pages/intake/ProfileLockGates';
+
+type ResolvedAssessmentRole = {
+  roleId: string;
+  businessId: string;
+  title: string;
+  businessName: string;
+};
+
+async function fetchEmployerWeightsForBusiness(
+  businessId: string,
+): Promise<EmployerWeights | null> {
+  if (!supabase) return null;
+  const { data: wt, error } = await supabase
+    .from('employer_trait_weightings')
+    .select(
+      'learning_velocity, ownership_follow_through, resilience, communication_confidence, relational_intelligence, motivational_fit',
+    )
+    .eq('business_id', businessId)
+    .is('superseded_at', null)
+    .maybeSingle();
+  if (error || !wt) {
+    console.warn('[AssessmentLink] Could not load employer weights:', error?.message ?? 'none found');
+    return null;
+  }
+  return wt as EmployerWeights;
+}
 
 interface AssessmentLinkProps {
   // In production, pass token from URL params via React Router
   token?: string;
 }
 
-export function AssessmentLink({ token: _token = 'demo_token_abc123' }: AssessmentLinkProps) {
+export function AssessmentLink({ token: tokenProp }: AssessmentLinkProps) {
+  const [searchParams] = useSearchParams();
+  const token = tokenProp ?? searchParams.get('token') ?? 'demo_token_abc123';
   const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, resetProfile, updateProfileData } =
     useUserProfile();
   const [step, setStep] = useState<'landing' | 'intake' | 'complete'>('landing');
@@ -60,14 +96,35 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
   const [section3ScoringBusy, setSection3ScoringBusy] = useState(false);
   const [section4ScoringBusy, setSection4ScoringBusy] = useState(false);
   const [section6ScoringBusy, setSection6ScoringBusy] = useState(false);
-  
-  // Mock: Decode token to get employer info
-  // In production: validate server-side, fetch employer details
-  const employerInfo = {
-    company_name: 'DeanKernel Design Co.',
-    role_title: 'Senior Product Designer',
-    employer_id: 1,
-  };
+  const [roleFromDb, setRoleFromDb] = useState<ResolvedAssessmentRole | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !token || token === 'demo_token_abc123') return;
+    void (async () => {
+      const { data: role } = await supabase
+        .from('roles')
+        .select('id, title, business_id, businesses(name)')
+        .eq('assessment_link_token', token)
+        .maybeSingle();
+      if (role?.title && role.id && role.business_id) {
+        const biz = role.businesses as { name?: string } | null;
+        setRoleFromDb({
+          roleId: role.id as string,
+          businessId: role.business_id as string,
+          title: role.title as string,
+          businessName: biz?.name ?? 'Employer',
+        });
+      }
+    })();
+  }, [token]);
+
+  const employerInfo = useMemo(
+    () => ({
+      company_name: roleFromDb?.businessName ?? 'DeanKernel Design Co.',
+      role_title: roleFromDb?.title ?? 'Senior Product Designer',
+    }),
+    [roleFromDb],
+  );
 
   // Reset profile on mount (cold start)
   useEffect(() => {
@@ -176,27 +233,67 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
     };
     const scores = computeIntakeScores(intakeResponses);
     updateTraitScores(scores);
+
+    let computedMatchScore: number | null = null;
+
+    if (supabase && candidateProfileId) {
+      const motivational_fit = computeMotivationalFitAverage(scores);
+      await supabase
+        .from('candidate_profiles')
+        .update({
+          learning_velocity: scores.learning_velocity,
+          ownership_follow_through: scores.ownership_follow_through,
+          resilience: scores.resilience,
+          communication_confidence: scores.communication_confidence,
+          relational_intelligence: scores.relational_intelligence,
+          motivational_fit_mastery: scores.motivational_fit_mastery,
+          motivational_fit_impact: scores.motivational_fit_impact,
+          motivational_fit_recognition: scores.motivational_fit_recognition,
+          motivational_fit_autonomy: scores.motivational_fit_autonomy,
+          motivational_fit,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', candidateProfileId);
+
+      if (roleFromDb?.businessId) {
+        const weights = await fetchEmployerWeightsForBusiness(roleFromDb.businessId);
+        if (weights) {
+          const candidateScores = toCandidateDimensionScores(scores);
+          computedMatchScore = Math.round(computeMatchScore(candidateScores, weights).matchScore);
+        }
+      }
+    }
+
     markIntakeComplete();
     setPendingIntakeCompletion(false);
     setPreSubmitTraitReview(false);
-    await handleIntakeComplete();
+    await handleIntakeComplete(computedMatchScore);
   };
 
-  const handleNext = async (data?: any) => {
+  const handleNext = async (data?: Record<string, unknown>) => {
     if (data && data.section) {
-      updateIntakeSection(data.section, data.responses);
+      const sectionNum = data.section as number;
+      updateIntakeSection(sectionNum, data.responses);
 
       if (candidateProfileId && isSupabaseConfigured && supabase) {
         try {
-          await upsertIntakeSectionResponses(supabase, candidateProfileId, data.section, data);
+          await upsertIntakeSectionResponses(supabase, candidateProfileId, sectionNum, data);
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Unknown error';
           console.error('[AssessmentLink] section persist failed:', message);
-          setSubmitError(`We couldn't save section ${data.section}: ${message}`);
+          setSubmitError(`We couldn't save section ${sectionNum}: ${message}`);
         }
       }
 
-      if (data.section === 8) {
+      if (sectionNum === 7 && supabase && candidateProfileId && data.responses) {
+        await syncSection7ToCandidateProfile(
+          supabase,
+          candidateProfileId,
+          data.responses as Record<string, unknown>,
+        );
+      }
+
+      if (sectionNum === 8) {
         setPendingIntakeCompletion(true);
         return;
       }
@@ -339,7 +436,7 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
 
   // ─── Completion Logic ───
 
-  const handleIntakeComplete = async () => {
+  const handleIntakeComplete = async (computedMatchScore: number | null = null) => {
     setIsLoading(true);
     setSubmitError(null);
 
@@ -353,7 +450,23 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
         updateProfileData({ profile_locked_until: getProfileLockedUntilIso() });
       }
 
-      setMatchScore(null);
+      if (roleFromDb?.businessId) {
+        try {
+          await createEngagement(
+            supabase,
+            candidateProfileId,
+            roleFromDb.businessId,
+            computedMatchScore,
+            'assessment_link',
+            roleFromDb.roleId,
+          );
+        } catch (engErr) {
+          const message = engErr instanceof Error ? engErr.message : 'Unknown error';
+          console.warn('[AssessmentLink] engagement insert failed (may be RLS until Phase 2):', message);
+        }
+      }
+
+      setMatchScore(computedMatchScore);
       setStep('complete');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -588,8 +701,8 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
               Thank you for completing the assessment. Your profile has been submitted to <span className="font-medium text-[#111827]">{employerInfo.company_name}</span>.
             </p>
 
-            {/* Match Score (if computed) */}
-            {matchScore !== null && (
+            {/* Match Score (when computed) or neutral submitted state */}
+            {matchScore !== null ? (
               <div className="bg-[#7DBBFF]/5 border border-[#7DBBFF]/20 p-6 mb-8 mx-auto max-w-md" style={{ borderRadius: '16px' }}>
                 <div className="flex items-center justify-center gap-3 mb-2">
                   <BarChart className="w-6 h-6 text-[#7DBBFF]" strokeWidth={1.5} />
@@ -597,6 +710,17 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
                 </div>
                 <p className="text-sm text-[#6B7280]">
                   Your trait alignment score for this role
+                </p>
+              </div>
+            ) : (
+              <div
+                className="bg-[#F9FAFB] border border-black/[0.06] p-5 mb-8 mx-auto max-w-md"
+                style={{ borderRadius: '14px' }}
+              >
+                <p className="text-sm text-[#6B7280]">
+                  Your profile has been submitted successfully. The hiring team at{' '}
+                  <span className="font-medium text-[#111827]">{employerInfo.company_name}</span> will
+                  review your responses.
                 </p>
               </div>
             )}
@@ -637,7 +761,11 @@ export function AssessmentLink({ token: _token = 'demo_token_abc123' }: Assessme
               <ul className="space-y-2 text-sm text-[#6B7280]">
                 <li className="flex items-start gap-2">
                   <span className="text-[#7DBBFF] mt-0.5">•</span>
-                  <span>The hiring team will review your profile and match score</span>
+                  <span>
+                    {matchScore !== null
+                      ? 'The hiring team will review your profile and match score'
+                      : 'The hiring team will review your profile'}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[#7DBBFF] mt-0.5">•</span>

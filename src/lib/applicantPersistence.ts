@@ -385,6 +385,7 @@ export async function updateApplicantBasicInfo(
     open_to_contract: string | null;
     open_to_industries: boolean;
     published: boolean;
+    status: 'draft' | 'published' | 'hidden';
   }>,
 ): Promise<{ error: Error | null }> {
   const { error } = await client
@@ -533,6 +534,9 @@ export async function saveBaseDetails(
     availability: fields.availability,
     updated_at: new Date().toISOString(),
   };
+  if (fields.full_name) {
+    candidateUpdate.full_name = fields.full_name;
+  }
   if ('age' in fields) {
     candidateUpdate.age = fields.age;
   }
@@ -607,6 +611,7 @@ export async function markApplicantIntakeComplete(
     .from('candidate_profiles')
     .update({
       intake_status: 'complete',
+      status: 'published',
       profile_locked_until: profileLockedUntil,
       updated_at: now,
     })
