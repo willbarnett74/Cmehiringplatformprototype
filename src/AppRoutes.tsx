@@ -20,9 +20,17 @@ import { OnboardingStepPage } from './onboarding/OnboardingStepPage';
 import { AnalyticsEvents, trackEvent } from './lib/analytics';
 import { fetchProfileOnboardingMeta } from './onboarding/profileOnboardingMeta';
 import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from './lib/onboardingRouting';
-import { navigateAfterSignIn, type SignInLocationState } from './lib/postSignInNavigation';
+import { navigateAfterSignIn, persistRestoreTabToSession, type SignInLocationState } from './lib/postSignInNavigation';
 import { supabase } from './lib/supabaseClient';
 import { useSupabaseSessionBootstrap } from './lib/useSupabaseSessionBootstrap';
+import { EmployerOnboardingLayout, EMPLOYER_ONBOARDING_QUERY_ROOT } from './onboarding/EmployerOnboardingLayout';
+import { EmployerOnboardingStepPage } from './onboarding/EmployerOnboardingStepPage';
+import { pathForEmployerOnboardingDbStep } from './lib/employerOnboardingRouting';
+import {
+  fetchEmployerProfileMeta,
+  isEmployerOnboardingComplete,
+  resolveEmployerOnboardingStep,
+} from './lib/employerPersistence';
 
 const EmployerScreen = lazy(() =>
   import('./components/EmployerScreen').then((module) => ({ default: module.EmployerScreen })),
@@ -31,7 +39,7 @@ const AssessmentLink = lazy(() =>
   import('./pages/AssessmentLink').then((module) => ({ default: module.AssessmentLink })),
 );
 
-const routeFlowFallback = <div className="min-h-[420px] bg-[var(--cme-onboarding-canvas)]" />;
+const routeFlowFallback = <RouteFlowLoading message="Loading…" />;
 
 export function RequireAuth() {
   const location = useLocation();
@@ -128,6 +136,12 @@ function OnboardingSignInPage() {
   }, []);
 
   useEffect(() => {
+    if (state?.restoreTab) {
+      persistRestoreTabToSession(state.restoreTab);
+    }
+  }, [state?.restoreTab]);
+
+  useEffect(() => {
     if (!hasClient || !supabase) return;
     if (!ready || !session) return;
     if (postAuthError) return;
@@ -190,11 +204,67 @@ function OnboardingSignInPage() {
 
   return (
     <LoginScreen
+      initialMode={state?.initialMode ?? (state?.signupRole === 'employer' ? 'signup' : 'signin')}
+      signupRole={state?.signupRole ?? (state?.restoreTab === 'employer' ? 'employer' : 'candidate')}
       onAuthenticated={() => {
         /* Session updates via useSupabaseSessionBootstrap; effect above runs navigateAfterSignIn. */
       }}
     />
   );
+}
+
+export function RequireEmployerOnboardingComplete() {
+  const { ready: authReady, session, timedOut, retry: retrySession, hasClient } =
+    useSupabaseSessionBootstrap();
+  const sessionUserId = session?.user?.id ?? null;
+
+  const { data, isLoading, isError, refetch, isPending } = useQuery({
+    queryKey: [...EMPLOYER_ONBOARDING_QUERY_ROOT, sessionUserId ?? ''],
+    enabled: Boolean(hasClient && supabase && authReady && !timedOut && sessionUserId),
+    retry: 1,
+    queryFn: async () => {
+      if (!supabase || !sessionUserId) throw new Error('Not authenticated');
+      return fetchEmployerProfileMeta(supabase, sessionUserId);
+    },
+  });
+
+  if (!hasClient || !supabase) {
+    return <Navigate to="/onboarding/sign-in" replace />;
+  }
+  if (timedOut) {
+    return (
+      <RouteFlowError
+        message="We couldn't verify your session. Check your connection and try again."
+        onRetry={retrySession}
+      />
+    );
+  }
+  if (!authReady) {
+    return <RouteFlowLoading message="Checking your session…" />;
+  }
+  if (!sessionUserId) {
+    return <Navigate to="/onboarding/sign-in" replace />;
+  }
+  if (isLoading || isPending) {
+    return <RouteFlowLoading message="Loading your profile…" />;
+  }
+  if (isError || !data) {
+    return (
+      <RouteFlowError
+        message="We couldn't load your onboarding status. Check your connection and try again."
+        onRetry={() => void refetch()}
+      />
+    );
+  }
+  if (!isEmployerOnboardingComplete(data)) {
+    return (
+      <Navigate
+        to={pathForEmployerOnboardingDbStep(resolveEmployerOnboardingStep(data))}
+        replace
+      />
+    );
+  }
+  return <Outlet />;
 }
 
 export default function AppRoutes() {
@@ -206,7 +276,15 @@ export default function AppRoutes() {
       <Route path="/assessment-link" element={<Suspense fallback={routeFlowFallback}><AssessmentLink /></Suspense>} />
       <Route path="/onboarding/sign-in" element={<OnboardingSignInPage />} />
       <Route element={<RequireAuth />}>
-        <Route path="/employer-portal" element={<Suspense fallback={routeFlowFallback}><EmployerScreen /></Suspense>} />
+        <Route path="/onboarding/employer" element={<EmployerOnboardingLayout />}>
+          <Route path="company" element={<EmployerOnboardingStepPage stepKey="company" />} />
+          <Route path="role-template" element={<EmployerOnboardingStepPage stepKey="role-template" />} />
+          <Route path="trait-weighting" element={<EmployerOnboardingStepPage stepKey="trait-weighting" />} />
+          <Route path="calibration" element={<EmployerOnboardingStepPage stepKey="calibration" />} />
+        </Route>
+        <Route element={<RequireEmployerOnboardingComplete />}>
+          <Route path="/employer-portal" element={<Suspense fallback={routeFlowFallback}><EmployerScreen /></Suspense>} />
+        </Route>
         <Route path="/onboarding" element={<OnboardingLayout />}>
           <Route path="welcome" element={<OnboardingStepPage uiStep="welcome" />} />
           <Route path="basics" element={<OnboardingStepPage uiStep="details" />} />

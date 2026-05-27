@@ -1,6 +1,7 @@
 import { X, MapPin, Briefcase, Mail, Phone, Linkedin, ArrowRight, FileText, Copy, Building2, Star } from 'lucide-react';
 import type { Candidate } from '../types/employer';
 import { useState } from 'react';
+import { candidateTagline, formatLinkedInHref } from '../../lib/candidateProfileDisplay';
 
 interface CandidateModalProps {
   candidate: Candidate;
@@ -8,9 +9,10 @@ interface CandidateModalProps {
   onMoveToNextStage: (candidateId: number) => void;
   onAddNote: (candidateId: number) => void;
   onViewFullProfile: () => void;
+  onContact?: () => void;
 }
 
-export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNote: _onAddNote, onViewFullProfile }: CandidateModalProps) {
+export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNote: _onAddNote, onViewFullProfile, onContact: _onContact }: CandidateModalProps) {
   const [isShortlisted, setIsShortlisted] = useState(false);
 
   const getFitLevel = (score: number): { label: string; color: string } => {
@@ -38,6 +40,8 @@ export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNot
   };
 
   const fitLevel = getFitLevel(candidate.score);
+  const tagline = candidateTagline(candidate);
+  const linkedInHref = formatLinkedInHref(candidate.linkedinUrl);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8" onClick={onClose}>
@@ -50,13 +54,22 @@ export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNot
         <div className="sticky top-0 bg-white border-b border-black/[0.08] p-6" style={{ borderRadius: '24px 24px 0 0' }}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-4 flex-1">
-              <div className="w-14 h-14 rounded-full bg-[#7DBBFF] flex items-center justify-center text-white text-lg font-semibold">
-                {candidate.name.split(' ').map(n => n[0]).join('')}
+              <div className="w-14 h-14 rounded-full bg-[#7DBBFF] flex items-center justify-center text-white text-lg font-semibold overflow-hidden">
+                {candidate.avatarUrl ? (
+                  <img src={candidate.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  candidate.name.split(' ').map((n) => n[0]).join('')
+                )}
               </div>
               <div className="flex-1">
                 <h2 className="text-xl text-[#111827] font-semibold mb-1">{candidate.name}</h2>
-                <p className="text-sm text-[#6B7280] mb-2">{candidate.role}</p>
-                <p className="text-xs text-[#7DBBFF] italic">Strong cultural alignment with team values</p>
+                <p className="text-sm text-[#6B7280] mb-1">{candidate.role}</p>
+                {candidate.currentCompany ? (
+                  <p className="text-xs text-[#9CA3AF] mb-2">{candidate.currentCompany}</p>
+                ) : null}
+                {tagline ? (
+                  <p className="text-xs text-[#7DBBFF] italic">{tagline}</p>
+                ) : null}
               </div>
             </div>
             <button
@@ -92,33 +105,39 @@ export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNot
           <div className="bg-[#F9F9FA] p-5 mb-6" style={{ borderRadius: '16px' }}>
             <h3 className="text-sm text-[#111827] font-semibold mb-4">Contact Information</h3>
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Mail className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
-                  <span className="text-sm text-[#111827]">{candidate.name.toLowerCase().replace(' ', '.')}@email.com</span>
+              {candidate.email ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
+                    <span className="text-sm text-[#111827]">{candidate.email}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void navigator.clipboard.writeText(candidate.email ?? '')}
+                    className="p-1.5 hover:bg-white transition-colors"
+                    style={{ borderRadius: '6px' }}
+                  >
+                    <Copy className="w-3.5 h-3.5 text-[#9CA3AF]" strokeWidth={1.5} />
+                  </button>
                 </div>
-                <button className="p-1.5 hover:bg-white hover:text-[#7DBBFF] transition-colors" style={{ borderRadius: '6px' }}>
-                  <Copy className="w-3.5 h-3.5 text-[#9CA3AF]" strokeWidth={1.5} />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
+              ) : null}
+              {candidate.phone ? (
                 <div className="flex items-center gap-3">
                   <Phone className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
-                  <span className="text-sm text-[#111827]">+1 (555) 123-4567</span>
+                  <span className="text-sm text-[#111827]">{candidate.phone}</span>
                 </div>
-                <button className="p-1.5 hover:bg-white hover:text-[#7DBBFF] transition-colors" style={{ borderRadius: '6px' }}>
-                  <Copy className="w-3.5 h-3.5 text-[#9CA3AF]" strokeWidth={1.5} />
-                </button>
-              </div>
-              <div className="flex items-center gap-3">
-                <Linkedin className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
-                <a
-                  href="#"
-                  className="text-sm text-[#7DBBFF] hover:text-[#6aabef] transition-colors"
-                >
-                  linkedin.com/in/{candidate.name.toLowerCase().replace(' ', '-')}
-                </a>
-              </div>
+              ) : null}
+              {linkedInHref ? (
+                <div className="flex items-center gap-3">
+                  <Linkedin className="w-4 h-4 text-[#9CA3AF]" strokeWidth={1.5} />
+                  <a href={linkedInHref} target="_blank" rel="noopener noreferrer" className="text-sm text-[#7DBBFF] hover:text-[#6aabef]">
+                    LinkedIn profile
+                  </a>
+                </div>
+              ) : null}
+              {!candidate.email && !candidate.phone && !linkedInHref ? (
+                <p className="text-sm text-[#9CA3AF] italic">Contact details not shared yet.</p>
+              ) : null}
             </div>
           </div>
 

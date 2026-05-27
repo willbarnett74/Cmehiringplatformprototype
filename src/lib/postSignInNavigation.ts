@@ -2,6 +2,12 @@ import type { NavigateFunction } from 'react-router-dom';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OnboardingStepDb } from './onboardingRouting';
 import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from './onboardingRouting';
+import {
+  EMPLOYER_PORTAL_PATH,
+  isEmployerOnboardingStep,
+  pathForEmployerOnboardingDbStep,
+} from './employerOnboardingRouting';
+import { setProfileRoleEmployer } from './employerOnboardingPersistence';
 
 /** Set by OnboardingSignInPage before navigating home; App reads once on mount. */
 export const RESTORE_TAB_STORAGE_KEY = 'cme_restore_tab';
@@ -11,9 +17,19 @@ export type RestoreTabValue = 'applicant' | 'employer';
 export type SignInLocationState = {
   /** Return user to prototype shell tab after auth */
   restoreTab?: RestoreTabValue;
+  /** Sign-up role hint from marketing path picker */
+  signupRole?: 'candidate' | 'employer';
+  /** Default login screen mode */
+  initialMode?: 'signin' | 'signup';
   /** Path user tried to open (e.g. from RequireAuth) */
   from?: string;
 };
+
+export function persistRestoreTabToSession(restoreTab: RestoreTabValue | undefined): void {
+  if (restoreTab === 'applicant' || restoreTab === 'employer') {
+    sessionStorage.setItem(RESTORE_TAB_STORAGE_KEY, restoreTab);
+  }
+}
 
 export function consumeRestoreTabFromSession(): RestoreTabValue | null {
   const raw = sessionStorage.getItem(RESTORE_TAB_STORAGE_KEY);
@@ -65,14 +81,21 @@ export async function navigateAfterSignIn(
     return;
   }
 
-  const role = profile.role as string;
+  const restoreTab = state?.restoreTab ?? consumeRestoreTabFromSession();
+  let role = profile.role as string;
   const isCandidate = role === 'applicant' || role === 'candidate';
-  const isEmployer = role === 'employer';
+  let isEmployer = role === 'employer';
+
+  if (!isEmployer && restoreTab === 'employer' && session.user.id) {
+    await setProfileRoleEmployer(supabase, session.user.id);
+    role = 'employer';
+    isEmployer = true;
+  }
 
   const fromRaw = state?.from;
   const from = normalizePostAuthPath(fromRaw);
 
-  if (isCandidate) {
+  if (isCandidate && restoreTab !== 'employer') {
     sessionStorage.removeItem(RESTORE_TAB_STORAGE_KEY);
 
     if (!profile.onboarding_completed_at) {
@@ -100,6 +123,33 @@ export async function navigateAfterSignIn(
   }
 
   if (isEmployer) {
+    sessionStorage.removeItem(RESTORE_TAB_STORAGE_KEY);
+
+    const { data: businessRow } = await supabase
+      .from('businesses')
+      .select('id')
+      .eq('owner_id', session.user.id)
+      .maybeSingle();
+
+    const onboardingComplete = Boolean(profile.onboarding_completed_at) || Boolean(businessRow?.id);
+    const step = (profile as { onboarding_step?: string | null }).onboarding_step;
+
+    if (!onboardingComplete) {
+      const employerStep = isEmployerOnboardingStep(step) ? step : 'employer_company';
+      navigate(pathForEmployerOnboardingDbStep(employerStep), { replace: true });
+      return;
+    }
+
+    if (
+      from &&
+      from !== '/onboarding/sign-in' &&
+      isSafeInternalPath(from) &&
+      from.startsWith('/onboarding/employer/')
+    ) {
+      navigate(from, { replace: true });
+      return;
+    }
+
     if (
       from &&
       from !== '/onboarding/sign-in' &&
@@ -107,12 +157,12 @@ export async function navigateAfterSignIn(
       !from.startsWith('/onboarding/') &&
       from !== APPLICANT_PORTAL_PATH &&
       !from.startsWith('/profile-builder') &&
-      from !== '/employer-portal'
+      from !== EMPLOYER_PORTAL_PATH
     ) {
       navigate(from, { replace: true });
       return;
     }
-    navigate('/employer-portal', { replace: true });
+    navigate(EMPLOYER_PORTAL_PATH, { replace: true });
     return;
   }
 

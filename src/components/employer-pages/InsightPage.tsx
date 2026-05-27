@@ -12,10 +12,13 @@
 
 import { useState, useEffect } from 'react';
 import { AlertCircle, Download } from 'lucide-react';
+import { fetchEmployerInsightData } from '../../lib/employerInsightQueries';
 import { fetchInsightData } from '../../lib/insightQueries';
 import type { InsightData } from '../../lib/insightQueries';
 import { runInferenceEngine } from '../../lib/inferenceEngine';
 import type { InferenceResult } from '../../lib/inferenceEngine';
+import { supabase } from '../../lib/supabaseClient';
+import type { EmployerWeights } from '../../lib/matchScoring';
 import { getDataState, SectionRule } from './insights/shared';
 import type { DataState } from './insights/shared';
 import { HiringProfileSection } from './insights/HiringProfileSection';
@@ -34,7 +37,15 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'inference', label: 'Inference' },
 ];
 
-export function InsightPage({ employerBusinessName }: { employerBusinessName?: string }) {
+export function InsightPage({
+  employerBusinessName,
+  businessId,
+  weights,
+}: {
+  employerBusinessName?: string;
+  businessId?: string | null;
+  weights?: EmployerWeights | null;
+}) {
   const [data, setData] = useState<InsightData | null>(null);
   const [inference, setInference] = useState<InferenceResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,8 +73,12 @@ export function InsightPage({ employerBusinessName }: { employerBusinessName?: s
       try {
         setLoading(true);
         setError(null);
-        const employerId = 1;
-        const insightData = await fetchInsightData(employerId);
+        let insightData: InsightData;
+        if (supabase && businessId && weights) {
+          insightData = await fetchEmployerInsightData(supabase, businessId, weights);
+        } else {
+          insightData = await fetchInsightData(0);
+        }
         const inferenceResult = runInferenceEngine(
           insightData.employerWeights,
           insightData.hiredCandidates,
@@ -80,8 +95,8 @@ export function InsightPage({ employerBusinessName }: { employerBusinessName?: s
         setLoading(false);
       }
     }
-    loadData();
-  }, []);
+    void loadData();
+  }, [businessId, weights]);
 
   if (loading) {
     return (
