@@ -5,6 +5,68 @@ import { toCandidateDimensionScores } from '../utils/intakeScoreAggregate';
 import { TRAIT_DIMENSION_KEYS, TRAIT_LABELS } from './traits';
 import { mapDbStageToUi, mapUiStageToDb } from './applicantEngagements';
 import type { EmployerLikeStage } from './applicantOpportunitiesMock';
+import {
+  fetchCandidateProfileRows,
+  type NormalizedCandidateRow,
+} from './candidateProfileFetch';
+import {
+  computeProfileCompleteness,
+  inferReadinessFromSituation,
+} from './candidateProfileDisplay';
+
+function placeholderCandidateRow(id: string): NormalizedCandidateRow {
+  return {
+    id,
+    user_id: null,
+    full_name: 'Candidate',
+    email: null,
+    avatar_url: null,
+    job_title: null,
+    current_company: null,
+    location: null,
+    availability: null,
+    notice_period: null,
+    status: null,
+    experience_years: null,
+    phone: null,
+    linkedin_url: null,
+    certifications: null,
+    work_rights: null,
+    salary_min: null,
+    salary_currency: null,
+    current_situation: null,
+    industry_background: null,
+    open_to_industries: null,
+    preferred_work_type: null,
+    preferred_role_types: null,
+    org_size_preference: null,
+    open_to_contract: null,
+    education_summary: null,
+    experience_narrative: null,
+    enjoyed_most: null,
+    one_thing_to_know: null,
+    strength_1: null,
+    strength_2: null,
+    strength_3: null,
+    working_context: null,
+    testimonial_name: null,
+    testimonial_relation: null,
+    testimonial_text: null,
+    open_context: null,
+    intake_status: null,
+    intake_complete: null,
+    learning_velocity: null,
+    ownership_follow_through: null,
+    resilience: null,
+    communication_confidence: null,
+    relational_intelligence: null,
+    motivational_fit: null,
+    motivational_fit_mastery: null,
+    motivational_fit_impact: null,
+    motivational_fit_recognition: null,
+    motivational_fit_autonomy: null,
+  };
+}
 
 export type EmployerMessage = {
   id: string;
@@ -27,25 +89,7 @@ export type EmployerEngagementThread = {
   roleTitle: string | null;
 };
 
-type CandidateRow = {
-  id: string;
-  full_name: string | null;
-  job_title: string | null;
-  location: string | null;
-  availability: string | null;
-  notice_period: string | null;
-  seniority: string | null;
-  learning_velocity: number | null;
-  ownership_follow_through: number | null;
-  resilience: number | null;
-  communication_confidence: number | null;
-  relational_intelligence: number | null;
-  motivational_fit: number | null;
-  motivational_fit_mastery: number | null;
-  motivational_fit_impact: number | null;
-  motivational_fit_recognition: number | null;
-  motivational_fit_autonomy: number | null;
-};
+type CandidateRow = NormalizedCandidateRow;
 
 type MessageRow = {
   id: string;
@@ -151,16 +195,54 @@ export function mapCandidateRowToUi(
     Math.floor((Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24)),
   );
 
-  return {
+  const readiness = inferReadinessFromSituation(row.current_situation);
+
+  const mapped: Candidate & { engagementId?: string } = {
     id: row.id as unknown as number,
     candidate_id: row.id as unknown as number,
+    profileId: row.id,
     engagementId: engagement?.id,
     name: row.full_name?.trim() || 'Candidate',
     role: row.job_title?.trim() || 'Open role',
     location: row.location?.trim() || '—',
     availability: row.availability?.trim() || undefined,
     noticePeriod: row.notice_period?.trim() || undefined,
-    level: row.seniority?.trim() || '—',
+    level:
+      row.experience_years != null ? `${row.experience_years} yrs` : '—',
+    totalExperience: row.experience_years ?? undefined,
+    transitioning: readiness.transitioning,
+    openToChange: readiness.openToChange,
+    readyToStepUp: readiness.readyToStepUp,
+    retrained: readiness.retrained,
+    email: row.email,
+    avatarUrl: row.avatar_url,
+    currentCompany: row.current_company,
+    phone: row.phone,
+    linkedinUrl: row.linkedin_url,
+    certifications: row.certifications,
+    workRights: row.work_rights,
+    salaryMin: row.salary_min,
+    salaryCurrency: row.salary_currency,
+    currentSituation: row.current_situation,
+    educationSummary: row.education_summary,
+    experienceNarrative: row.experience_narrative,
+    enjoyedMost: row.enjoyed_most,
+    oneThingToKnow: row.one_thing_to_know,
+    strength1: row.strength_1,
+    strength2: row.strength_2,
+    strength3: row.strength_3,
+    workingContext: row.working_context,
+    testimonialName: row.testimonial_name,
+    testimonialRelation: row.testimonial_relation,
+    testimonialText: row.testimonial_text,
+    openContext: row.open_context,
+    preferredRoleTypes: row.preferred_role_types,
+    preferredWorkType: row.preferred_work_type,
+    orgSizePreference: row.org_size_preference,
+    industryBackground: row.industry_background,
+    openToIndustries: row.open_to_industries,
+    openToContract: row.open_to_contract,
+    intakeComplete: row.intake_complete,
     traits: topTraitLabels(dimensionScores),
     score: matchScore,
     stage,
@@ -170,7 +252,9 @@ export function mapCandidateRowToUi(
     dimensionScores,
     stageUpdatedAt: updatedAt,
     hired_date: engagement?.hired_at ?? undefined,
-  } as Candidate & { engagementId?: string };
+  };
+  mapped.profileCompleteness = computeProfileCompleteness(mapped);
+  return mapped;
 }
 
 function buildMessages(rows: MessageRow[]): EmployerMessage[] {
@@ -206,8 +290,33 @@ export async function fetchEmployerEngagements(
     .eq('business_id', businessId)
     .order('updated_at', { ascending: false });
 
-  if (engErr) throw engErr;
+  if (engErr) {
+    const missingColumn =
+      engErr.code === '42703' ||
+      /column/i.test(engErr.message) ||
+      /does not exist/i.test(engErr.message);
+    if (missingColumn) {
+      const fallback = await supabase
+        .from('engagements')
+        .select('id, stage, match_score, created_at, updated_at, candidate_id, role_id')
+        .eq('business_id', businessId)
+        .order('updated_at', { ascending: false });
+      if (fallback.error) throw fallback.error;
+      return mapEngagementRows(supabase, fallback.data ?? [], weights, businessId);
+    }
+    throw engErr;
+  }
   if (!engsRaw?.length) return [];
+
+  return mapEngagementRows(supabase, engsRaw, weights, businessId);
+}
+
+async function mapEngagementRows(
+  supabase: SupabaseClient,
+  engsRaw: Array<Record<string, unknown>>,
+  weights: EmployerWeights | null,
+  _businessId: string,
+): Promise<EmployerEngagementThread[]> {
 
   const candidateIds = [...new Set(engsRaw.map((e) => e.candidate_id as string))];
   const roleIds = [
@@ -216,14 +325,13 @@ export async function fetchEmployerEngagements(
     ),
   ];
 
-  const { data: candidates, error: cErr } = await supabase
-    .from('candidate_profiles')
-    .select(
-      'id, full_name, job_title, location, seniority, availability, notice_period, learning_velocity, ownership_follow_through, resilience, communication_confidence, relational_intelligence, motivational_fit, motivational_fit_mastery, motivational_fit_impact, motivational_fit_recognition, motivational_fit_autonomy',
-    )
-    .in('id', candidateIds);
+  const { rows: candidates, error: cErr } = await fetchCandidateProfileRows(supabase, {
+    ids: candidateIds,
+  });
 
-  if (cErr) throw cErr;
+  if (cErr) {
+    console.warn('[CMe] employer candidate_profiles for engagements:', cErr);
+  }
 
   let roleMap = new Map<string, string>();
   if (roleIds.length) {
@@ -231,7 +339,7 @@ export async function fetchEmployerEngagements(
     roleMap = new Map((roles ?? []).map((r) => [r.id as string, r.title as string]));
   }
 
-  const candMap = new Map((candidates ?? []).map((c) => [c.id as string, c as CandidateRow]));
+  const candMap = new Map(candidates.map((c) => [c.id, c]));
   const engIds = engsRaw.map((e) => e.id as string);
 
   const { data: msgs, error: msgErr } = await supabase
@@ -258,25 +366,7 @@ export async function fetchEmployerEngagements(
     );
     const lastMsg = msgRows[msgRows.length - 1];
     const candidate = mapCandidateRowToUi(
-      cand ?? {
-        id: eng.candidate_id as string,
-        full_name: 'Candidate',
-        job_title: null,
-        location: null,
-        availability: null,
-        notice_period: null,
-        seniority: null,
-        learning_velocity: null,
-        ownership_follow_through: null,
-        resilience: null,
-        communication_confidence: null,
-        relational_intelligence: null,
-        motivational_fit: null,
-        motivational_fit_mastery: null,
-        motivational_fit_impact: null,
-        motivational_fit_recognition: null,
-        motivational_fit_autonomy: null,
-      },
+      cand ?? placeholderCandidateRow(eng.candidate_id as string),
       {
         id: eng.id as string,
         stage: eng.stage as string | null,
@@ -304,24 +394,35 @@ export async function fetchEmployerEngagements(
   });
 }
 
+export type EngagementSource = 'employer_search' | 'direct' | 'assessment_link';
+
 export async function createEngagement(
   supabase: SupabaseClient,
   candidateProfileId: string,
   businessId: string,
-  matchScore: number,
-  source: 'employer_search' | 'direct' = 'employer_search',
+  matchScore: number | null,
+  source: EngagementSource = 'employer_search',
+  roleId?: string | null,
 ): Promise<string> {
-  const { data, error } = await supabase
-    .from('engagements')
-    .insert({
-      candidate_id: candidateProfileId,
-      business_id: businessId,
-      stage: 'discovered',
-      match_score: matchScore,
-      source,
-    })
-    .select('id')
-    .single();
+  const row: {
+    candidate_id: string;
+    business_id: string;
+    stage: string;
+    match_score: number | null;
+    source: EngagementSource;
+    role_id?: string;
+  } = {
+    candidate_id: candidateProfileId,
+    business_id: businessId,
+    stage: 'discovered',
+    match_score: matchScore,
+    source,
+  };
+  if (roleId) {
+    row.role_id = roleId;
+  }
+
+  const { data, error } = await supabase.from('engagements').insert(row).select('id').single();
   if (error) throw error;
   return data.id as string;
 }

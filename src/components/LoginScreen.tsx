@@ -11,6 +11,8 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 export type LoginScreenProps = {
   onAuthenticated?: () => void | Promise<void>;
+  initialMode?: 'signin' | 'signup';
+  signupRole?: 'candidate' | 'employer';
 };
 
 type Mode = 'signin' | 'signup';
@@ -74,8 +76,8 @@ function GoogleLogo() {
   );
 }
 
-export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
-  const [mode, setMode] = useState<Mode>('signin');
+export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRole = 'candidate' }: LoginScreenProps) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -193,10 +195,11 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           return;
         }
         trackEvent(AnalyticsEvents.sign_in_started, { method: 'password_signup' });
+        const roleMeta = signupRole === 'employer' ? 'employer' : 'candidate';
         const { data, error: signUpErr } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName, role: 'candidate' } },
+          options: { data: { full_name: fullName, role: roleMeta } },
         });
         if (signUpErr) {
           setError(signUpErr.message);

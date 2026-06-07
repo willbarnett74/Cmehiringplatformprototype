@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { OverviewScreen } from './components/OverviewScreen';
 import { APPLICANT_PORTAL_PATH } from './lib/onboardingRouting';
+import { persistRestoreTabToSession } from './lib/postSignInNavigation';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
 export default function App() {
@@ -50,7 +51,8 @@ export default function App() {
       return;
     }
     if (tab === 'employer') {
-      void navigate('/onboarding/sign-in', { state: { restoreTab: 'employer' } });
+      persistRestoreTabToSession('employer');
+      void navigate('/onboarding/sign-in', { state: { restoreTab: 'employer', signupRole: 'employer', initialMode: 'signup' } });
     }
   };
 

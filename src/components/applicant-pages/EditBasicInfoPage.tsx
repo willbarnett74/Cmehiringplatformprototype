@@ -226,7 +226,7 @@ export function EditBasicInfoPage({
         const { data } = await client
           .from('candidate_profiles')
           .select(
-            'location,experience_years,current_situation,education_summary,experience_narrative,age,job_title,current_company,phone,linkedin_url,gender,certifications,published',
+            'location,experience_years,current_situation,education_summary,experience_narrative,age,job_title,current_company,phone,linkedin_url,gender,certifications,published,status',
           )
           .eq('id', profileId)
           .maybeSingle();
@@ -244,7 +244,7 @@ export function EditBasicInfoPage({
           setLinkedin(data.linkedin_url ?? '');
           setGender(data.gender ?? '');
           setCertifications(data.certifications ?? '');
-          setProfileVisibleEmployers(data.published === true);
+          setProfileVisibleEmployers(data.status !== 'hidden');
         }
       }
 
@@ -360,7 +360,12 @@ export function EditBasicInfoPage({
         current_situation: currentSituation.trim() || null,
         education_summary: educationSummary.trim() || null,
         experience_narrative: bio.trim() || null,
-        ...(showPreferencesSection ? { published: profileVisibleEmployers } : {}),
+        ...(showPreferencesSection
+          ? {
+              published: profileVisibleEmployers,
+              status: profileVisibleEmployers ? ('published' as const) : ('hidden' as const),
+            }
+          : {}),
       });
 
       if (candErr) {

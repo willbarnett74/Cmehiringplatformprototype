@@ -441,7 +441,10 @@ export function SearchPage({
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm text-[#111827] font-semibold mb-1 truncate">{candidate.name}</h4>
-                <p className="text-xs text-[#6B7280] truncate">{candidate.role}</p>
+                <p className="text-xs text-[#6B7280] truncate">
+                  {candidate.role}
+                  {candidate.currentCompany ? ` · ${candidate.currentCompany}` : ''}
+                </p>
                 <p className="text-xs text-[#9CA3AF] mt-1">{candidate.location}</p>
                 {(candidate.availability || candidate.noticePeriod) && (
                   <p className="text-xs text-[#9CA3AF] mt-1">

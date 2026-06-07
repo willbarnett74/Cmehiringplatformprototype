@@ -2,26 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Candidate } from '../components/types/employer';
 import { computeMatchScore, type EmployerWeights } from './matchScoring';
 import { mapCandidateRowToUi } from './employerEngagements';
-
-type SearchRow = {
-  id: string;
-  full_name: string | null;
-  job_title: string | null;
-  location: string | null;
-  availability: string | null;
-  notice_period: string | null;
-  seniority: string | null;
-  learning_velocity: number | null;
-  ownership_follow_through: number | null;
-  resilience: number | null;
-  communication_confidence: number | null;
-  relational_intelligence: number | null;
-  motivational_fit: number | null;
-  motivational_fit_mastery: number | null;
-  motivational_fit_impact: number | null;
-  motivational_fit_recognition: number | null;
-  motivational_fit_autonomy: number | null;
-};
+import { fetchCandidateProfileRows } from './candidateProfileFetch';
 
 export type CandidateSearchFilters = {
   location?: string | null;
@@ -29,31 +10,36 @@ export type CandidateSearchFilters = {
   traitKeywords?: string[];
 };
 
+/** Marketplace pool: candidate profiles visible to employers (RLS + exclude hidden). */
 export async function fetchPublishedCandidates(
   supabase: SupabaseClient,
-  businessId: string,
+  businessId: string | null,
   weights: EmployerWeights | null,
 ): Promise<Candidate[]> {
-  const [{ data: profiles, error: pErr }, { data: engaged, error: eErr }] = await Promise.all([
-    supabase
-      .from('candidate_profiles')
-      .select(
-        'id, full_name, job_title, location, seniority, availability, notice_period, learning_velocity, ownership_follow_through, resilience, communication_confidence, relational_intelligence, motivational_fit, motivational_fit_mastery, motivational_fit_impact, motivational_fit_recognition, motivational_fit_autonomy',
-      )
-      .eq('status', 'published'),
-    supabase.from('engagements').select('candidate_id').eq('business_id', businessId),
+  const engagedPromise = businessId
+    ? supabase.from('engagements').select('candidate_id').eq('business_id', businessId)
+    : Promise.resolve({ data: [] as { candidate_id: string }[], error: null });
+
+  const [{ rows: profiles, error: pErr }, { data: engaged, error: eErr }] = await Promise.all([
+    fetchCandidateProfileRows(supabase),
+    engagedPromise,
   ]);
 
-  if (pErr) throw pErr;
-  if (eErr) throw eErr;
+  if (pErr) {
+    console.warn('[CMe] fetchPublishedCandidates:', pErr);
+    return [];
+  }
+  if (eErr) {
+    console.warn('[CMe] fetchPublishedCandidates engagements:', eErr.message);
+    return [];
+  }
 
   const engagedIds = new Set((engaged ?? []).map((e) => e.candidate_id as string));
 
-  return (profiles ?? [])
-    .filter((p) => !engagedIds.has(p.id as string))
-    .map((row) =>
-      mapCandidateRowToUi(row as SearchRow, null, weights),
-    );
+  return profiles
+    .filter((p) => p.status !== 'hidden')
+    .filter((p) => !engagedIds.has(p.id))
+    .map((row) => mapCandidateRowToUi(row, null, weights));
 }
 
 export function filterCandidates(
