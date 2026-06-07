@@ -10,9 +10,11 @@ export interface CompanyProfile {
 interface CompanyProfileStepProps {
   initialData?: CompanyProfile;
   onNext: (data: CompanyProfile) => void;
+  error?: string | null;
+  isSaving?: boolean;
 }
 
-export function CompanyProfileStep({ initialData, onNext }: CompanyProfileStepProps) {
+export function CompanyProfileStep({ initialData, onNext, error, isSaving }: CompanyProfileStepProps) {
   const [formData, setFormData] = useState<CompanyProfile>(
     initialData || {
       companyName: '',
@@ -23,7 +25,7 @@ export function CompanyProfileStep({ initialData, onNext }: CompanyProfileStepPr
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isValid()) {
+    if (isValid() && !isSaving) {
       onNext(formData);
     }
   };
@@ -101,17 +103,22 @@ export function CompanyProfileStep({ initialData, onNext }: CompanyProfileStepPr
 
         {/* Continue Button */}
         <div className="pt-4">
+          {error && (
+            <p className="mb-3 text-sm text-[#EF4444]" role="alert">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
-            disabled={!isValid()}
+            disabled={!isValid() || isSaving}
             className={`w-full px-6 py-3 text-white text-sm font-medium transition-colors ${
-              isValid()
+              isValid() && !isSaving
                 ? 'bg-[#7DBBFF] hover:bg-[#6aabef] cursor-pointer'
                 : 'bg-[#D1D5DB] cursor-not-allowed opacity-60'
             }`}
             style={{ borderRadius: '10px' }}
           >
-            Continue to Role Selection
+            {isSaving ? 'Saving…' : 'Continue to Role Selection'}
           </button>
         </div>
       </form>
