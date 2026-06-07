@@ -33,6 +33,8 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({});
   const [savedBusinessId, setSavedBusinessId] = useState<string | null>(null);
+  const [companyError, setCompanyError] = useState<string | null>(null);
+  const [isSavingCompany, setIsSavingCompany] = useState(false);
 
   const steps = [
     { number: 1, name: 'Company Profile', required: true },
@@ -53,16 +55,32 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
 
   const handleCompanyProfileNext = async (data: CompanyProfile) => {
     setOnboardingData((prev) => ({ ...prev, companyProfile: data }));
-    if (supabase) {
+
+    if (!supabase) {
+      setCurrentStep(2);
+      return;
+    }
+
+    setIsSavingCompany(true);
+    setCompanyError(null);
+    try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (session?.user?.id) {
-        const bid = await insertEmployerBusiness(supabase, session.user.id, data);
-        if (bid) setSavedBusinessId(bid);
+      if (!session?.user?.id) {
+        setCompanyError('Your session has expired. Please sign in again.');
+        return;
       }
+      const { businessId, error } = await insertEmployerBusiness(supabase, session.user.id, data);
+      if (error || !businessId) {
+        setCompanyError(error ?? 'We could not save your company. Please try again.');
+        return;
+      }
+      setSavedBusinessId(businessId);
+      setCurrentStep(2);
+    } finally {
+      setIsSavingCompany(false);
     }
-    setCurrentStep(2);
   };
 
   const handleRoleTemplateNext = (template: RoleTemplate | null) => {
@@ -91,6 +109,11 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
         data: { session },
       } = await supabase.auth.getSession();
       if (session?.user?.id) {
+        if (!savedBusinessId) {
+          setCompanyError('Your company wasn’t saved. Please re-enter your company details.');
+          setCurrentStep(1);
+          return;
+        }
         await markEmployerProfileOnboardingComplete(supabase, session.user.id);
       }
     }
@@ -103,6 +126,11 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
         data: { session },
       } = await supabase.auth.getSession();
       if (session?.user?.id) {
+        if (!savedBusinessId) {
+          setCompanyError('Your company wasn’t saved. Please re-enter your company details.');
+          setCurrentStep(1);
+          return;
+        }
         await markEmployerProfileOnboardingComplete(supabase, session.user.id);
       }
     }
@@ -182,7 +210,12 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
 
         <div className="bg-white p-8 border border-black/[0.08] shadow-sm" style={{ borderRadius: '20px' }}>
           {currentStep === 1 && (
-            <CompanyProfileStep initialData={onboardingData.companyProfile} onNext={handleCompanyProfileNext} />
+            <CompanyProfileStep
+              initialData={onboardingData.companyProfile}
+              onNext={handleCompanyProfileNext}
+              error={companyError}
+              isSaving={isSavingCompany}
+            />
           )}
 
           {currentStep === 2 && (

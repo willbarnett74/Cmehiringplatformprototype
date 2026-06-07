@@ -30,23 +30,54 @@ export async function setProfileRoleEmployer(client: SupabaseClient, userId: str
   if (error) console.warn('[CMe] profiles role update failed:', error.message);
 }
 
+export type InsertEmployerBusinessResult = {
+  businessId: string | null;
+  error: string | null;
+};
+
 export async function insertEmployerBusiness(
   client: SupabaseClient,
   ownerId: string,
   profile: CompanyProfile,
-): Promise<string | null> {
+): Promise<InsertEmployerBusinessResult> {
   const size = mapCompanySizeToDb(profile.companySize);
   if (!size) {
-    console.warn('[CMe] Invalid company size for DB:', profile.companySize);
-    return null;
+    return { businessId: null, error: `Unsupported company size: "${profile.companySize}".` };
+  }
+
+  const name = profile.companyName.trim();
+  const industry = profile.industry.trim();
+
+  // Idempotent: if this owner already has a business (e.g. re-running onboarding),
+  // update it instead of creating a duplicate.
+  const { data: existing, error: selErr } = await client
+    .from('businesses')
+    .select('id')
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+  if (selErr) {
+    console.warn('[CMe] businesses lookup failed:', selErr.message);
+    return { businessId: null, error: selErr.message };
+  }
+
+  if (existing?.id) {
+    const { error: updErr } = await client
+      .from('businesses')
+      .update({ name, industry, size })
+      .eq('id', existing.id);
+    if (updErr) {
+      console.warn('[CMe] businesses update failed:', updErr.message);
+      return { businessId: null, error: updErr.message };
+    }
+    return { businessId: existing.id, error: null };
   }
 
   const { data, error } = await client
     .from('businesses')
     .insert({
       owner_id: ownerId,
-      name: profile.companyName.trim(),
-      industry: profile.industry.trim(),
+      name,
+      industry,
       size,
     })
     .select('id')
@@ -54,9 +85,9 @@ export async function insertEmployerBusiness(
 
   if (error) {
     console.warn('[CMe] businesses insert failed:', error.message);
-    return null;
+    return { businessId: null, error: error.message };
   }
-  return data.id;
+  return { businessId: data.id, error: null };
 }
 
 function templateSlug(template: RoleTemplate | null | undefined): string | null {
