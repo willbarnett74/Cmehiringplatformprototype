@@ -60,6 +60,7 @@ export function EmployerOnboardingStepPage({ stepKey }: { stepKey: StepKey }) {
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({});
   const [savedBusinessId, setSavedBusinessId] = useState<string | null>(ctx?.businessId ?? null);
   const [busy, setBusy] = useState(false);
+  const [companyError, setCompanyError] = useState<string | null>(null);
 
   const current = STEP_META.find((s) => s.key === stepKey)!;
   const currentStep = current.number;
@@ -90,6 +91,11 @@ export function EmployerOnboardingStepPage({ stepKey }: { stepKey: StepKey }) {
 
   const finishOnboarding = async () => {
     if (!supabase || !userId) return;
+    if (!savedBusinessId) {
+      setCompanyError('Your company wasn’t saved. Please re-enter your company details.');
+      navigate(pathForEmployerOnboardingDbStep('employer_company'));
+      return;
+    }
     setBusy(true);
     try {
       await markEmployerProfileOnboardingComplete(supabase, userId);
@@ -123,8 +129,13 @@ export function EmployerOnboardingStepPage({ stepKey }: { stepKey: StepKey }) {
   const handleCompanyProfileNext = async (data: CompanyProfile) => {
     setOnboardingData((prev) => ({ ...prev, companyProfile: data }));
     if (supabase) {
-      const bid = await insertEmployerBusiness(supabase, userId, data);
-      if (bid) setSavedBusinessId(bid);
+      setCompanyError(null);
+      const { businessId, error } = await insertEmployerBusiness(supabase, userId, data);
+      if (error || !businessId) {
+        setCompanyError(error ?? 'We could not save your company. Please try again.');
+        return;
+      }
+      setSavedBusinessId(businessId);
       await setEmployerOnboardingStep(supabase, userId, 'employer_template');
     }
     await goToStep('employer_template');
@@ -205,7 +216,12 @@ export function EmployerOnboardingStepPage({ stepKey }: { stepKey: StepKey }) {
 
         <div className="border border-black/[0.08] bg-white p-8 shadow-sm" style={{ borderRadius: '20px' }}>
           {stepKey === 'company' && (
-            <CompanyProfileStep initialData={onboardingData.companyProfile} onNext={handleCompanyProfileNext} />
+            <CompanyProfileStep
+              initialData={onboardingData.companyProfile}
+              onNext={handleCompanyProfileNext}
+              error={companyError}
+              isSaving={busy}
+            />
           )}
           {stepKey === 'role-template' && (
             <RoleTemplateStep
