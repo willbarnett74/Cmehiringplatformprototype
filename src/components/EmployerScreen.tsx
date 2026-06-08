@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard,
@@ -52,6 +53,7 @@ import { RouteFlowError } from './shared/RouteFlowState';
 const EMPLOYER_DATA_KEY = ['employer-portal-data'] as const;
 
 export function EmployerScreen() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [userId, setUserId] = useState<string | null>(null);
   const [currentSection, setCurrentSection] = useState<Section | 'messages'>('dashboard');
@@ -239,6 +241,7 @@ export function EmployerScreen() {
       .toUpperCase() || 'EM';
 
   const handleSignOut = async () => {
+    navigate('/', { replace: true });
     if (supabase) await supabase.auth.signOut();
   };
 
