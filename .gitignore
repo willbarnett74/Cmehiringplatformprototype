@@ -5,3 +5,9 @@ dist/
 *.local
 .env
 .vercel
+
+# Supabase CLI cache (project ref, pooler host, org metadata)
+supabase/.temp/
+
+# Local MCP config (contains project_ref — copy from .mcp.json.example)
+.mcp.json
