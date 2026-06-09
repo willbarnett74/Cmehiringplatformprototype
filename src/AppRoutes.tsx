@@ -273,6 +273,7 @@ export default function AppRoutes() {
       <Route path="/legal/terms" element={<LegalBetaPage variant="terms" />} />
       <Route path="/legal/privacy" element={<LegalBetaPage variant="privacy" />} />
       <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/product" element={<App />} />
       <Route path="/assessment-link" element={<Suspense fallback={routeFlowFallback}><AssessmentLink /></Suspense>} />
       <Route path="/onboarding/sign-in" element={<OnboardingSignInPage />} />
       <Route element={<RequireAuth />}>
