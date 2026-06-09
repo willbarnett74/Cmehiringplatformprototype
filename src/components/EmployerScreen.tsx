@@ -161,6 +161,21 @@ export function EmployerScreen() {
     reload();
   };
 
+  const handleShortlistCandidate = async (candidate: Candidate) => {
+    if (!supabase || !businessId || !weights) return;
+    const existing = engagementIdForCandidate(candidate);
+    if (existing) return; // already engaged, no duplicate
+    const matchScore = computeCandidateMatchScore(candidate, weights);
+    await createEngagement(
+      supabase,
+      String(candidate.candidate_id ?? candidate.id),
+      businessId,
+      matchScore,
+      'employer_search',
+    );
+    reload();
+  };
+
   const handleSendMessage = async (engagementId: string, body: string) => {
     if (!supabase) return;
     const thread = threads.find((t) => t.engagementId === engagementId);
@@ -416,6 +431,8 @@ export function EmployerScreen() {
                   }}
                   onCandidateClick={setSelectedCandidate}
                   onFilteredCountChange={setSearchResultsCount}
+                  onShortlist={(candidate) => void handleShortlistCandidate(candidate)}
+                  onContact={(candidate) => void handleContactCandidate(candidate)}
                 />
               )}
               {currentSection === 'candidates' && (
@@ -466,6 +483,7 @@ export function EmployerScreen() {
           onAddNote={() => {}}
           onViewFullProfile={() => setShowFullProfile(true)}
           onContact={() => void handleContactCandidate(selectedCandidate)}
+          onShortlist={(candidate) => void handleShortlistCandidate(candidate)}
         />
       )}
 
