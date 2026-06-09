@@ -1,4 +1,4 @@
-import { MapPin, Briefcase, Zap, ChevronDown, X, UserPlus, FileText, Star } from 'lucide-react';
+import { MapPin, Briefcase, Zap, ChevronDown, X, MessageSquare, FileText, Star } from 'lucide-react';
 import type { Candidate } from '../types/employer';
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -27,6 +27,8 @@ interface SearchPageProps {
   onCandidateClick: (candidate: Candidate) => void;
   /** Reports filtered result count for the employer top bar (handoff: "N results"). */
   onFilteredCountChange?: (count: number) => void;
+  onShortlist?: (candidate: Candidate) => void;
+  onContact?: (candidate: Candidate) => void;
 }
 
 const locations = ['San Francisco, CA', 'New York, NY', 'Austin, TX', 'Remote'];
@@ -82,6 +84,8 @@ export function SearchPage({
   onTraitsDropdownToggle: _onTraitsDropdownToggle,
   onCandidateClick,
   onFilteredCountChange,
+  onShortlist,
+  onContact,
 }: SearchPageProps) {
   const profileTraitLabelByKey = useMemo(
     () => Object.fromEntries(PROFILE_TRAIT_FILTERS.map(({ key, label }) => [key, label])) as Record<
@@ -96,6 +100,7 @@ export function SearchPage({
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [selectedCareerStage, setSelectedCareerStage] = useState<string | null>(null);
   const [selectedReadinessTags, setSelectedReadinessTags] = useState<string[]>([]);
+  const [shortlistedIds, setShortlistedIds] = useState<Set<string>>(new Set());
 
   // Filter candidates based on selections
   const filteredCandidates = candidates.filter((candidate) => {
@@ -605,18 +610,43 @@ export function SearchPage({
               </button>
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 border border-black/[0.08] text-[#111827] hover:bg-[#F9F9FA] transition-colors text-xs font-medium"
+                  onClick={() => {
+                    onShortlist?.(candidate);
+                    const shortlistId = String(candidate.profileId ?? candidate.id);
+                    setShortlistedIds((prev) => {
+                      const next = new Set(prev);
+                      next.add(shortlistId);
+                      return next;
+                    });
+                  }}
+                  disabled={shortlistedIds.has(String(candidate.profileId ?? candidate.id))}
+                  className={`flex items-center justify-center gap-1.5 px-3 py-2 border border-black/[0.08] transition-colors text-xs font-medium ${
+                    shortlistedIds.has(String(candidate.profileId ?? candidate.id))
+                      ? 'bg-[#7DBBFF]/10 text-[#111827] cursor-not-allowed'
+                      : 'text-[#111827] hover:bg-[#F9F9FA]'
+                  }`}
                   style={{ borderRadius: '8px' }}
                 >
-                  <Star className="w-3.5 h-3.5" strokeWidth={2} />
-                  Shortlist
+                  <Star
+                    className="w-3.5 h-3.5"
+                    strokeWidth={2}
+                    fill={
+                      shortlistedIds.has(String(candidate.profileId ?? candidate.id))
+                        ? '#7DBBFF'
+                        : 'none'
+                    }
+                  />
+                  {shortlistedIds.has(String(candidate.profileId ?? candidate.id))
+                    ? 'Shortlisted'
+                    : 'Shortlist'}
                 </button>
                 <button
+                  onClick={() => onContact?.(candidate)}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 border border-black/[0.08] text-[#111827] hover:bg-[#F9F9FA] transition-colors text-xs font-medium"
                   style={{ borderRadius: '8px' }}
                 >
-                  <UserPlus className="w-3.5 h-3.5" strokeWidth={2} />
-                  Invite
+                  <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
+                  Message
                 </button>
               </div>
             </div>

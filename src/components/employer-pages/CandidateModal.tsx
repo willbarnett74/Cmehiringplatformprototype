@@ -1,4 +1,4 @@
-import { X, MapPin, Briefcase, Mail, Phone, Linkedin, ArrowRight, FileText, Copy, Building2, Star } from 'lucide-react';
+import { X, MapPin, Briefcase, Mail, Phone, Linkedin, MessageSquare, FileText, Copy, Building2, Star } from 'lucide-react';
 import type { Candidate } from '../types/employer';
 import { useState } from 'react';
 import { candidateTagline, formatLinkedInHref } from '../../lib/candidateProfileDisplay';
@@ -10,9 +10,10 @@ interface CandidateModalProps {
   onAddNote: (candidateId: number) => void;
   onViewFullProfile: () => void;
   onContact?: () => void;
+  onShortlist?: (candidate: Candidate) => void;
 }
 
-export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNote: _onAddNote, onViewFullProfile, onContact: _onContact }: CandidateModalProps) {
+export function CandidateModal({ candidate, onClose, onMoveToNextStage: _onMoveToNextStage, onAddNote: _onAddNote, onViewFullProfile, onContact, onShortlist }: CandidateModalProps) {
   const [isShortlisted, setIsShortlisted] = useState(false);
 
   const getFitLevel = (score: number): { label: string; color: string } => {
@@ -260,7 +261,13 @@ export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNot
               <span>View Profile</span>
             </button>
             <button
-              onClick={() => setIsShortlisted(!isShortlisted)}
+              onClick={() =>
+                setIsShortlisted((prev) => {
+                  const next = !prev;
+                  if (next) onShortlist?.(candidate);
+                  return next;
+                })
+              }
               className={`px-5 py-3 border text-[#111827] hover:bg-[#F9F9FA] active:scale-[0.98] transition-all font-medium flex items-center gap-2 ${
                 isShortlisted 
                   ? 'border-[#7DBBFF] shadow-[0_0_0_3px_rgba(125,187,255,0.1)]' 
@@ -273,14 +280,14 @@ export function CandidateModal({ candidate, onClose, onMoveToNextStage, onAddNot
             </button>
             <button
               onClick={() => {
-                onMoveToNextStage(candidate.id);
+                onContact?.();
                 onClose();
               }}
               className="px-5 py-3 border border-black/[0.08] text-[#111827] hover:bg-[#F9F9FA] hover:border-[#7DBBFF]/30 active:scale-[0.98] transition-all font-medium flex items-center gap-2"
               style={{ borderRadius: '12px' }}
             >
-              <span>Invite to Assessment</span>
-              <ArrowRight className="w-4 h-4" strokeWidth={2} />
+              <span>Message</span>
+              <MessageSquare className="w-4 h-4" strokeWidth={2} />
             </button>
           </div>
         </div>
