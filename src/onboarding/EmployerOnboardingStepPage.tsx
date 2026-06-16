@@ -13,14 +13,13 @@ import {
   insertEmployerBusiness,
   markEmployerProfileOnboardingComplete,
   setEmployerOnboardingStep,
-  setProfileRoleEmployer,
 } from '../lib/employerOnboardingPersistence';
 import {
   EMPLOYER_PORTAL_PATH,
   pathForEmployerOnboardingDbStep,
   type EmployerOnboardingStepDb,
 } from '../lib/employerOnboardingRouting';
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import {
   EMPLOYER_ONBOARDING_QUERY_ROOT,
   type EmployerOnboardingOutletContext,
@@ -64,11 +63,6 @@ export function EmployerOnboardingStepPage({ stepKey }: { stepKey: StepKey }) {
 
   const current = STEP_META.find((s) => s.key === stepKey)!;
   const currentStep = current.number;
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase || !userId) return;
-    void setProfileRoleEmployer(supabase, userId);
-  }, [userId]);
 
   useEffect(() => {
     if (ctx?.businessId) setSavedBusinessId(ctx.businessId);

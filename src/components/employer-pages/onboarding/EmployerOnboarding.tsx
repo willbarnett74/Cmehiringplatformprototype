@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { CheckCircle } from 'lucide-react';
 import { CompanyProfileStep, type CompanyProfile } from './steps/CompanyProfileStep';
 import { RoleTemplateStep } from './steps/RoleTemplateStep';
@@ -6,8 +6,8 @@ import { TraitWeightingStep } from './steps/TraitWeightingStep';
 import { CalibrationStep } from './steps/CalibrationStep';
 import type { CalibrationCriteria } from '../../../lib/calibration';
 import type { RoleTemplate } from '../RoleTemplatePicker';
-import { supabase, isSupabaseConfigured } from '../../../lib/supabaseClient';
-import { setProfileRoleEmployer, insertEmployerBusiness, markEmployerProfileOnboardingComplete } from '../../../lib/employerOnboardingPersistence';
+import { supabase } from '../../../lib/supabaseClient';
+import { insertEmployerBusiness, markEmployerProfileOnboardingComplete } from '../../../lib/employerOnboardingPersistence';
 
 interface TraitWeights {
   learning_velocity: number;
@@ -42,16 +42,6 @@ export function EmployerOnboarding({ onComplete }: EmployerOnboardingProps) {
     { number: 3, name: 'Trait Weighting', required: true },
     { number: 4, name: 'Calibration', required: false },
   ];
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) return;
-    const client = supabase;
-    void client.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.id) {
-        void setProfileRoleEmployer(client, session.user.id);
-      }
-    });
-  }, []);
 
   const handleCompanyProfileNext = async (data: CompanyProfile) => {
     setOnboardingData((prev) => ({ ...prev, companyProfile: data }));

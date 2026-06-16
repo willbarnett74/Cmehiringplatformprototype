@@ -7,10 +7,15 @@ import {
   isEmployerOnboardingStep,
   pathForEmployerOnboardingDbStep,
 } from './employerOnboardingRouting';
-import { setProfileRoleEmployer } from './employerOnboardingPersistence';
+import { claimInitialProfileRole } from './employerOnboardingPersistence';
 
 /** Set by OnboardingSignInPage before navigating home; App reads once on mount. */
 export const RESTORE_TAB_STORAGE_KEY = 'cme_restore_tab';
+
+/** OAuth signup: role chosen on Create account before Google redirect. */
+export const SIGNUP_ROLE_STORAGE_KEY = 'cme_signup_role';
+
+export const EMPLOYER_PENDING_REVIEW_PATH = '/onboarding/employer/pending-review';
 
 export type RestoreTabValue = 'applicant' | 'employer';
 
@@ -35,6 +40,27 @@ export function consumeRestoreTabFromSession(): RestoreTabValue | null {
   const raw = sessionStorage.getItem(RESTORE_TAB_STORAGE_KEY);
   sessionStorage.removeItem(RESTORE_TAB_STORAGE_KEY);
   if (raw === 'applicant' || raw === 'employer') return raw;
+  return null;
+}
+
+export function persistSignupRoleToSession(role: 'candidate' | 'employer'): void {
+  sessionStorage.setItem(
+    SIGNUP_ROLE_STORAGE_KEY,
+    JSON.stringify({ role, at: Date.now() }),
+  );
+}
+
+export function consumeSignupRoleFromSession(): 'candidate' | 'employer' | null {
+  const raw = sessionStorage.getItem(SIGNUP_ROLE_STORAGE_KEY);
+  sessionStorage.removeItem(SIGNUP_ROLE_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { role?: string; at?: number };
+    if (typeof parsed.at !== 'number' || Date.now() - parsed.at > 30 * 60 * 1000) return null;
+    if (parsed.role === 'employer' || parsed.role === 'candidate') return parsed.role;
+  } catch {
+    return null;
+  }
   return null;
 }
 
@@ -72,7 +98,7 @@ export async function navigateAfterSignIn(
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('role, onboarding_completed_at, onboarding_step')
+    .select('role, employer_status, onboarding_completed_at, onboarding_step')
     .eq('id', session.user.id)
     .maybeSingle();
 
@@ -81,25 +107,36 @@ export async function navigateAfterSignIn(
     return;
   }
 
-  const restoreTab = state?.restoreTab ?? consumeRestoreTabFromSession();
-  let role = profile.role as string;
-  const isCandidate = role === 'applicant' || role === 'candidate';
-  let isEmployer = role === 'employer';
-
-  if (!isEmployer && restoreTab === 'employer' && session.user.id) {
-    await setProfileRoleEmployer(supabase, session.user.id);
-    role = 'employer';
-    isEmployer = true;
+  const signupRole = state?.signupRole ?? consumeSignupRoleFromSession();
+  if (signupRole === 'employer' && profile.role === 'candidate') {
+    await claimInitialProfileRole(supabase, 'employer');
   }
+
+  const { data: refreshedProfile, error: refreshError } = await supabase
+    .from('profiles')
+    .select('role, employer_status, onboarding_completed_at, onboarding_step')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
+  if (refreshError || !refreshedProfile) {
+    navigate(pathForOnboardingDbStep('welcome'), { replace: true });
+    return;
+  }
+
+  consumeRestoreTabFromSession();
+  const role = refreshedProfile.role as string;
+  const employerStatus = (refreshedProfile.employer_status as string | null) ?? null;
+  const isCandidate = role === 'applicant' || role === 'candidate';
+  const isEmployer = role === 'employer';
 
   const fromRaw = state?.from;
   const from = normalizePostAuthPath(fromRaw);
 
-  if (isCandidate && restoreTab !== 'employer') {
+  if (isCandidate) {
     sessionStorage.removeItem(RESTORE_TAB_STORAGE_KEY);
 
-    if (!profile.onboarding_completed_at) {
-      const step = (profile as { onboarding_step?: string | null }).onboarding_step;
+    if (!refreshedProfile.onboarding_completed_at) {
+      const step = (refreshedProfile as { onboarding_step?: string | null }).onboarding_step;
       const dbStep: OnboardingStepDb =
         step === 'details' || step === 'how_it_works' || step === 'welcome' || step === 'completed'
           ? step
@@ -125,14 +162,23 @@ export async function navigateAfterSignIn(
   if (isEmployer) {
     sessionStorage.removeItem(RESTORE_TAB_STORAGE_KEY);
 
+    if (employerStatus === 'pending' || employerStatus === 'rejected' || employerStatus == null) {
+      navigate(EMPLOYER_PENDING_REVIEW_PATH, {
+        replace: true,
+        state: { employerStatus: employerStatus ?? 'pending' },
+      });
+      return;
+    }
+
     const { data: businessRow } = await supabase
       .from('businesses')
       .select('id')
       .eq('owner_id', session.user.id)
       .maybeSingle();
 
-    const onboardingComplete = Boolean(profile.onboarding_completed_at) || Boolean(businessRow?.id);
-    const step = (profile as { onboarding_step?: string | null }).onboarding_step;
+    const onboardingComplete =
+      Boolean(refreshedProfile.onboarding_completed_at) || Boolean(businessRow?.id);
+    const step = (refreshedProfile as { onboarding_step?: string | null }).onboarding_step;
 
     if (!onboardingComplete) {
       const employerStep = isEmployerOnboardingStep(step) ? step : 'employer_company';
