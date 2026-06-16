@@ -182,6 +182,39 @@ update public.performance_snapshots
 set performance_band = 'mid'
 where performance_band = 'middle';
 
+-- ─── Drop policies / triggers / functions that block column type changes ────
+-- Postgres refuses ALTER COLUMN TYPE when RLS policies or functions reference the column.
+
+drop trigger if exists profiles_protect_role_columns on public.profiles;
+drop trigger if exists on_auth_user_created on auth.users;
+drop trigger if exists trg_explore_role_interest_notify on public.candidate_explore_role_interests;
+
+drop policy if exists "businesses: employer read" on public.businesses;
+drop policy if exists "roles: public read open roles" on public.roles;
+drop policy if exists "candidate_profiles: employer read" on public.candidate_profiles;
+drop policy if exists "engagement_messages: candidate insert" on public.engagement_messages;
+drop policy if exists "engagement_messages: employer insert" on public.engagement_messages;
+
+do $drop_extra$
+begin
+  if to_regclass('public.applicant_trait_scores') is not null then
+    execute 'drop policy if exists "trait_scores: employer read" on public.applicant_trait_scores';
+  end if;
+  if to_regclass('public.applicant_profiles') is not null then
+    execute 'drop policy if exists "applicant_profiles: employer read" on public.applicant_profiles';
+  end if;
+end
+$drop_extra$;
+
+drop function if exists public.employer_can_read_candidate_profile(uuid);
+drop function if exists public.auth_user_is_approved_employer();
+drop function if exists public.auth_user_is_employer();
+drop function if exists public.business_has_open_assessment_role(uuid);
+drop function if exists public.claim_initial_profile_role(text);
+drop function if exists public.handle_new_user() cascade;
+drop function if exists public.notify_business_on_explore_role_interest() cascade;
+drop function if exists public.profiles_protect_role_columns() cascade;
+
 -- ─── profiles ───────────────────────────────────────────────────────────────
 
 alter table public.profiles drop constraint if exists profiles_role_check;
@@ -434,6 +467,299 @@ begin
   end if;
 end
 $explore$;
+
+-- ─── Restore triggers, functions, and RLS policies ──────────────────────────
+
+create or replace function public.profiles_protect_role_columns()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if coalesce(current_setting('cme.allow_profile_role_change', true), '') = 'on' then
+    return new;
+  end if;
+
+  if current_user in ('postgres', 'supabase_admin') then
+    return new;
+  end if;
+
+  if new.role is distinct from old.role then
+    raise exception 'profile role cannot be changed';
+  end if;
+
+  if new.employer_status is distinct from old.employer_status then
+    raise exception 'employer approval status cannot be changed';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_protect_role_columns on public.profiles;
+create trigger profiles_protect_role_columns
+  before update on public.profiles
+  for each row
+  execute function public.profiles_protect_role_columns();
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_role text;
+  v_meta_role text;
+begin
+  v_meta_role := coalesce(new.raw_user_meta_data->>'role', '');
+
+  v_role := case
+    when v_meta_role = 'employer' then 'employer'
+    when v_meta_role = 'applicant' then 'candidate'
+    else 'candidate'
+  end;
+
+  insert into public.profiles (id, email, full_name, role, employer_status)
+  values (
+    new.id,
+    coalesce(new.email, ''),
+    coalesce(
+      new.raw_user_meta_data->>'full_name',
+      new.raw_user_meta_data->>'name',
+      new.raw_user_meta_data->>'user_name',
+      new.raw_user_meta_data->>'preferred_username'
+    ),
+    v_role::public.profile_role,
+    case when v_role = 'employer' then 'pending'::public.employer_status else null end
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+revoke execute on function public.handle_new_user() from anon, authenticated, public;
+
+create or replace function public.claim_initial_profile_role(p_role text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  if p_role <> 'employer' then
+    return;
+  end if;
+
+  perform set_config('cme.allow_profile_role_change', 'on', true);
+
+  update public.profiles
+  set
+    role = 'employer'::public.profile_role,
+    employer_status = 'pending'::public.employer_status,
+    updated_at = now()
+  where id = auth.uid()
+    and role = 'candidate'::public.profile_role;
+end;
+$$;
+
+revoke all on function public.claim_initial_profile_role(text) from public;
+grant execute on function public.claim_initial_profile_role(text) to authenticated;
+
+create or replace function public.auth_user_is_approved_employer()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role = 'employer'::public.profile_role
+      and employer_status = 'approved'::public.employer_status
+  );
+$$;
+
+revoke all on function public.auth_user_is_approved_employer() from public;
+grant execute on function public.auth_user_is_approved_employer() to authenticated;
+
+create or replace function public.auth_user_is_employer()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select public.auth_user_is_approved_employer();
+$$;
+
+revoke all on function public.auth_user_is_employer() from public;
+grant execute on function public.auth_user_is_employer() to authenticated;
+
+create or replace function public.employer_can_read_candidate_profile(p_candidate_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select exists (
+    select 1
+    from public.profiles ep
+    where ep.id = auth.uid()
+      and ep.role = 'employer'::public.profile_role
+      and ep.employer_status = 'approved'::public.employer_status
+  )
+  and (
+    exists (
+      select 1
+      from public.candidate_profiles cp
+      where cp.id = p_candidate_id
+        and coalesce(cp.status, 'draft'::public.candidate_profile_status) <> 'hidden'::public.candidate_profile_status
+    )
+    or exists (
+      select 1
+      from public.engagements e
+      join public.businesses b on b.id = e.business_id and b.owner_id = auth.uid()
+      where e.candidate_id = p_candidate_id
+    )
+  );
+$$;
+
+revoke all on function public.employer_can_read_candidate_profile(uuid) from public;
+grant execute on function public.employer_can_read_candidate_profile(uuid) to authenticated;
+
+create or replace function public.business_has_open_assessment_role(p_business_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select exists (
+    select 1
+    from public.roles r
+    where r.business_id = p_business_id
+      and r.assessment_link_token is not null
+      and r.status = 'open'::public.role_status
+  );
+$$;
+
+revoke all on function public.business_has_open_assessment_role(uuid) from public;
+grant execute on function public.business_has_open_assessment_role(uuid) to anon, authenticated;
+
+create or replace function public.notify_business_on_explore_role_interest()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  bid uuid;
+begin
+  if new.sample_role_id is not null then
+    select r.business_id into bid
+    from public.explore_industry_sample_roles sr
+    join public.roles r on r.id = sr.role_id
+    where sr.id = new.sample_role_id
+      and r.status = 'open'::public.role_status
+    limit 1;
+  end if;
+
+  if bid is null then
+    select b.id into bid
+    from public.businesses b
+    where lower(trim(b.name)) = lower(trim(new.company_name))
+    limit 1;
+  end if;
+
+  if bid is not null then
+    insert into public.explore_role_interest_employer_notifications (
+      business_id, interest_id, candidate_id, role_title, company_name
+    )
+    values (bid, new.id, new.candidate_id, new.role_title, new.company_name)
+    on conflict (business_id, interest_id) do nothing;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_explore_role_interest_notify on public.candidate_explore_role_interests;
+create trigger trg_explore_role_interest_notify
+  after insert on public.candidate_explore_role_interests
+  for each row execute procedure public.notify_business_on_explore_role_interest();
+
+drop policy if exists "businesses: employer read" on public.businesses;
+create policy "businesses: employer read"
+  on public.businesses
+  for select
+  using (
+    exists (
+      select 1
+      from public.profiles
+      where id = auth.uid()
+        and role = 'employer'::public.profile_role
+    )
+  );
+
+drop policy if exists "roles: public read open roles" on public.roles;
+create policy "roles: public read open roles"
+  on public.roles
+  for select
+  using (status = 'open'::public.role_status);
+
+drop policy if exists "candidate_profiles: employer read" on public.candidate_profiles;
+create policy "candidate_profiles: employer read"
+  on public.candidate_profiles
+  for select
+  using (public.employer_can_read_candidate_profile(id));
+
+drop policy if exists "engagement_messages: candidate insert" on public.engagement_messages;
+create policy "engagement_messages: candidate insert"
+  on public.engagement_messages
+  for insert
+  with check (
+    sender = 'candidate'::public.message_sender
+    and exists (
+      select 1
+      from public.engagements e
+      join public.candidate_profiles cp on cp.id = e.candidate_id
+      where e.id = engagement_messages.engagement_id
+        and cp.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "engagement_messages: employer insert" on public.engagement_messages;
+create policy "engagement_messages: employer insert"
+  on public.engagement_messages
+  for insert
+  with check (
+    sender = 'employer'::public.message_sender
+    and exists (
+      select 1
+      from public.engagements e
+      join public.businesses b on b.id = e.business_id
+      where e.id = engagement_messages.engagement_id
+        and b.owner_id = auth.uid()
+    )
+  );
 
 -- Friendly labels for Supabase Table Editor (optional documentation).
 comment on type public.employer_status is 'Employer vetting: pending → approved unlocks marketplace.';
