@@ -182,6 +182,25 @@ update public.performance_snapshots
 set performance_band = 'mid'
 where performance_band = 'middle';
 
+-- Drop every policy on a table so ALTER COLUMN TYPE is not blocked by RLS.
+create or replace function pg_temp.cme_drop_policies(p_table name)
+returns void
+language plpgsql
+as $$
+declare
+  pol record;
+begin
+  for pol in
+    select policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = p_table
+  loop
+    execute format('drop policy if exists %I on public.%I', pol.policyname, p_table);
+  end loop;
+end;
+$$;
+
 -- ─── Drop policies / triggers / functions that block column type changes ────
 -- Postgres refuses ALTER COLUMN TYPE when RLS policies or functions reference the column.
 
@@ -192,6 +211,8 @@ drop trigger if exists trg_explore_role_interest_notify on public.candidate_expl
 drop policy if exists "businesses: employer read" on public.businesses;
 drop policy if exists "businesses: read for assessment landing" on public.businesses;
 drop policy if exists "roles: public read open roles" on public.roles;
+drop policy if exists "roles: read by assessment token" on public.roles;
+drop policy if exists "roles: business owner full access" on public.roles;
 drop policy if exists "candidate_profiles: employer read" on public.candidate_profiles;
 drop policy if exists "engagement_messages: candidate insert" on public.engagement_messages;
 drop policy if exists "engagement_messages: employer insert" on public.engagement_messages;
@@ -246,6 +267,8 @@ begin
   if to_regclass('public.candidate_profiles') is null then
     return;
   end if;
+
+  perform pg_temp.cme_drop_policies('candidate_profiles');
 
   execute 'alter table public.candidate_profiles drop constraint if exists applicant_profiles_status_check';
   execute 'alter table public.candidate_profiles drop constraint if exists candidate_profiles_status_check';
@@ -311,6 +334,8 @@ begin
     return;
   end if;
 
+  perform pg_temp.cme_drop_policies('roles');
+
   execute 'alter table public.roles drop constraint if exists roles_status_check';
 
   execute 'alter table public.roles alter column status drop default';
@@ -335,6 +360,8 @@ begin
   if to_regclass('public.engagements') is null then
     return;
   end if;
+
+  perform pg_temp.cme_drop_policies('engagements');
 
   execute 'alter table public.engagements drop constraint if exists engagements_source_check';
   execute 'alter table public.engagements drop constraint if exists engagements_stage_check';
@@ -742,11 +769,87 @@ create policy "roles: public read open roles"
   for select
   using (status = 'open'::public.role_status);
 
+drop policy if exists "roles: business owner full access" on public.roles;
+create policy "roles: business owner full access"
+  on public.roles
+  for all
+  using (
+    exists (
+      select 1
+      from public.businesses b
+      where b.id = business_id
+        and b.owner_id = auth.uid()
+    )
+  );
+
+drop policy if exists "roles: read by assessment token" on public.roles;
+create policy "roles: read by assessment token"
+  on public.roles
+  for select
+  to anon, authenticated
+  using (
+    status = 'open'::public.role_status
+    and assessment_link_token is not null
+  );
+
+drop policy if exists "candidate_profiles: own row" on public.candidate_profiles;
+create policy "candidate_profiles: own row"
+  on public.candidate_profiles
+  for all
+  using (auth.uid() = user_id);
+
 drop policy if exists "candidate_profiles: employer read" on public.candidate_profiles;
 create policy "candidate_profiles: employer read"
   on public.candidate_profiles
   for select
   using (public.employer_can_read_candidate_profile(id));
+
+drop policy if exists "engagements: candidate own rows" on public.engagements;
+create policy "engagements: candidate own rows"
+  on public.engagements
+  for select
+  using (
+    exists (
+      select 1
+      from public.candidate_profiles cp
+      where cp.id = engagements.candidate_id
+        and cp.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "engagements: employer business rows" on public.engagements;
+create policy "engagements: employer business rows"
+  on public.engagements
+  for all
+  using (
+    exists (
+      select 1
+      from public.businesses b
+      where b.id = engagements.business_id
+        and b.owner_id = auth.uid()
+    )
+  );
+
+drop policy if exists "engagements: candidate update own" on public.engagements;
+create policy "engagements: candidate update own"
+  on public.engagements
+  for update
+  using (
+    exists (
+      select 1
+      from public.candidate_profiles cp
+      where cp.id = engagements.candidate_id
+        and cp.user_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from public.candidate_profiles cp
+      where cp.id = engagements.candidate_id
+        and cp.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "engagement_messages: candidate insert" on public.engagement_messages;
 create policy "engagement_messages: candidate insert"
