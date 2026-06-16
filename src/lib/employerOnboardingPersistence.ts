@@ -25,9 +25,13 @@ export function mapCompanySizeToDb(uiSize: string): '1-10' | '11-50' | '51-200' 
   return map[uiSize] ?? null;
 }
 
-export async function setProfileRoleEmployer(client: SupabaseClient, userId: string): Promise<void> {
-  const { error } = await client.from('profiles').update({ role: 'employer' }).eq('id', userId);
-  if (error) console.warn('[CMe] profiles role update failed:', error.message);
+export async function claimInitialProfileRole(
+  client: SupabaseClient,
+  role: 'candidate' | 'employer',
+): Promise<void> {
+  if (role !== 'employer') return;
+  const { error } = await client.rpc('claim_initial_profile_role', { p_role: role });
+  if (error) console.warn('[CMe] claim_initial_profile_role failed:', error.message);
 }
 
 export type InsertEmployerBusinessResult = {

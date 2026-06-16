@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { EmployerOnboardingStepDb } from './employerOnboardingRouting';
 import type { TraitWeightsPersist } from './employerOnboardingPersistence';
 
+export type EmployerStatus = 'pending' | 'approved' | 'rejected';
+
 export type EmployerBusiness = {
   id: string;
   name: string;
@@ -15,10 +17,23 @@ export type EmployerBusiness = {
 export type EmployerProfileMeta = {
   userId: string;
   role: string;
+  employer_status: EmployerStatus | null;
   onboarding_step: string;
   onboarding_completed_at: string | null;
   businessId: string | null;
 };
+
+export function isApprovedEmployer(meta: Pick<EmployerProfileMeta, 'role' | 'employer_status'>): boolean {
+  return meta.role === 'employer' && meta.employer_status === 'approved';
+}
+
+export function isPendingEmployer(meta: Pick<EmployerProfileMeta, 'role' | 'employer_status'>): boolean {
+  return meta.role === 'employer' && meta.employer_status === 'pending';
+}
+
+export function isRejectedEmployer(meta: Pick<EmployerProfileMeta, 'role' | 'employer_status'>): boolean {
+  return meta.role === 'employer' && meta.employer_status === 'rejected';
+}
 
 export async function fetchEmployerProfileMeta(
   client: SupabaseClient,
@@ -26,7 +41,7 @@ export async function fetchEmployerProfileMeta(
 ): Promise<EmployerProfileMeta> {
   const { data: profile, error: pErr } = await client
     .from('profiles')
-    .select('role, onboarding_step, onboarding_completed_at')
+    .select('role, employer_status, onboarding_step, onboarding_completed_at')
     .eq('id', userId)
     .maybeSingle();
   if (pErr) throw pErr;
@@ -41,6 +56,7 @@ export async function fetchEmployerProfileMeta(
   return {
     userId,
     role: profile.role as string,
+    employer_status: (profile.employer_status as EmployerStatus | null) ?? null,
     onboarding_step: (profile.onboarding_step as string) ?? 'employer_company',
     onboarding_completed_at:
       typeof profile.onboarding_completed_at === 'string' ? profile.onboarding_completed_at : null,

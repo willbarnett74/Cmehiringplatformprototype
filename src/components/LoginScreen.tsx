@@ -6,7 +6,9 @@ import {
 } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Compass } from 'lucide-react';
+import { Briefcase, User } from 'lucide-react';
 import { AnalyticsEvents, trackEvent } from '../lib/analytics';
+import { persistSignupRoleToSession } from '../lib/postSignInNavigation';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 export type LoginScreenProps = {
@@ -78,6 +80,7 @@ function GoogleLogo() {
 
 export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRole = 'candidate' }: LoginScreenProps) {
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [signupRoleChoice, setSignupRoleChoice] = useState<'candidate' | 'employer'>(signupRole);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -90,6 +93,12 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
   const [forgotBusy, setForgotBusy] = useState(false);
   const [forgotError, setForgotError] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
+
+  useEffect(() => {
+    if (mode === 'signup') {
+      setSignupRoleChoice(signupRole);
+    }
+  }, [mode, signupRole]);
 
   useEffect(() => {
     if (!forgotOpen) return;
@@ -151,6 +160,9 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
     }
     trackEvent(AnalyticsEvents.sign_in_started, { method: 'google' });
     setOauthBusy(true);
+    if (mode === 'signup') {
+      persistSignupRoleToSession(signupRoleChoice);
+    }
     const redirectTo = `${window.location.origin}/onboarding/sign-in`;
     const { error: oauthErr } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -195,7 +207,7 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
           return;
         }
         trackEvent(AnalyticsEvents.sign_in_started, { method: 'password_signup' });
-        const roleMeta = signupRole === 'employer' ? 'employer' : 'candidate';
+        const roleMeta = signupRoleChoice === 'employer' ? 'employer' : 'candidate';
         const { data, error: signUpErr } = await supabase.auth.signUp({
           email,
           password,
@@ -441,6 +453,50 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
             </div>
 
             <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: '12px' }}>
+              {mode === 'signup' && (
+                <div>
+                  <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
+                    I am signing up as
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={loading || oauthBusy}
+                      onClick={() => setSignupRoleChoice('candidate')}
+                      className={`flex flex-col items-start gap-1 border px-3 py-2.5 text-left transition disabled:opacity-60 ${
+                        signupRoleChoice === 'candidate'
+                          ? 'border-[#7dbbff] bg-[#7dbbff]/10'
+                          : 'border-black/[0.08] bg-white hover:bg-[#F9F9FA]'
+                      }`}
+                      style={{ borderRadius: '10px' }}
+                    >
+                      <User className="h-4 w-4 text-[#7dbbff]" strokeWidth={2} aria-hidden />
+                      <span className="text-[13px] font-medium text-[#111827]">Looking for work</span>
+                      <span className="text-[11px] leading-4 text-[#6B7280]">Candidate account</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loading || oauthBusy}
+                      onClick={() => setSignupRoleChoice('employer')}
+                      className={`flex flex-col items-start gap-1 border px-3 py-2.5 text-left transition disabled:opacity-60 ${
+                        signupRoleChoice === 'employer'
+                          ? 'border-[#7dbbff] bg-[#7dbbff]/10'
+                          : 'border-black/[0.08] bg-white hover:bg-[#F9F9FA]'
+                      }`}
+                      style={{ borderRadius: '10px' }}
+                    >
+                      <Briefcase className="h-4 w-4 text-[#7dbbff]" strokeWidth={2} aria-hidden />
+                      <span className="text-[13px] font-medium text-[#111827]">Hiring</span>
+                      <span className="text-[11px] leading-4 text-[#6B7280]">Employer account</span>
+                    </button>
+                  </div>
+                  {signupRoleChoice === 'employer' ? (
+                    <p className="mt-2 text-[11px] leading-4 text-[#6B7280]">
+                      New employer accounts are reviewed before candidate search is unlocked.
+                    </p>
+                  ) : null}
+                </div>
+              )}
               {mode === 'signup' && (
                 <div>
                   <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
