@@ -190,6 +190,7 @@ drop trigger if exists on_auth_user_created on auth.users;
 drop trigger if exists trg_explore_role_interest_notify on public.candidate_explore_role_interests;
 
 drop policy if exists "businesses: employer read" on public.businesses;
+drop policy if exists "businesses: read for assessment landing" on public.businesses;
 drop policy if exists "roles: public read open roles" on public.roles;
 drop policy if exists "candidate_profiles: employer read" on public.candidate_profiles;
 drop policy if exists "engagement_messages: candidate insert" on public.engagement_messages;
@@ -663,6 +664,12 @@ $$;
 
 revoke all on function public.business_has_open_assessment_role(uuid) from public;
 grant execute on function public.business_has_open_assessment_role(uuid) to anon, authenticated;
+
+drop policy if exists "businesses: read for assessment landing" on public.businesses;
+create policy "businesses: read for assessment landing"
+  on public.businesses
+  for select
+  using (public.business_has_open_assessment_role(id));
 
 create or replace function public.notify_business_on_explore_role_interest()
 returns trigger
