@@ -225,8 +225,12 @@ alter table public.profiles
 
 alter table public.profiles drop constraint if exists profiles_onboarding_step_check;
 alter table public.profiles
+  alter column onboarding_step drop default;
+alter table public.profiles
   alter column onboarding_step type public.onboarding_step
   using onboarding_step::text::public.onboarding_step;
+alter table public.profiles
+  alter column onboarding_step set default 'welcome'::public.onboarding_step;
 
 -- ─── businesses ─────────────────────────────────────────────────────────────
 
@@ -245,6 +249,8 @@ begin
 
   execute 'alter table public.candidate_profiles drop constraint if exists applicant_profiles_status_check';
   execute 'alter table public.candidate_profiles drop constraint if exists candidate_profiles_status_check';
+
+  execute 'alter table public.candidate_profiles alter column status drop default';
 
   execute $sql$
     alter table public.candidate_profiles
@@ -307,6 +313,8 @@ begin
 
   execute 'alter table public.roles drop constraint if exists roles_status_check';
 
+  execute 'alter table public.roles alter column status drop default';
+
   execute $sql$
     alter table public.roles
       alter column status type public.role_status
@@ -330,6 +338,8 @@ begin
 
   execute 'alter table public.engagements drop constraint if exists engagements_source_check';
   execute 'alter table public.engagements drop constraint if exists engagements_stage_check';
+
+  execute 'alter table public.engagements alter column stage drop default';
 
   execute $sql$
     alter table public.engagements
