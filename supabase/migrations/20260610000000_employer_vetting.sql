@@ -1,21 +1,25 @@
 -- Employer vetting: pending/approved status, lock role columns, gate marketplace reads.
 
+do $enum$
+begin
+  create type public.employer_status as enum ('pending', 'approved', 'rejected');
+exception
+  when duplicate_object then null;
+end
+$enum$;
+
 alter table public.profiles
-  add column if not exists employer_status text;
+  add column if not exists employer_status public.employer_status;
 
 alter table public.profiles
   drop constraint if exists profiles_employer_status_check;
 
-alter table public.profiles
-  add constraint profiles_employer_status_check
-  check (employer_status is null or employer_status in ('pending', 'approved', 'rejected'));
-
 comment on column public.profiles.employer_status is
-  'Null for candidates. Employers start pending until approved; approved unlocks candidate marketplace reads.';
+  'Null for candidates. Employers start pending until approved; approved unlocks candidate marketplace reads. Supabase Table Editor shows this as a dropdown.';
 
 -- Grandfather existing employer accounts.
 update public.profiles
-set employer_status = 'approved'
+set employer_status = 'approved'::public.employer_status
 where role = 'employer'
   and employer_status is null;
 
@@ -86,7 +90,7 @@ begin
       new.raw_user_meta_data->>'preferred_username'
     ),
     v_role,
-    case when v_role = 'employer' then 'pending' else null end
+    case when v_role = 'employer' then 'pending'::public.employer_status else null end
   )
   on conflict (id) do nothing;
 
@@ -120,7 +124,7 @@ begin
   update public.profiles
   set
     role = 'employer',
-    employer_status = 'pending',
+    employer_status = 'pending'::public.employer_status,
     updated_at = now()
   where id = auth.uid()
     and role = 'candidate';
