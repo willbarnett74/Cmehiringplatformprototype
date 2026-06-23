@@ -1,4 +1,5 @@
 import { useLocation } from 'react-router-dom';
+import { LoopPage } from './components/marketing/LoopPage';
 import { MarketingPlaceholderPage } from './components/marketing/MarketingPlaceholderPage';
 import { ProductPage } from './components/marketing/ProductPage';
 
@@ -6,7 +7,7 @@ export default function App() {
   const location = useLocation();
 
   if (location.pathname.startsWith('/loop')) {
-    return <MarketingPlaceholderPage kind="loop" />;
+    return <LoopPage />;
   }
 
   if (location.pathname.startsWith('/sample-profile')) {

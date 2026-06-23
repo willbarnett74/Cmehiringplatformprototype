@@ -19,6 +19,24 @@ export type LoginScreenProps = {
 
 type Mode = 'signin' | 'signup';
 
+function toFriendlyAuthErrorMessage(error: unknown): string {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : 'Something went wrong. Please try again.';
+  const message = raw.toLowerCase();
+  if (
+    message.includes('failed to fetch') ||
+    message.includes('fetch failed') ||
+    message.includes('networkerror')
+  ) {
+    return 'We could not reach the sign-in service. Please try again in a minute.';
+  }
+  return raw;
+}
+
 const systemFont =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
 
@@ -95,10 +113,8 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
   const [forgotSent, setForgotSent] = useState(false);
 
   useEffect(() => {
-    if (mode === 'signup') {
-      setSignupRoleChoice(signupRole);
-    }
-  }, [mode, signupRole]);
+    setSignupRoleChoice(signupRole);
+  }, [signupRole]);
 
   useEffect(() => {
     if (!forgotOpen) return;
@@ -143,10 +159,12 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
         redirectTo,
       });
       if (resetErr) {
-        setForgotError(resetErr.message);
+        setForgotError(toFriendlyAuthErrorMessage(resetErr));
       } else {
         setForgotSent(true);
       }
+    } catch (err) {
+      setForgotError(toFriendlyAuthErrorMessage(err));
     } finally {
       setForgotBusy(false);
     }
@@ -160,16 +178,20 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
     }
     trackEvent(AnalyticsEvents.sign_in_started, { method: 'google' });
     setOauthBusy(true);
-    if (mode === 'signup') {
-      persistSignupRoleToSession(signupRoleChoice);
-    }
+    // Keep role intent across OAuth round-trip for both sign-in and sign-up.
+    persistSignupRoleToSession(signupRoleChoice);
     const redirectTo = `${window.location.origin}/onboarding/sign-in`;
-    const { error: oauthErr } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo },
-    });
-    if (oauthErr) {
-      setError(oauthErr.message);
+    try {
+      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo },
+      });
+      if (oauthErr) {
+        setError(toFriendlyAuthErrorMessage(oauthErr));
+        setOauthBusy(false);
+      }
+    } catch (err) {
+      setError(toFriendlyAuthErrorMessage(err));
       setOauthBusy(false);
     }
   };
@@ -193,10 +215,12 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
 
     try {
       if (mode === 'signin') {
+        // Preserve selected role intent for post-auth routing.
+        persistSignupRoleToSession(signupRoleChoice);
         trackEvent(AnalyticsEvents.sign_in_started, { method: 'password' });
         const { error: signErr } = await supabase.auth.signInWithPassword({ email, password });
         if (signErr) {
-          setError(signErr.message);
+          setError(toFriendlyAuthErrorMessage(signErr));
         } else {
           await Promise.resolve(onAuthenticated?.());
         }
@@ -214,13 +238,15 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
           options: { data: { full_name: fullName, role: roleMeta } },
         });
         if (signUpErr) {
-          setError(signUpErr.message);
+          setError(toFriendlyAuthErrorMessage(signUpErr));
         } else if (data.session) {
           await Promise.resolve(onAuthenticated?.());
         } else {
           setConfirmSent(true);
         }
       }
+    } catch (err) {
+      setError(toFriendlyAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -453,50 +479,50 @@ export function LoginScreen({ onAuthenticated, initialMode = 'signin', signupRol
             </div>
 
             <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col" style={{ gap: '12px' }}>
-              {mode === 'signup' && (
-                <div>
-                  <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
-                    I am signing up as
-                  </span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      disabled={loading || oauthBusy}
-                      onClick={() => setSignupRoleChoice('candidate')}
-                      className={`flex flex-col items-start gap-1 border px-3 py-2.5 text-left transition disabled:opacity-60 ${
-                        signupRoleChoice === 'candidate'
-                          ? 'border-[#7dbbff] bg-[#7dbbff]/10'
-                          : 'border-black/[0.08] bg-white hover:bg-[#F9F9FA]'
-                      }`}
-                      style={{ borderRadius: '10px' }}
-                    >
-                      <User className="h-4 w-4 text-[#7dbbff]" strokeWidth={2} aria-hidden />
-                      <span className="text-[13px] font-medium text-[#111827]">Looking for work</span>
-                      <span className="text-[11px] leading-4 text-[#6B7280]">Candidate account</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={loading || oauthBusy}
-                      onClick={() => setSignupRoleChoice('employer')}
-                      className={`flex flex-col items-start gap-1 border px-3 py-2.5 text-left transition disabled:opacity-60 ${
-                        signupRoleChoice === 'employer'
-                          ? 'border-[#7dbbff] bg-[#7dbbff]/10'
-                          : 'border-black/[0.08] bg-white hover:bg-[#F9F9FA]'
-                      }`}
-                      style={{ borderRadius: '10px' }}
-                    >
-                      <Briefcase className="h-4 w-4 text-[#7dbbff]" strokeWidth={2} aria-hidden />
-                      <span className="text-[13px] font-medium text-[#111827]">Hiring</span>
-                      <span className="text-[11px] leading-4 text-[#6B7280]">Employer account</span>
-                    </button>
-                  </div>
-                  {signupRoleChoice === 'employer' ? (
-                    <p className="mt-2 text-[11px] leading-4 text-[#6B7280]">
-                      New employer accounts are reviewed before candidate search is unlocked.
-                    </p>
-                  ) : null}
+              <div>
+                <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
+                  {mode === 'signin' ? 'Sign in as' : 'I am signing up as'}
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={loading || oauthBusy}
+                    onClick={() => setSignupRoleChoice('candidate')}
+                    className={`flex flex-col items-start gap-1 border px-3 py-2.5 text-left transition disabled:opacity-60 ${
+                      signupRoleChoice === 'candidate'
+                        ? 'border-[#7dbbff] bg-[#7dbbff]/10'
+                        : 'border-black/[0.08] bg-white hover:bg-[#F9F9FA]'
+                    }`}
+                    style={{ borderRadius: '10px' }}
+                  >
+                    <User className="h-4 w-4 text-[#7dbbff]" strokeWidth={2} aria-hidden />
+                    <span className="text-[13px] font-medium text-[#111827]">Looking for work</span>
+                    <span className="text-[11px] leading-4 text-[#6B7280]">Candidate account</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loading || oauthBusy}
+                    onClick={() => setSignupRoleChoice('employer')}
+                    className={`flex flex-col items-start gap-1 border px-3 py-2.5 text-left transition disabled:opacity-60 ${
+                      signupRoleChoice === 'employer'
+                        ? 'border-[#7dbbff] bg-[#7dbbff]/10'
+                        : 'border-black/[0.08] bg-white hover:bg-[#F9F9FA]'
+                    }`}
+                    style={{ borderRadius: '10px' }}
+                  >
+                    <Briefcase className="h-4 w-4 text-[#7dbbff]" strokeWidth={2} aria-hidden />
+                    <span className="text-[13px] font-medium text-[#111827]">Hiring</span>
+                    <span className="text-[11px] leading-4 text-[#6B7280]">Employer account</span>
+                  </button>
                 </div>
-              )}
+                {signupRoleChoice === 'employer' ? (
+                  <p className="mt-2 text-[11px] leading-4 text-[#6B7280]">
+                    {mode === 'signin'
+                      ? 'Use your employer credentials to continue to employer onboarding or employer portal.'
+                      : 'New employer accounts are reviewed before candidate search is unlocked.'}
+                  </p>
+                ) : null}
+              </div>
               {mode === 'signup' && (
                 <div>
                   <span className="mb-1.5 block font-medium text-[#6B7280]" style={labelStyle}>
