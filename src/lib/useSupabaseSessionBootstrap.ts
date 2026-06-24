@@ -39,9 +39,26 @@ export function useSupabaseSessionBootstrap() {
 
     void supabase.auth
       .getSession()
-      .then(({ data: { session: next } }) => {
+      .then(async ({ data: { session: next } }) => {
         if (cancelled || timedOutRef.current) return;
         window.clearTimeout(t);
+
+        if (!next?.user?.id) {
+          setSession(null);
+          setReady(true);
+          setTimedOut(false);
+          return;
+        }
+
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          await supabase.auth.signOut();
+          setSession(null);
+          setReady(true);
+          setTimedOut(false);
+          return;
+        }
+
         setSession(next);
         setReady(true);
         setTimedOut(false);
@@ -54,15 +71,26 @@ export function useSupabaseSessionBootstrap() {
         setTimedOut(false);
       });
 
+    const client = supabase;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-      // Slow getSession() can hit the timeout first; auth may still restore via this listener.
-      if (next) {
+    } = client.auth.onAuthStateChange((_event, next) => {
+      if (!next?.user?.id) {
+        setSession(null);
+        setReady(true);
+        return;
+      }
+
+      void client.auth.getUser().then(({ data: { user }, error: userError }) => {
+        if (userError || !user) {
+          void client.auth.signOut();
+          setSession(null);
+        } else {
+          setSession(next);
+        }
         setTimedOut(false);
         setReady(true);
-      }
+      });
     });
 
     return () => {

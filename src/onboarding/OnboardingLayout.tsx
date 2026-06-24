@@ -1,9 +1,10 @@
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useEffect, useRef } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { OnboardingRouteShell } from '../components/layout/OnboardingRouteShell';
 import { RouteFlowError, RouteFlowLoading } from '../components/shared/RouteFlowState';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { clearInvalidAuthSession, isInvalidAuthSessionError } from '../lib/ensureProfileRow';
 import { useSupabaseSessionBootstrap } from '../lib/useSupabaseSessionBootstrap';
 import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from '../lib/onboardingRouting';
 import { fetchProfileOnboardingMeta } from './profileOnboardingMeta';
@@ -26,8 +27,9 @@ export function OnboardingLayout() {
   const { ready: authReady, session, timedOut, retry: retrySession, hasClient } =
     useSupabaseSessionBootstrap();
   const sessionUserId = session?.user?.id ?? null;
+  const clearedInvalidSession = useRef(false);
 
-  const { data, isLoading, isError, refetch, isPending } = useQuery({
+  const { data, isLoading, isError, error, refetch, isPending } = useQuery({
     queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, sessionUserId ?? ''],
     enabled: Boolean(hasClient && supabase && authReady && !timedOut && sessionUserId),
     retry: 1,
@@ -36,6 +38,16 @@ export function OnboardingLayout() {
       return fetchProfileOnboardingMeta(supabase, sessionUserId);
     },
   });
+
+  useEffect(() => {
+    if (!isError || !isInvalidAuthSessionError(error) || clearedInvalidSession.current || !supabase) {
+      return;
+    }
+    clearedInvalidSession.current = true;
+    void clearInvalidAuthSession(supabase).then(() => {
+      navigate('/onboarding/sign-in', { replace: true });
+    });
+  }, [isError, error, navigate]);
 
   useLayoutEffect(() => {
     if (!data || data.onboarding_completed_at) return;
@@ -75,6 +87,9 @@ export function OnboardingLayout() {
   }
 
   if (isError || !data) {
+    if (isInvalidAuthSessionError(error)) {
+      return <RouteFlowLoading message="Signing you out…" />;
+    }
     return (
       <RouteFlowError
         message="We couldn’t load your onboarding status. Check your connection and try again."

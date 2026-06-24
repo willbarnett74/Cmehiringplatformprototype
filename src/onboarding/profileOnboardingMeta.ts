@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OnboardingStepDb } from '../lib/onboardingRouting';
+import {
+  ensureProfileRowForSession,
+  InvalidAuthSessionError,
+  validateAuthSession,
+} from '../lib/ensureProfileRow';
 
 export type ProfileOnboardingMeta = {
   userId: string;
@@ -7,51 +12,7 @@ export type ProfileOnboardingMeta = {
   onboarding_completed_at: string | null /** ISO string or null */;
 };
 
-function normalizeProfileRoleFromMetadata(value: unknown): 'candidate' | 'employer' {
-  if (value === 'employer') return 'employer';
-  if (value === 'candidate' || value === 'applicant') return 'candidate';
-  return 'candidate';
-}
-
-function profileDisplayNameFromMetadata(meta: Record<string, unknown> | undefined): string | null {
-  if (!meta) return null;
-  const fullName =
-    (typeof meta.full_name === 'string' && meta.full_name.trim()) ||
-    (typeof meta.name === 'string' && meta.name.trim()) ||
-    (typeof meta.user_name === 'string' && meta.user_name.trim()) ||
-    (typeof meta.preferred_username === 'string' && meta.preferred_username.trim()) ||
-    '';
-  return fullName || null;
-}
-
-async function ensureProfileRowForSession(
-  supabase: SupabaseClient,
-  sessionUserId: string,
-): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user || user.id !== sessionUserId) return;
-
-  const meta = (user.user_metadata as Record<string, unknown> | undefined) ?? undefined;
-  const role = normalizeProfileRoleFromMetadata(meta?.role);
-  const onboardingStep = role === 'employer' ? 'employer_company' : 'welcome';
-
-  const { error } = await supabase.from('profiles').insert({
-    id: sessionUserId,
-    email: user.email ?? '',
-    full_name: profileDisplayNameFromMetadata(meta),
-    role,
-    onboarding_complete: false,
-    onboarding_step: onboardingStep,
-    onboarding_completed_at: null,
-    employer_status: role === 'employer' ? 'pending' : null,
-  });
-
-  if (error && error.code !== '23505') {
-    throw error;
-  }
-}
+export { InvalidAuthSessionError };
 
 /**
  * Postgres / PostgREST error when selected columns are not in the schema (migration not applied).
@@ -69,6 +30,14 @@ function isMissingColumnOrSchemaError(error: { code?: string; message?: string }
   );
 }
 
+function welcomeFallback(userId: string): ProfileOnboardingMeta {
+  return {
+    userId,
+    onboarding_step: 'welcome',
+    onboarding_completed_at: null,
+  };
+}
+
 /**
  * Load onboarding routing fields from profiles. If the URL-onboarding migration has not been
  * applied remotely, falls back to id-only select and defaults (welcome / not completed).
@@ -77,6 +46,11 @@ export async function fetchProfileOnboardingMeta(
   supabase: SupabaseClient,
   sessionUserId: string,
 ): Promise<ProfileOnboardingMeta> {
+  const validated = await validateAuthSession(supabase, sessionUserId);
+  if (validated instanceof InvalidAuthSessionError) {
+    throw validated;
+  }
+
   let withStep = await supabase
     .from('profiles')
     .select('onboarding_step, onboarding_completed_at')
@@ -84,7 +58,13 @@ export async function fetchProfileOnboardingMeta(
     .maybeSingle();
 
   if (!withStep.error && withStep.data == null) {
-    await ensureProfileRowForSession(supabase, sessionUserId);
+    const ensured = await ensureProfileRowForSession(supabase, sessionUserId);
+    if (!ensured.ok) {
+      if (ensured.reason === 'not_authenticated' || ensured.reason === 'auth_user_missing') {
+        throw new InvalidAuthSessionError();
+      }
+      return welcomeFallback(sessionUserId);
+    }
     withStep = await supabase
       .from('profiles')
       .select('onboarding_step, onboarding_completed_at')
@@ -107,15 +87,17 @@ export async function fetchProfileOnboardingMeta(
 
   const err = withStep.error;
   if (!err) {
-    return {
-      userId: sessionUserId,
-      onboarding_step: 'welcome',
-      onboarding_completed_at: null,
-    };
+    return welcomeFallback(sessionUserId);
   }
 
   if (err.code === 'PGRST116') {
-    await ensureProfileRowForSession(supabase, sessionUserId);
+    const ensured = await ensureProfileRowForSession(supabase, sessionUserId);
+    if (!ensured.ok) {
+      if (ensured.reason === 'not_authenticated' || ensured.reason === 'auth_user_missing') {
+        throw new InvalidAuthSessionError();
+      }
+      return welcomeFallback(sessionUserId);
+    }
     const retry = await supabase
       .from('profiles')
       .select('onboarding_step, onboarding_completed_at')
@@ -133,11 +115,7 @@ export async function fetchProfileOnboardingMeta(
           typeof row.onboarding_completed_at === 'string' ? row.onboarding_completed_at : null,
       };
     }
-    return {
-      userId: sessionUserId,
-      onboarding_step: 'welcome',
-      onboarding_completed_at: null,
-    };
+    return welcomeFallback(sessionUserId);
   }
 
   if (isMissingColumnOrSchemaError(err)) {
@@ -146,12 +124,8 @@ export async function fetchProfileOnboardingMeta(
     );
     const basic = await supabase.from('profiles').select('id').eq('id', sessionUserId).maybeSingle();
     if (basic.error) throw basic.error;
-    if (!basic.data) throw new Error('Profile not found');
-    return {
-      userId: sessionUserId,
-      onboarding_step: 'welcome',
-      onboarding_completed_at: null,
-    };
+    if (!basic.data) return welcomeFallback(sessionUserId);
+    return welcomeFallback(sessionUserId);
   }
 
   throw err;
