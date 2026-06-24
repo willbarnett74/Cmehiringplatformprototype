@@ -18,6 +18,8 @@ const DIMENSIONS = [
   { key: 'relational_intelligence', label: 'Relational intelligence' },
   { key: 'motivational_fit', label: 'Motivational fit' },
 ] as const;
+type TraitKey = (typeof DIMENSIONS)[number]['key'];
+const TRAIT_KEYS = DIMENSIONS.map((dim) => dim.key) as TraitKey[];
 
 export function defaultTraitWeights(): TraitWeights {
   return {
@@ -43,6 +45,114 @@ export interface TraitWeightingUIProps {
 function clampDimension(value: number): number {
   const n = Math.round(Number.isFinite(value) ? value : MIN_PCT);
   return Math.max(MIN_PCT, Math.min(100, n));
+}
+
+function allocateProportionally(
+  total: number,
+  entries: Array<{ key: TraitKey; weight: number; capacity: number }>,
+): Record<TraitKey, number> {
+  const allocations = Object.fromEntries(TRAIT_KEYS.map((key) => [key, 0])) as Record<TraitKey, number>;
+  let remaining = Math.max(0, Math.round(total));
+  const state = entries.map((entry) => ({
+    key: entry.key,
+    weight: Math.max(0, entry.weight),
+    capacity: Math.max(0, Math.floor(entry.capacity)),
+  }));
+
+  while (remaining > 0) {
+    const active = state.filter((entry) => entry.capacity > 0);
+    if (!active.length) break;
+
+    const weightSum = active.reduce((sum, entry) => sum + entry.weight, 0);
+    let distributed = 0;
+
+    if (weightSum > 0) {
+      const weighted = active.map((entry) => {
+        const raw = (remaining * entry.weight) / weightSum;
+        return {
+          entry,
+          raw,
+          floor: Math.floor(raw),
+          fraction: raw - Math.floor(raw),
+        };
+      });
+
+      for (const item of weighted) {
+        const take = Math.min(item.entry.capacity, item.floor);
+        if (take > 0) {
+          allocations[item.entry.key] += take;
+          item.entry.capacity -= take;
+          distributed += take;
+        }
+      }
+
+      if (distributed < remaining) {
+        const need = remaining - distributed;
+        const byFraction = weighted
+          .filter((item) => item.entry.capacity > 0)
+          .sort((a, b) => b.fraction - a.fraction || b.entry.weight - a.entry.weight);
+
+        for (let i = 0; i < need && i < byFraction.length; i += 1) {
+          byFraction[i].entry.capacity -= 1;
+          allocations[byFraction[i].entry.key] += 1;
+          distributed += 1;
+        }
+      }
+    }
+
+    if (distributed === 0) {
+      const fallback = active.sort((a, b) => b.capacity - a.capacity || b.weight - a.weight)[0];
+      fallback.capacity -= 1;
+      allocations[fallback.key] += 1;
+      distributed = 1;
+    }
+
+    remaining -= distributed;
+  }
+
+  return allocations;
+}
+
+function rebalanceWeights(weights: TraitWeights, key: TraitKey, raw: number): TraitWeights {
+  const target = clampDimension(raw);
+  const current = weights[key];
+  if (target === current) return weights;
+
+  const others = TRAIT_KEYS.filter((k) => k !== key);
+
+  if (target > current) {
+    const increaseWanted = target - current;
+    const reducible = others.reduce((sum, k) => sum + Math.max(0, weights[k] - MIN_PCT), 0);
+    const increase = Math.min(increaseWanted, reducible);
+    const reductions = allocateProportionally(
+      increase,
+      others.map((k) => ({
+        key: k,
+        weight: Math.max(0, weights[k] - MIN_PCT),
+        capacity: Math.max(0, weights[k] - MIN_PCT),
+      })),
+    );
+
+    const next = { ...weights, [key]: current + increase };
+    for (const k of others) next[k] = weights[k] - reductions[k];
+    return next;
+  }
+
+  const decreaseWanted = current - target;
+  const growable = others.reduce((sum, k) => sum + Math.max(0, 100 - weights[k]), 0);
+  const increaseOthers = Math.min(decreaseWanted, growable);
+  const increases = allocateProportionally(
+    increaseOthers,
+    others.map((k) => ({
+      key: k,
+      weight: Math.max(1, weights[k]),
+      capacity: Math.max(0, 100 - weights[k]),
+    })),
+  );
+
+  const next = { ...weights, [key]: current - increaseOthers };
+  for (const k of others) next[k] = weights[k] + increases[k];
+  return next;
 }
 
 export function TraitWeightingUI({
@@ -76,9 +186,8 @@ export function TraitWeightingUI({
     };
   }, [businessId]);
 
-  const setKey = (key: keyof TraitWeights, raw: number) => {
-    const next = clampDimension(raw);
-    onChange({ ...weights, [key]: next });
+  const setKey = (key: TraitKey, raw: number) => {
+    onChange(rebalanceWeights(weights, key, raw));
   };
 
   const handleSave = async () => {
@@ -96,7 +205,9 @@ export function TraitWeightingUI({
       <div className="mb-5 flex items-baseline justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold tracking-tight">Trait weighting</h2>
-          <p className="mt-0.5 text-sm text-[#6B7280]">Allocate 100% across six dimensions (minimum 5% each).</p>
+          <p className="mt-0.5 text-sm text-[#6B7280]">
+            Allocate 100% across six dimensions (minimum 5% each). Adjust one slider and others rebalance automatically.
+          </p>
         </div>
         <p
           className={`shrink-0 text-sm font-medium tabular-nums ${totalOk ? 'text-emerald-600' : 'text-red-600'}`}

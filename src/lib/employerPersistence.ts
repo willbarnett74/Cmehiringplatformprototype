@@ -18,6 +18,7 @@ export type EmployerProfileMeta = {
   userId: string;
   role: string;
   employer_status: EmployerStatus | null;
+  onboarding_complete: boolean;
   onboarding_step: string;
   onboarding_completed_at: string | null;
   businessId: string | null;
@@ -41,7 +42,7 @@ export async function fetchEmployerProfileMeta(
 ): Promise<EmployerProfileMeta> {
   const { data: profile, error: pErr } = await client
     .from('profiles')
-    .select('role, employer_status, onboarding_step, onboarding_completed_at')
+    .select('role, employer_status, onboarding_complete, onboarding_step, onboarding_completed_at')
     .eq('id', userId)
     .maybeSingle();
   if (pErr) throw pErr;
@@ -57,6 +58,7 @@ export async function fetchEmployerProfileMeta(
     userId,
     role: profile.role as string,
     employer_status: (profile.employer_status as EmployerStatus | null) ?? null,
+    onboarding_complete: Boolean(profile.onboarding_complete),
     onboarding_step: (profile.onboarding_step as string) ?? 'employer_company',
     onboarding_completed_at:
       typeof profile.onboarding_completed_at === 'string' ? profile.onboarding_completed_at : null,
@@ -113,7 +115,7 @@ export async function updateEmployerBusiness(
 }
 
 export function isEmployerOnboardingComplete(meta: EmployerProfileMeta): boolean {
-  return Boolean(meta.onboarding_completed_at) || Boolean(meta.businessId);
+  return meta.onboarding_complete;
 }
 
 export function resolveEmployerOnboardingStep(meta: EmployerProfileMeta): EmployerOnboardingStepDb {

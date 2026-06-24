@@ -98,7 +98,7 @@ export async function navigateAfterSignIn(
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('role, employer_status, onboarding_completed_at, onboarding_step')
+    .select('role, employer_status, onboarding_complete, onboarding_completed_at, onboarding_step')
     .eq('id', session.user.id)
     .maybeSingle();
 
@@ -114,7 +114,7 @@ export async function navigateAfterSignIn(
 
   const { data: refreshedProfile, error: refreshError } = await supabase
     .from('profiles')
-    .select('role, employer_status, onboarding_completed_at, onboarding_step')
+    .select('role, employer_status, onboarding_complete, onboarding_completed_at, onboarding_step')
     .eq('id', session.user.id)
     .maybeSingle();
 
@@ -170,14 +170,9 @@ export async function navigateAfterSignIn(
       return;
     }
 
-    const { data: businessRow } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('owner_id', session.user.id)
-      .maybeSingle();
-
-    const onboardingComplete =
-      Boolean(refreshedProfile.onboarding_completed_at) || Boolean(businessRow?.id);
+    const onboardingComplete = Boolean(
+      (refreshedProfile as { onboarding_complete?: boolean | null }).onboarding_complete,
+    );
     const step = (refreshedProfile as { onboarding_step?: string | null }).onboarding_step;
 
     if (!onboardingComplete) {
