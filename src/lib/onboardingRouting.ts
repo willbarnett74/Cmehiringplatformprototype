@@ -1,6 +1,9 @@
 /** Logged-in applicant shell (dashboard, profile builder, etc.) */
 export const APPLICANT_PORTAL_PATH = '/applicant-portal';
 
+/** Opens ApplicantScreen on Profile Builder (section 1) instead of the dashboard. */
+export const APPLICANT_PROFILE_BUILDER_PATH = `${APPLICANT_PORTAL_PATH}?view=profile-builder`;
+
 /** DB values on public.profiles.onboarding_step */
 export type OnboardingStepDb = 'welcome' | 'details' | 'how_it_works' | 'completed';
 

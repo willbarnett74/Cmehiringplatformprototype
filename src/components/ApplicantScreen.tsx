@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { IntakeSection1 } from './applicant-pages/intake/IntakeSection1';
 import { IntakeSection2 } from './applicant-pages/intake/IntakeSection2';
 import { IntakeSection3 } from './applicant-pages/intake/IntakeSection3';
@@ -50,6 +50,7 @@ import {
 
 export function ApplicantScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profileData, updateIntakeSection, updateTraitScores, markIntakeComplete, replaceProfileData, updateProfileData } =
     useUserProfile();
   const [activeSection, setActiveSection] = useState<
@@ -75,6 +76,16 @@ export function ApplicantScreen() {
   const [showTraitLockInterstitial, setShowTraitLockInterstitial] = useState(true);
   const [pendingIntakeCompletion, setPendingIntakeCompletion] = useState(false);
   const [preSubmitTraitReview, setPreSubmitTraitReview] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('view') !== 'profile-builder') return;
+    setActiveSection('profileBuilder');
+    setActiveStep(1);
+    params.delete('view');
+    const nextSearch = params.toString();
+    navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   const goToOpportunities = useCallback(() => {
     setActiveSection('opportunities');

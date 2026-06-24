@@ -1,7 +1,11 @@
 import type { NavigateFunction } from 'react-router-dom';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OnboardingStepDb } from './onboardingRouting';
-import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from './onboardingRouting';
+import {
+  APPLICANT_PORTAL_PATH,
+  APPLICANT_PROFILE_BUILDER_PATH,
+  pathForOnboardingDbStep,
+} from './onboardingRouting';
 import {
   EMPLOYER_PORTAL_PATH,
   isEmployerOnboardingStep,
@@ -80,7 +84,7 @@ function isSafeInternalPath(path: string): boolean {
 /** Legacy URL before /applicant-portal */
 function normalizePostAuthPath(path: string | undefined): string | undefined {
   if (path == null) return undefined;
-  if (path === '/profile-builder') return APPLICANT_PORTAL_PATH;
+  if (path === '/profile-builder') return APPLICANT_PROFILE_BUILDER_PATH;
   if (path.startsWith('/profile-builder?')) {
     return APPLICANT_PORTAL_PATH + path.slice('/profile-builder'.length);
   }

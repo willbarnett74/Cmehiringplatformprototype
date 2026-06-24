@@ -10,7 +10,10 @@ import {
   explainProfileOnboardingWriteFailure,
   setProfileOnboardingStep,
 } from '../lib/applicantPersistence';
-import { APPLICANT_PORTAL_PATH, pathForOnboardingDbStep } from '../lib/onboardingRouting';
+import {
+  APPLICANT_PROFILE_BUILDER_PATH,
+  pathForOnboardingDbStep,
+} from '../lib/onboardingRouting';
 import type { WelcomeUiStep } from '../lib/onboardingRouting';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { AnalyticsEvents, trackEvent } from '../lib/analytics';
@@ -136,7 +139,7 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
             : old,
       );
       await queryClient.refetchQueries({ queryKey: [...PROFILE_ONBOARDING_QUERY_ROOT, userId] });
-      navigate(APPLICANT_PORTAL_PATH, { replace: true });
+      navigate(APPLICANT_PROFILE_BUILDER_PATH, { replace: true });
     } finally {
       setRouteSyncBusy(false);
     }
@@ -169,7 +172,7 @@ export function OnboardingStepPage({ uiStep }: { uiStep: WelcomeUiStep }) {
     <ApplicantWelcomePage
       userId={userId}
       profileId={profileId}
-      onComplete={() => navigate(APPLICANT_PORTAL_PATH, { replace: true })}
+      onComplete={() => navigate(APPLICANT_PROFILE_BUILDER_PATH, { replace: true })}
       routeSync={{
         activeStep: uiStep,
         goToOnboardingStep,
