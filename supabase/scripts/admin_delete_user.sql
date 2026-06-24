@@ -1,0 +1,10 @@
+-- Admin user deletion helpers.
+--
+-- EASIEST (recommended): Supabase Dashboard -> Table Editor -> profiles
+-- Select the row -> Delete row. Triggers remove businesses, auth user, etc.
+--
+-- OPTIONAL preview via SQL (replace UUID; do not paste the placeholder text):
+-- select public.admin_delete_user('00000000-0000-0000-0000-000000000000'::uuid, true);
+--
+-- OPTIONAL hard delete via SQL (same result as Table Editor delete):
+-- select public.admin_delete_user('00000000-0000-0000-0000-000000000000'::uuid, false);
