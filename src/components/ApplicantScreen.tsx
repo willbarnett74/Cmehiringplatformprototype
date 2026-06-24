@@ -150,10 +150,10 @@ export function ApplicantScreen() {
   }, [navigate, replaceProfileData]);
 
   const handleSignOut = async () => {
-    navigate('/', { replace: true });
     if (supabase) {
       await supabase.auth.signOut();
     }
+    navigate('/onboarding/sign-in', { replace: true });
   };
 
   // Safety check - ensure profileData is available

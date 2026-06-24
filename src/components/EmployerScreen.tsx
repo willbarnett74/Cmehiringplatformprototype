@@ -256,8 +256,8 @@ export function EmployerScreen() {
       .toUpperCase() || 'EM';
 
   const handleSignOut = async () => {
-    navigate('/', { replace: true });
     if (supabase) await supabase.auth.signOut();
+    navigate('/onboarding/sign-in', { replace: true });
   };
 
   const EmployerNavBtn = ({
