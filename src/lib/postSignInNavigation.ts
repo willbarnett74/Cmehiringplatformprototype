@@ -30,6 +30,54 @@ export type SignInLocationState = {
   from?: string;
 };
 
+function normalizeProfileRoleFromMetadata(value: unknown): 'candidate' | 'employer' {
+  if (value === 'employer') return 'employer';
+  if (value === 'applicant' || value === 'candidate') return 'candidate';
+  return 'candidate';
+}
+
+function profileDisplayNameFromMetadata(meta: Record<string, unknown> | undefined): string | null {
+  if (!meta) return null;
+  const fullName =
+    (typeof meta.full_name === 'string' && meta.full_name.trim()) ||
+    (typeof meta.name === 'string' && meta.name.trim()) ||
+    (typeof meta.user_name === 'string' && meta.user_name.trim()) ||
+    (typeof meta.preferred_username === 'string' && meta.preferred_username.trim()) ||
+    '';
+  return fullName || null;
+}
+
+async function ensureProfileRowForSession(
+  supabase: SupabaseClient,
+  sessionUserId: string,
+  roleHint: 'candidate' | 'employer' | null,
+): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user || user.id !== sessionUserId) return;
+
+  const meta = (user.user_metadata as Record<string, unknown> | undefined) ?? undefined;
+  const role = roleHint ?? normalizeProfileRoleFromMetadata(meta?.role);
+  const onboardingStep = role === 'employer' ? 'employer_company' : 'welcome';
+
+  const { error } = await supabase.from('profiles').insert({
+    id: sessionUserId,
+    email: user.email ?? '',
+    full_name: profileDisplayNameFromMetadata(meta),
+    role,
+    onboarding_complete: false,
+    onboarding_step: onboardingStep,
+    onboarding_completed_at: null,
+    employer_status: role === 'employer' ? 'pending' : null,
+  });
+
+  // Duplicate profile row means another request created it first — safe to ignore.
+  if (error && error.code !== '23505') {
+    console.warn('[CMe] ensure profile row failed:', error.message);
+  }
+}
+
 export function persistRestoreTabToSession(restoreTab: RestoreTabValue | undefined): void {
   if (restoreTab === 'applicant' || restoreTab === 'employer') {
     sessionStorage.setItem(RESTORE_TAB_STORAGE_KEY, restoreTab);
@@ -96,18 +144,32 @@ export async function navigateAfterSignIn(
   } = await supabase.auth.getSession();
   if (!session?.user?.id) return;
 
-  const { data: profile, error } = await supabase
+  let { data: profile, error } = await supabase
     .from('profiles')
     .select('role, employer_status, onboarding_complete, onboarding_completed_at, onboarding_step')
     .eq('id', session.user.id)
     .maybeSingle();
+
+  const signupRole = state?.signupRole ?? consumeSignupRoleFromSession();
+  const roleHint: 'candidate' | 'employer' | null =
+    signupRole === 'candidate' || signupRole === 'employer' ? signupRole : null;
+
+  if (!error && !profile) {
+    await ensureProfileRowForSession(supabase, session.user.id, roleHint);
+    const retry = await supabase
+      .from('profiles')
+      .select('role, employer_status, onboarding_complete, onboarding_completed_at, onboarding_step')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    profile = retry.data;
+    error = retry.error;
+  }
 
   if (error || !profile) {
     navigate(pathForOnboardingDbStep('welcome'), { replace: true });
     return;
   }
 
-  const signupRole = state?.signupRole ?? consumeSignupRoleFromSession();
   if (signupRole === 'employer' && profile.role === 'candidate') {
     await claimInitialProfileRole(supabase, 'employer');
   }

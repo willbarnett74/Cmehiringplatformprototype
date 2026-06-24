@@ -214,9 +214,9 @@ export async function upsertActiveEmployerTraitWeightings(
 export async function markEmployerProfileOnboardingComplete(
   client: SupabaseClient,
   userId: string,
-): Promise<void> {
+): Promise<{ error: Error | null }> {
   const now = new Date().toISOString();
-  const { error } = await client
+  const { data, error } = await client
     .from('profiles')
     .update({
       onboarding_complete: true,
@@ -224,9 +224,19 @@ export async function markEmployerProfileOnboardingComplete(
       onboarding_step: 'completed',
       updated_at: now,
     })
-    .eq('id', userId);
+    .eq('id', userId)
+    .select('id')
+    .maybeSingle();
 
-  if (error) console.warn('[CMe] profiles onboarding_complete failed:', error.message);
+  if (error) {
+    console.warn('[CMe] profiles onboarding_complete failed:', error.message);
+    return { error: new Error(error.message) };
+  }
+  if (!data) {
+    console.warn('[CMe] markEmployerProfileOnboardingComplete: zero rows updated', { userId });
+    return { error: new Error('profile update affected no rows') };
+  }
+  return { error: null };
 }
 
 export async function setEmployerOnboardingStep(

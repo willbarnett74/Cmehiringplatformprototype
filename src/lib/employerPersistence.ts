@@ -115,7 +115,11 @@ export async function updateEmployerBusiness(
 }
 
 export function isEmployerOnboardingComplete(meta: EmployerProfileMeta): boolean {
-  return meta.onboarding_complete;
+  return (
+    meta.onboarding_complete ||
+    meta.onboarding_step === 'completed' ||
+    meta.onboarding_completed_at != null
+  );
 }
 
 export function resolveEmployerOnboardingStep(meta: EmployerProfileMeta): EmployerOnboardingStepDb {

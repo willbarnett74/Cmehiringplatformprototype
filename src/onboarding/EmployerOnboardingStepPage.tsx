@@ -60,6 +60,7 @@ export function EmployerOnboardingStepPage({ stepKey }: { stepKey: StepKey }) {
   const [savedBusinessId, setSavedBusinessId] = useState<string | null>(ctx?.businessId ?? null);
   const [busy, setBusy] = useState(false);
   const [companyError, setCompanyError] = useState<string | null>(null);
+  const [finishError, setFinishError] = useState<string | null>(null);
 
   const current = STEP_META.find((s) => s.key === stepKey)!;
   const currentStep = current.number;
@@ -91,8 +92,14 @@ export function EmployerOnboardingStepPage({ stepKey }: { stepKey: StepKey }) {
       return;
     }
     setBusy(true);
+    setCompanyError(null);
+    setFinishError(null);
     try {
-      await markEmployerProfileOnboardingComplete(supabase, userId);
+      const { error } = await markEmployerProfileOnboardingComplete(supabase, userId);
+      if (error) {
+        setFinishError('We could not finish setup. Please try again.');
+        return;
+      }
       try {
         localStorage.setItem('cme_employer_onboarding_complete', 'true');
       } catch {
@@ -103,9 +110,16 @@ export function EmployerOnboardingStepPage({ stepKey }: { stepKey: StepKey }) {
         [...EMPLOYER_ONBOARDING_QUERY_ROOT, userId],
         (old) =>
           old
-            ? { ...old, onboarding_step: 'completed', onboarding_completed_at: now, businessId: savedBusinessId }
+            ? {
+                ...old,
+                onboarding_complete: true,
+                onboarding_step: 'completed',
+                onboarding_completed_at: now,
+                businessId: savedBusinessId,
+              }
             : old,
       );
+      await queryClient.refetchQueries({ queryKey: [...EMPLOYER_ONBOARDING_QUERY_ROOT, userId] });
       navigate(EMPLOYER_PORTAL_PATH, { replace: true });
     } finally {
       setBusy(false);
@@ -246,6 +260,9 @@ export function EmployerOnboardingStepPage({ stepKey }: { stepKey: StepKey }) {
 
         {busy ? (
           <p className="mt-4 text-center text-xs text-[#9CA3AF]">Saving…</p>
+        ) : null}
+        {finishError ? (
+          <p className="mt-4 text-center text-sm text-[#EF4444]">{finishError}</p>
         ) : null}
       </div>
     </div>
